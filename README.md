@@ -1,5 +1,7 @@
 # OpenBox
 
+English | [中文](README.zh-CN.md)
+
 **An AI Agent execution platform** — give an LLM a safe, isolated sandbox to read, write, run code, and drive a browser, with production-grade orchestration, context management, and multi-tenant isolation.
 
 > A general-purpose agent runtime (inspired by OpenCode/Claude Code), rewritten in Python around **Pydantic AI + LiteLLM**, with every file/command operation confined to a per-session **Docker / Kubernetes sandbox**. Deployed on GCP GKE.
