@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local
+backend/openbox.json
+
+# GKE deployment credentials
+gke-credentials.md
+必要参数.md
+
+# Claude Code
+.claude/
+
+# Test artifacts
+frontend/screenshots/
+frontend/browser_test.mjs
+
+环境文件/
+
+# --- sanitized portfolio copy: never commit secrets ---
+.env
+.env.*
+!.env.example
+credentials/
+*.pem
+*.key
+*token*.json
+gmail_*.json
+secrets.yaml
+aks-secrets.yaml

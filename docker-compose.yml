@@ -1,0 +1,57 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8080
+      - DEBUG=true
+      - SANDBOX_IMAGE=openbox-sandbox:latest
+      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://openbox:openbox@postgres:5432/openbox}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - BLOB_AZURE_CONNECTION_STRING=${BLOB_AZURE_CONNECTION_STRING:-}
+      - BLOB_AZURE_CONTAINER=${BLOB_AZURE_CONTAINER:-ads-staging}
+      - JWT_SECRET=${JWT_SECRET:-}
+    depends_on:
+      - redis
+      - postgres
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=openbox
+      - POSTGRES_PASSWORD=openbox
+      - POSTGRES_DB=openbox
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  redis-data:
+  postgres-data:

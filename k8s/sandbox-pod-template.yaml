@@ -1,0 +1,80 @@
+# Reference template — actual pods are created by KubernetesProvider in code.
+# This file documents the expected pod spec for debugging and review.
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sandbox-{safe_user_id}
+  namespace: openbox-sandbox
+  labels:
+    app: openbox-sandbox
+    openbox.dev/resource-id: "{resource_id}"
+    openbox.dev/user-id: "{safe_user_id}"
+  annotations:
+    openbox.dev/user-id-raw: "{user_id_raw}"
+    openbox.dev/display-name: "{display_name}"
+spec:
+  serviceAccountName: sandbox-pods
+  priorityClassName: sandbox-priority
+  securityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+  volumes:
+    - name: workspace
+      persistentVolumeClaim:
+        claimName: workspace-{safe_user_id}
+    - name: dshm
+      emptyDir:
+        medium: Memory
+        sizeLimit: 256Mi
+    - name: data
+      emptyDir: {}
+  containers:
+    - name: sandbox
+      image: gcr.io/{project}/openbox-sandbox:latest
+      ports:
+        - containerPort: 8000
+      env:
+        - name: SESSION_API_KEY
+          value: "{generated_api_key}"
+      volumeMounts:
+        - name: workspace
+          mountPath: /workspace
+        - name: dshm
+          mountPath: /dev/shm
+        - name: data
+          mountPath: /data
+      resources:
+        requests:
+          cpu: 250m
+          memory: 256Mi
+        limits:
+          cpu: 1000m
+          memory: 1Gi
+      readinessProbe:
+        httpGet:
+          path: /alive
+          port: 8000
+        initialDelaySeconds: 2
+        periodSeconds: 3
+      livenessProbe:
+        httpGet:
+          path: /alive
+          port: 8000
+        initialDelaySeconds: 10
+        periodSeconds: 30
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sandbox-{safe_user_id}
+  namespace: openbox-sandbox
+spec:
+  type: ClusterIP
+  selector:
+    app: openbox-sandbox
+    openbox.dev/resource-id: "{resource_id}"
+  ports:
+    - port: 8000
+      targetPort: 8000

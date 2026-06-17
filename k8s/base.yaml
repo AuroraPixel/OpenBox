@@ -1,0 +1,305 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openbox-sandbox
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openbox
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: openbox-backend
+  namespace: openbox
+  annotations:
+    iam.gke.io/gcp-service-account: openbox-backend@PROJECT_ID.iam.gserviceaccount.com
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sandbox-pods
+  namespace: openbox-sandbox
+  annotations:
+    iam.gke.io/gcp-service-account: openbox-sandbox@PROJECT_ID.iam.gserviceaccount.com
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: sandbox-manager
+  namespace: openbox-sandbox
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["create", "delete", "get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["create", "delete", "get", "list"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["create", "delete", "get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: backend-sandbox-manager
+  namespace: openbox-sandbox
+subjects:
+  - kind: ServiceAccount
+    name: openbox-backend
+    namespace: openbox
+roleRef:
+  kind: Role
+  name: sandbox-manager
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: sandbox-priority
+value: 100000
+globalDefault: false
+description: "Priority class for OpenBox sandbox pods"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openbox-backend
+  namespace: openbox
+  labels:
+    app: openbox-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: openbox-backend
+  template:
+    metadata:
+      labels:
+        app: openbox-backend
+    spec:
+      serviceAccountName: openbox-backend
+      containers:
+        - name: backend
+          image: gcr.io/PROJECT_ID/openbox-backend:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SANDBOX_PROVIDER
+              value: "kubernetes"
+            - name: K8S_NAMESPACE
+              value: "openbox-sandbox"
+            - name: K8S_SANDBOX_SERVICE_ACCOUNT
+              value: "sandbox-pods"
+            - name: SANDBOX_IMAGE
+              valueFrom:
+                secretKeyRef:
+                  name: openbox-secrets
+                  key: SANDBOX_IMAGE
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: openbox-secrets
+                  key: DATABASE_URL
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: openbox-secrets
+                  key: REDIS_URL
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: openbox-secrets
+                  key: JWT_SECRET
+            - name: BLOB_PROVIDER
+              value: "azure"
+            - name: BLOB_AZURE_CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: openbox-secrets
+                  key: BLOB_AZURE_CONNECTION_STRING
+            - name: BLOB_AZURE_CONTAINER
+              valueFrom:
+                secretKeyRef:
+                  name: openbox-secrets
+                  key: BLOB_AZURE_CONTAINER
+            - name: OPENBOX_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: openbox-secrets
+                  key: OPENBOX_API_KEY
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: openbox-secrets
+                  key: OPENAI_API_KEY
+            - name: OPENAI_BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: openbox-secrets
+                  key: OPENAI_BASE_URL
+            - name: TAVILY_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: openbox-secrets
+                  key: TAVILY_API_KEY
+            - name: MAX_CONCURRENT_AGENTS
+              valueFrom:
+                secretKeyRef:
+                  name: openbox-secrets
+                  key: MAX_CONCURRENT_AGENTS
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openbox-backend
+  namespace: openbox
+spec:
+  type: ClusterIP
+  selector:
+    app: openbox-backend
+  ports:
+    - port: 8080
+      targetPort: 8080
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openbox-frontend
+  namespace: openbox
+  labels:
+    app: openbox-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: openbox-frontend
+  template:
+    metadata:
+      labels:
+        app: openbox-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: gcr.io/PROJECT_ID/openbox-frontend:latest
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openbox-frontend
+  namespace: openbox
+spec:
+  type: ClusterIP
+  selector:
+    app: openbox-frontend
+  ports:
+    - port: 80
+      targetPort: 80
+
+---
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: openbox-backend-config
+  namespace: openbox
+spec:
+  timeoutSec: 3600
+  connectionDraining:
+    drainingTimeoutSec: 60
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openbox-backend-ws
+  namespace: openbox
+  annotations:
+    cloud.google.com/backend-config: '{"default": "openbox-backend-config"}'
+spec:
+  type: ClusterIP
+  selector:
+    app: openbox-backend
+  ports:
+    - port: 8080
+      targetPort: 8080
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: openbox-ingress
+  namespace: openbox
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: openbox-backend
+                port:
+                  number: 8080
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: openbox-backend-ws
+                port:
+                  number: 8080
+          - path: /health
+            pathType: Exact
+            backend:
+              service:
+                name: openbox-backend
+                port:
+                  number: 8080
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: openbox-frontend
+                port:
+                  number: 80

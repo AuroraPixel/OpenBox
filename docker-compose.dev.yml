@@ -1,0 +1,26 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    environment:
+      POSTGRES_DB: openbox
+      POSTGRES_USER: openbox
+      POSTGRES_PASSWORD: openbox_dev
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    restart: unless-stopped
+
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    ports: ["10000:10000"]
+    volumes: [azurite-data:/data]
+    command: azurite-blob --blobHost 0.0.0.0
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  azurite-data:

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenAgent Browser</title>
+    <script type="module" crossorigin src="/chunks/popup-CCfo_eA0.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/popup-DJd9Onfv.css">
+  </head>
+  <body>
+    <div class="popup">
+      <h1>OpenAgent Browser</h1>
+
+      <!-- Auth Status -->
+      <div class="auth-section">
+        <p id="auth-status" class="auth-status checking">Checking login...</p>
+      </div>
+
+      <hr class="divider">
+
+      <!-- Toggle -->
+      <div class="toggle-row">
+        <label class="toggle">
+          <input type="checkbox" id="active-toggle">
+          <span class="slider"></span>
+        </label>
+        <span id="status-text">Inactive</span>
+      </div>
+      <p id="connection-status" class="connection-status"></p>
+
+      <!-- Client ID (readonly info) -->
+      <p id="client-id-info" class="config-status" style="font-size:10px;opacity:0.5;margin-top:8px"></p>
+    </div>
+  </body>
+</html>

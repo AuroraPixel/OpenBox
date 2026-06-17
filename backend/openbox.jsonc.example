@@ -1,0 +1,81 @@
+{
+  // OpenBox config example
+  // Copy to openbox.json or openbox.jsonc and modify
+  // Supports // and /* */ comments in both .json and .jsonc
+
+  // Default LLM model (LiteLLM format: "provider/model")
+  "model": "anthropic/claude-sonnet-4-20250514",
+
+  // Lightweight model for MCP tool filtering (uses same provider gateway).
+  // A fast/cheap model that picks relevant tools from large MCP tool lists.
+  // Leave empty to use the default model.
+  "mcp_filter_model": "openai/gpt-5.2",
+
+  // Provider-specific config: api_key, base_url, extra options
+  // Key = provider name (matches model prefix before "/")
+  "provider": {
+    "anthropic": {
+      "api_key": "{env:ANTHROPIC_API_KEY}",
+      "base_url": null
+    },
+    "openai": {
+      "api_key": "{env:OPENAI_API_KEY}",
+      "base_url": null
+    }
+    // Custom / self-hosted example:
+    // "custom": {
+    //   "api_key": "sk-xxx",
+    //   "base_url": "https://your-proxy.example.com/v1",
+    //   "options": {}
+    // }
+  },
+
+  // Per-agent overrides
+  "agent": {
+    // "build": { "model": "openai/gpt-4o", "max_steps": 100 },
+    // "explore": { "model": "anthropic/claude-haiku-4-20250514" }
+  },
+
+  // Permission rules
+  "permission": {},
+
+  // MCP server connections
+  "mcp": {
+    // Local stdio server:
+    // "my-server": {
+    //   "type": "local",
+    //   "command": ["npx", "-y", "@anthropic/mcp-server-xxx"],
+    //   "env": {},
+    //   "enabled": true,
+    //   "timeout": 60
+    // },
+    // Remote server with custom headers:
+    // "tavily": {
+    //   "type": "remote",
+    //   "url": "https://mcp.tavily.com/mcp",
+    //   "headers": { "X-Api-Key": "your-api-key" },
+    //   "timeout": 30
+    // },
+    // Remote server with OAuth (supports auto-discovery + PKCE):
+    // "github": {
+    //   "type": "remote",
+    //   "url": "https://mcp.github.com/sse",
+    //   "oauth": {
+    //     "client_id": "your-client-id",
+    //     "client_secret": "your-secret",
+    //     "authorize_url": "https://github.com/login/oauth/authorize",
+    //     "token_url": "https://github.com/login/oauth/access_token",
+    //     "scope": "read:user repo"
+    //   }
+    // }
+  },
+
+  // Context compaction settings
+  "compaction": {
+    "auto": true,
+    "prune": true
+  },
+
+  // Extra instruction file paths or URLs
+  "instructions": []
+}

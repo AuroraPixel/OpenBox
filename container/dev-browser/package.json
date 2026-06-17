@@ -1,0 +1,23 @@
+{
+  "name": "dev-browser",
+  "version": "0.0.1",
+  "type": "module",
+  "imports": {
+    "@/*": "./src/*"
+  },
+  "scripts": {
+    "start-relay": "npx tsx scripts/start-relay.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.7",
+    "@hono/node-ws": "^1.2.0",
+    "hono": "^4.11.1",
+    "playwright": "^1.49.0",
+    "tsx": "^4.21.0"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-linux-x64-gnu": "^4.0.0"
+  }
+}
