@@ -1,6 +1,7 @@
 """Agent loop: the core orchestration engine."""
 import asyncio
 import time
+from dataclasses import dataclass
 
 _background_tasks: set[asyncio.Task] = set()  # prevent GC of fire-and-forget tasks
 
@@ -9,6 +10,7 @@ from agent.caching import apply_caching
 from agent.compaction import is_overflow, create_compaction, process_compaction, prune_tool_outputs, get_model_context_limit
 from agent.hooks import ToolHooks
 from agent.processor import StepOutcome, process_step
+from agent.tool_resolution import resolve_step_tools
 from agent.llm import stream_llm
 from agent.retry import with_retry, ContextOverflowError, is_context_overflow, is_retryable, retry_delay
 from bus import bus
@@ -27,7 +29,6 @@ from session.session import (
 )
 from session.status import get_abort_signal, clear_abort
 from snapshot import snapshot
-from tool.registry import get_tools_for_agent
 from tool.tool import ToolContext, ToolResult
 from core.identifier import ascending
 from core.log import create_logger
@@ -118,6 +119,71 @@ Response must include:
 - Recommendations for what should be done next
 
 Any attempt to use tools is a critical violation. Respond with text ONLY."""
+
+
+
+@dataclass
+class MessageScan:
+    """The three messages the loop's decisions hinge on."""
+
+    last_user: object | None = None
+    last_assistant: object | None = None
+    last_finished: object | None = None   # newest assistant carrying a finish reason
+
+
+def scan_messages(msgs: list) -> MessageScan:
+    """Walk history backwards for the messages that drive the next decision.
+
+    Stops as soon as both anchors are found rather than reading the whole
+    transcript — history grows without bound and this runs every step.
+    Mirrors opencode's scan in session/prompt.ts.
+    """
+    scan = MessageScan()
+    for msg in reversed(msgs):
+        role = msg.role if isinstance(msg.role, str) else msg.role.value
+        if not scan.last_user and role == "user":
+            scan.last_user = msg
+        if role == "assistant":
+            if not scan.last_assistant:
+                scan.last_assistant = msg
+            if not scan.last_finished and msg.finish:
+                scan.last_finished = msg
+        if scan.last_user and scan.last_finished:
+            break
+    return scan
+
+
+def resolve_agent_name(last_user, session) -> str:
+    """Which agent runs this step.
+
+    The user message wins over the session because tools that hand control
+    over — plan_exit, for one — do it by synthesising a user message naming
+    the agent to switch to.
+    """
+    return (getattr(last_user, "agent", None)
+            or getattr(session, "agent", None)
+            or "build")
+
+
+def apply_agent_overrides(agent_def, overrides):
+    """Layer per-agent config onto a definition, in place.
+
+    `permission` accumulates rather than replaces: config rules are meant to
+    tighten an agent's defaults, not discard them.
+    """
+    if not overrides:
+        return agent_def
+    if overrides.model:
+        agent_def.model = overrides.model
+    if overrides.temperature is not None:
+        agent_def.temperature = overrides.temperature
+    if overrides.max_steps is not None:
+        agent_def.max_steps = overrides.max_steps
+    if overrides.prompt is not None:
+        agent_def.prompt = overrides.prompt
+    if overrides.permission:
+        agent_def.permission = agent_def.permission + overrides.permission
+    return agent_def
 
 
 async def _has_pending_todos(session_id: str) -> bool:
@@ -331,23 +397,10 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
                 last_finished_tokens = None
                 continue
 
-            # Scan for key messages (matching opencode's scan pattern)
-            last_user = None
-            last_assistant = None
-            last_finished = None  # Last assistant with a finish field set
-            tasks = []  # Pending compaction/subtask parts
-
-            for msg in reversed(msgs):
-                role = msg.role if isinstance(msg.role, str) else msg.role.value
-                if not last_user and role == "user":
-                    last_user = msg
-                if not last_assistant and role == "assistant":
-                    last_assistant = msg
-                if not last_finished and role == "assistant" and msg.finish:
-                    last_finished = msg
-                if last_user and last_finished:
-                    break
-
+            scan = scan_messages(msgs)
+            last_user, last_assistant, last_finished = (
+                scan.last_user, scan.last_assistant, scan.last_finished,
+            )
             if not last_user:
                 break
 
@@ -375,7 +428,7 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
                 asyncio.create_task(_ensure_title(session_id, last_user, user_id=user_id))
 
             # Get agent definition (copy to avoid mutating global)
-            agent_name = last_user.agent or session.agent or "build"
+            agent_name = resolve_agent_name(last_user, session)
 
             # Sync session agent if the user message requests a different one
             # (e.g. plan_exit creates a synthetic user message with agent="build")
@@ -394,68 +447,13 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
             agent_def = copy.copy(get_agent(agent_name))
             agent_def.permission = list(agent_def.permission)  # Deep copy the mutable list
 
-            # Apply config overrides for this agent (Task 5)
-            config_agent_overrides = config.agent.get(agent_name) if config.agent else None
-            if config_agent_overrides:
-                if config_agent_overrides.model:
-                    agent_def.model = config_agent_overrides.model
-                if config_agent_overrides.temperature is not None:
-                    agent_def.temperature = config_agent_overrides.temperature
-                if config_agent_overrides.max_steps is not None:
-                    agent_def.max_steps = config_agent_overrides.max_steps
-                if config_agent_overrides.prompt is not None:
-                    agent_def.prompt = config_agent_overrides.prompt
-                if config_agent_overrides.permission:
-                    agent_def.permission = agent_def.permission + config_agent_overrides.permission
+            # Apply per-agent config overrides
+            apply_agent_overrides(
+                agent_def, config.agent.get(agent_name) if config.agent else None
+            )
 
-            # Resolve tools
-            tools = get_tools_for_agent(agent_def.tools)
-
-            # Merge MCP tools from the container (if available)
-            if sandbox:
-                try:
-                    from tool.mcp_tool import create_mcp_tools, create_mcp_resource_tool
-                    mcp_tools = await create_mcp_tools(sandbox)
-                    tools.update(mcp_tools)
-                    # Add resource reader tool if any MCP resources exist
-                    try:
-                        resources = await sandbox.list_mcp_resources()
-                        if resources:
-                            rt = create_mcp_resource_tool()
-                            tools[rt.id] = rt
-                    except Exception:
-                        pass
-                except Exception as e:
-                    log.debug(f"MCP tools not available: {e}")
-
-            # Enrich the skill tool description with available skills listing
-            if "skill" in tools:
-                try:
-                    from tool.skill_tool import build_skill_tool_with_listing
-                    tools["skill"] = await build_skill_tool_with_listing(sandbox)
-                except Exception as e:
-                    log.debug(f"Failed to enrich skill tool: {e}")
-
-            # Build permission rules from config (needed by both disabled_tools and hooks)
             config_rules = _get_permission_rules(config)
-
-            # Remove tools that are denied by the merged permission rules.
-            # This prevents the LLM from seeing denied tools in the schema,
-            # matching opencode's PermissionNext.disabled() + resolveTools().
-            from permission.permission import disabled_tools, Rule as PermRule
-            agent_ruleset = [
-                PermRule(
-                    permission=r.get("permission", "*"),
-                    pattern=r.get("pattern", "*"),
-                    action=r.get("action", "ask"),
-                )
-                for r in agent_def.permission
-                if isinstance(r, dict)
-            ]
-            merged_ruleset = config_rules + agent_ruleset
-            denied = disabled_tools(list(tools.keys()), merged_ruleset)
-            for tool_name in denied:
-                tools.pop(tool_name, None)
+            tools = await resolve_step_tools(agent_def, sandbox, config_rules)
 
             # Build context with session-specific working directory
             session_workdir = sandbox_manager.get_session_workdir(session_id)
