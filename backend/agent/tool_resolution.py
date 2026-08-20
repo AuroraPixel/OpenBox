@@ -44,8 +44,8 @@ def strip_denied(tools: dict, config_rules: list, agent_def) -> dict:
     return {name: t for name, t in tools.items() if name not in denied}
 
 
-async def merge_sandbox_tools(tools: dict, sandbox) -> dict:
-    """Add tools that only exist because a sandbox is attached (MCP, skills).
+async def merge_sandbox_tools(tools: dict, sandbox, ruleset: list | None = None) -> dict:
+    """Add the MCP tools a sandbox exposes.
 
     Every failure here is downgraded to a debug log: a sandbox without MCP
     configured is the normal case, not an error, and a run with fewer tools is
@@ -67,19 +67,33 @@ async def merge_sandbox_tools(tools: dict, sandbox) -> dict:
     except Exception as e:
         log.debug(f"MCP tools not available: {e}")
 
-    if "skill" in tools:
-        try:
-            from tool.skill_tool import build_skill_tool_with_listing
+    return tools
 
-            tools["skill"] = await build_skill_tool_with_listing(sandbox)
-        except Exception as e:
-            log.debug(f"Failed to enrich skill tool: {e}")
 
+async def attach_skill_listing(tools: dict, sandbox, ruleset: list | None = None) -> dict:
+    """Advertise the available skills in the skill tool's description.
+
+    Deliberately not gated on a sandbox. Skills are discovered locally as well
+    as in the container, and running without one used to mean the model was
+    handed the skill tool with no idea which skills existed — so it never
+    called it.
+    """
+    if "skill" not in tools:
+        return tools
+    try:
+        from tool.skill_tool import build_skill_tool_with_listing
+
+        tools["skill"] = await build_skill_tool_with_listing(sandbox, ruleset)
+    except Exception as e:
+        log.debug(f"Failed to enrich skill tool: {e}")
     return tools
 
 
 async def resolve_step_tools(agent_def, sandbox, config_rules: list) -> dict:
     """The full set of tools a step may call, schema included."""
     tools = get_tools_for_agent(agent_def.tools)
-    tools = await merge_sandbox_tools(tools, sandbox)
+    # The same rules that strip tools also decide which skills are worth listing.
+    ruleset = list(config_rules) + agent_ruleset(agent_def)
+    tools = await merge_sandbox_tools(tools, sandbox, ruleset)
+    tools = await attach_skill_listing(tools, sandbox, ruleset)
     return strip_denied(tools, config_rules, agent_def)
