@@ -17,6 +17,7 @@ import { LandingPage } from "@/pages/LandingPage"
 import { LoginPage } from "@/pages/LoginPage"
 import { useKeyboard } from "@/hooks/useKeyboard"
 import { useSessionStore } from "@/stores/session"
+import { useProjectStore } from "@/stores/project"
 import { usePermissionStore } from "@/stores/permission"
 import { useQuestionStore } from "@/stores/question"
 import { useTerminalStore } from "@/stores/terminal"
@@ -82,6 +83,10 @@ function AuthGate() {
     const last = lastUserIdRef.current
     if (!isAuthenticated) {
       useSessionStore.getState().reset()
+      // Only on a real sign-out. This effect also runs on the first render,
+      // before the token refresh resolves, and clearing there would drop the
+      // remembered project on every reload.
+      if (last) useProjectStore.getState().reset()
       usePermissionStore.getState().clearAll()
       useQuestionStore.getState().clearAll()
       queryClient.removeQueries()
@@ -89,6 +94,7 @@ function AuthGate() {
     }
     if (last && authUserId && last !== authUserId) {
       useSessionStore.getState().reset()
+      useProjectStore.getState().reset()
       usePermissionStore.getState().clearAll()
       useQuestionStore.getState().clearAll()
       queryClient.removeQueries()
@@ -184,7 +190,11 @@ function AppInner() {
   // Fetch session list from backend and populate store
   const { data: sessionList } = useQuery({
     queryKey: ["sessions", authUserId],
-    queryFn: api.listSessions,
+    // Wrapped, not passed bare: react-query calls queryFn with its context
+    // object, which would arrive as listSessions' projectId argument.
+    // Every session is fetched and the sidebar filters by project client-side,
+    // so switching project is instant and "All projects" needs no refetch.
+    queryFn: () => api.listSessions(),
     staleTime: 30000,
   })
 

@@ -60,10 +60,21 @@ def _orm_to_session(row: SessionORM) -> Session:
     )
 
 
-def plan_path(session: Session) -> str:
-    """Return plan file path inside the sandbox workspace."""
+def plan_path(session: Session, slug: str = "default") -> str:
+    """Where this session's plan file lives, inside its own project.
+
+    Plans used to share one global directory, so two projects planning at once
+    wrote into the same place. They belong with the code they describe.
+    """
     ts = int(datetime.fromisoformat(session.created_at).timestamp() * 1000)
-    return f"/workspace/.openbox/plans/{ts}-{session.slug}.md"
+    from project.workspace import project_directory
+    return f"{project_directory(slug)}/.openbox/plans/{ts}-{session.slug}.md"
+
+
+async def plan_path_for(session: Session) -> str:
+    """plan_path with the session's project resolved."""
+    from project.workspace import slug_for
+    return plan_path(session, await slug_for(session.project_id))
 
 
 async def create_session(
@@ -72,7 +83,7 @@ async def create_session(
     title: str | None = None,
     parent_id: str | None = None,
     user_id: str = "default",
-    project_id: str = "default",
+    project_id: str | None = None,
 ) -> Session:
     """Create a new session."""
     from core.slug import create as create_slug
@@ -83,20 +94,11 @@ async def create_session(
     slug = create_slug()
     final_title = title or f"New session - {now_iso}"
 
-    # Resolve project_id: if "default", look up user's default project
-    if project_id == "default" and user_id != "default":
-        from db.models.project import Project as ProjectORM
-        async with get_db_session() as db:
-            result = await db.execute(
-                select(ProjectORM).where(
-                    ProjectORM.user_id == user_id,
-                    ProjectORM.slug == "default",
-                    ProjectORM.is_deleted == False,
-                )
-            )
-            proj = result.scalar_one_or_none()
-            if proj:
-                project_id = proj.id
+    # A session always belongs to a project; an unrecognised one (or none at
+    # all) lands in the user's default rather than failing the request.
+    if user_id != "default":
+        from project.workspace import resolve_for_session
+        project_id = await resolve_for_session(project_id, user_id)
 
     async with get_db_session() as db:
         row = SessionORM(
@@ -138,6 +140,21 @@ async def create_session(
     return session
 
 
+async def project_id_for(session_id: str) -> str:
+    """The project a session belongs to, looked up by session id alone.
+
+    get_session() scopes by user_id and so needs a caller that knows it. Some
+    internals — the snapshot store, the sandbox workdir — only ever hold a
+    session id, and defaulting the user there silently filed their work under
+    the wrong project. This is not an authorization boundary: it returns a
+    project id for a session the caller is already acting on.
+    """
+    async with get_db_session() as db:
+        return (await db.execute(
+            select(SessionORM.project_id).where(SessionORM.id == session_id)
+        )).scalar_one_or_none() or ""
+
+
 async def get_session(session_id: str, project_id: str = "default", user_id: str = "default") -> Session | None:
     """Get a session by ID (user_id required for ownership check)."""
     async with get_db_session() as db:
@@ -154,16 +171,22 @@ async def get_session(session_id: str, project_id: str = "default", user_id: str
         return _orm_to_session(row)
 
 
-async def list_sessions(project_id: str = "default", user_id: str = "default") -> list[Session]:
-    """List all top-level sessions for a user (excludes child/subtask sessions)."""
+async def list_sessions(project_id: str | None = None, user_id: str = "default") -> list[Session]:
+    """Top-level sessions for a user, optionally narrowed to one project.
+
+    Passing no project returns every session, which is what the "All projects"
+    view in the sidebar shows.
+    """
+    conditions = [
+        SessionORM.user_id == user_id,
+        SessionORM.is_deleted == False,  # noqa: E712
+        SessionORM.parent_id == None,  # noqa: E711
+    ]
+    if project_id:
+        conditions.append(SessionORM.project_id == project_id)
     async with get_db_session() as db:
-        # List all user's sessions (don't filter by project_id for now)
         result = await db.execute(
-            select(SessionORM).where(
-                SessionORM.user_id == user_id,
-                SessionORM.is_deleted == False,
-                SessionORM.parent_id == None,
-            ).order_by(SessionORM.created_at.desc())
+            select(SessionORM).where(*conditions).order_by(SessionORM.created_at.desc())
         )
         return [_orm_to_session(r) for r in result.scalars().all()]
 

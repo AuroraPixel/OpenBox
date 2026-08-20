@@ -20,6 +20,9 @@ class CreateSessionBody(BaseModel):
     model: str = ""
     agent: str = "build"
     title: str | None = None
+    #: Project the session runs in. Accepts an id or a slug; omitting it files
+    #: the session under the user's default project.
+    project_id: str | None = None
 
 
 class PromptBody(BaseModel):
@@ -105,15 +108,19 @@ async def create_session(
         agent=body.agent,
         title=body.title,
         user_id=user_id,
-        project_id="default",
+        project_id=body.project_id,
     )
     return session.model_dump()
 
 
 @router.get("/session")
-async def list_sessions(current_user: dict = Depends(get_current_user)):
+async def list_sessions(
+    project_id: str | None = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """Sessions for the user; pass project_id to narrow to one project."""
     user_id = current_user["user_id"]
-    sessions = await session_mod.list_sessions(user_id=user_id)
+    sessions = await session_mod.list_sessions(project_id=project_id, user_id=user_id)
     return [s.model_dump() for s in sessions]
 
 
@@ -278,13 +285,13 @@ async def accept_plan(session_id: str, current_user: dict = Depends(get_current_
     """User accepted the plan — switch to build agent."""
     user_id = current_user["user_id"]
     from tool.plan import _update_plan_part_status
-    from session.session import get_session, plan_path
+    from session.session import get_session, plan_path_for
 
     await _require_session_owned(session_id, user_id)
     await _update_plan_part_status(session_id, "accepted")
 
     session = await get_session(session_id, user_id=user_id)
-    rel_path = plan_path(session).replace("/workspace/", "") if session else ""
+    rel_path = (await plan_path_for(session)).replace("/workspace/", "") if session else ""
     await session_mod.create_user_message(
         session_id=session_id,
         text=f"The plan at {rel_path} has been approved, you can now edit files. Execute the plan",
@@ -456,8 +463,8 @@ async def get_plan(session_id: str, current_user: dict = Depends(get_current_use
     if not session:
         raise HTTPException(404, "Session not found")
 
-    from session.session import plan_path
-    pp = plan_path(session)
+    from session.session import plan_path_for
+    pp = await plan_path_for(session)
 
     from sandbox import sandbox_manager
     client = await sandbox_manager.get_client(session_id, user_id=user_id)
@@ -479,8 +486,8 @@ async def update_plan(session_id: str, body: PlanUpdateBody, current_user: dict 
     if not session:
         raise HTTPException(404, "Session not found")
 
-    from session.session import plan_path
-    pp = plan_path(session)
+    from session.session import plan_path_for
+    pp = await plan_path_for(session)
 
     from sandbox import sandbox_manager
     client = await sandbox_manager.get_client(session_id, user_id=user_id)

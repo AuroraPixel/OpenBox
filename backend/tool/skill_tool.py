@@ -15,6 +15,12 @@ class SkillArgs(BaseModel):
     args: str = Field(default="", description="Optional arguments for the skill")
 
 
+#: Where the container keeps user-installed skills, and the convenience symlink
+#: inside the workspace that points at it. Built-in skills live elsewhere and
+#: are not covered by that link.
+USER_SKILLS_DIR = "/data/skills"
+WORKSPACE_SKILLS_LINK = "/workspace/skills"
+
 _BASE_DESCRIPTION = """\
 Load a specialized skill that provides domain-specific instructions and workflows.
 
@@ -126,7 +132,12 @@ async def execute(args: SkillArgs, ctx: ToolContext) -> ToolResult:
         output_parts.append("")
         output_parts.append(f"Base directory for this skill: {base_dir}")
         output_parts.append("Relative paths in this skill should be resolved from this directory.")
-        output_parts.append("The skill directory is also symlinked at /workspace/skills/ for convenience.")
+        # Only user-installed skills live under the path /workspace/skills points
+        # at. Saying this for a built-in skill sent the model to an empty
+        # directory, one line after being given the correct base directory.
+        if base_dir.startswith(USER_SKILLS_DIR):
+            output_parts.append(
+                f"The skill directory is also reachable at {WORKSPACE_SKILLS_LINK}/.")
     if files:
         output_parts.append("")
         if host_only:

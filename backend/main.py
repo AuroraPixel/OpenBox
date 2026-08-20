@@ -212,11 +212,13 @@ def create_app() -> FastAPI:
     # ── Agent routes ──
     agent_router = APIRouter(prefix="/api/agent", tags=["Agent"])
 
+    from api.projects import router as project_router
     from api.sessions import router as session_router
     from api.permissions import router as perm_router
     from api.questions import router as question_router
     from api.metadata import router as metadata_router
 
+    agent_router.include_router(project_router)
     agent_router.include_router(session_router)
     agent_router.include_router(perm_router)
     agent_router.include_router(question_router)

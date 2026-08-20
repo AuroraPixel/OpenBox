@@ -17,6 +17,7 @@ from agent.structured_output import (
     requested_schema,
 )
 from agent.tool_resolution import resolve_step_tools
+from project.workspace import ensure_directory, workdir_for_session, slug_for
 from agent.llm import stream_llm
 from agent.retry import with_retry, ContextOverflowError, is_context_overflow, is_retryable, retry_delay
 from bus import bus
@@ -219,9 +220,9 @@ async def _upsert_plan_part(
     Only creates a PlanPart if the current message contains a write tool
     that wrote to the plan file. Updates existing PlanParts with fresh content.
     """
-    from session.session import plan_path as _plan_path, get_messages, get_parts_for_message
+    from session.session import plan_path_for as _plan_path, get_messages, get_parts_for_message
 
-    plan_file = _plan_path(session)
+    plan_file = await _plan_path(session)
     content = None
 
     # Scan current message parts for write tool calls that wrote to a plan file
@@ -336,6 +337,8 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
         # Get sandbox client
         from sandbox import sandbox_manager
         sandbox = await sandbox_manager.get_client(session_id, user_id=user_id)
+        # A project created while the sandbox was down has no directory yet.
+        await ensure_directory(sandbox, await slug_for(session.project_id))
 
         step = 0
         llm_retry_count = 0
@@ -472,8 +475,9 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
                     output_schema, lambda payload: structured.setdefault("value", payload)
                 )
 
-            # Build context with session-specific working directory
-            session_workdir = sandbox_manager.get_session_workdir(session_id)
+            # Sessions run in their project's directory, so a follow-up
+            # conversation lands on the files the last one left behind.
+            session_workdir = await workdir_for_session(session)
             ctx = ToolContext(
                 session_id=session_id,
                 user_id=user_id,
@@ -1047,8 +1051,8 @@ async def _insert_reminders(
         from agent.prompts.plan import build_switch_reminder
         pp = ""
         if session:
-            from session.session import plan_path
-            pp = plan_path(session)
+            from session.session import plan_path_for
+            pp = await plan_path_for(session)
 
         plan_file_exists = False
         if pp and sandbox:
@@ -1089,8 +1093,8 @@ async def _insert_reminders(
 
         pp = ""
         if session:
-            from session.session import plan_path
-            pp = plan_path(session)
+            from session.session import plan_path_for
+            pp = await plan_path_for(session)
         if not pp:
             pp = "/workspace/.openbox/plans/plan.md"
 

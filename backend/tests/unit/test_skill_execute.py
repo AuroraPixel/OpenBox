@@ -127,3 +127,21 @@ async def test_arguments_are_substituted(host_skill):
         "---\nname: demo\ndescription: d\n---\nTarget is $ARGUMENTS")
     out = (await execute(SkillArgs(skill="demo", args="prod"), ctx())).output
     assert "Target is prod" in out
+
+
+@pytest.mark.asyncio
+async def test_the_workspace_symlink_is_only_claimed_for_user_skills(host_skill):
+    # /workspace/skills points at /data/skills, which holds user-installed
+    # skills only. Telling the model a built-in skill is reachable there sent
+    # it to an empty directory one line after giving it the right path.
+    builtin = {"content": "b", "base_dir": "/opt/openbox/skills/dev-browser", "files": ["a.py"]}
+    out = (await execute(SkillArgs(skill="dev-browser"), ctx(LiveSandbox(builtin)))).output
+    assert "/opt/openbox/skills/dev-browser" in out
+    assert "/workspace/skills" not in out
+
+
+@pytest.mark.asyncio
+async def test_a_user_skill_still_advertises_the_symlink(host_skill):
+    user = {"content": "b", "base_dir": "/data/skills/mine", "files": ["a.py"]}
+    out = (await execute(SkillArgs(skill="mine"), ctx(LiveSandbox(user)))).output
+    assert "/workspace/skills" in out

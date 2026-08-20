@@ -53,11 +53,11 @@ class PlanEnterArgs(BaseModel):
 async def execute_enter(args: PlanEnterArgs, ctx: ToolContext) -> ToolResult:
     """Ask user for confirmation, then create a synthetic plan message."""
     from question.question import ask, Question, QuestionOption
-    from session.session import get_session, plan_path, create_user_message
+    from session.session import get_session, plan_path_for, create_user_message
 
     session = await get_session(ctx.session_id, user_id=ctx.user_id or "default")
     if session:
-        pp = plan_path(session)
+        pp = await plan_path_for(session)
         rel_path = pp.replace("/workspace/", "")
     else:
         rel_path = ".openbox/plans/plan.md"
@@ -126,7 +126,7 @@ async def _update_plan_part_status(session_id: str, status: str, message_id: str
     If no PlanPart exists yet, create one by extracting content from write tool
     parts that wrote to the plan file.
     """
-    from session.session import get_messages, save_part, get_session, plan_path
+    from session.session import get_messages, save_part, get_session, plan_path_for
     from models.message import PlanPart
 
     messages = await get_messages(session_id)
@@ -149,7 +149,7 @@ async def _update_plan_part_status(session_id: str, status: str, message_id: str
 
     # No PlanPart found — create one from write tool content
     session = await get_session(session_id, user_id=user_id)
-    plan_file = plan_path(session) if session else ""
+    plan_file = await plan_path_for(session) if session else ""
     content = ""
     target_msg_id = message_id
 

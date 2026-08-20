@@ -65,3 +65,4 @@ export type {
 export type {
   QuestionOption, Question, QuestionRequest, QuestionAnswer,
 } from "./question"
+export * from "./project"

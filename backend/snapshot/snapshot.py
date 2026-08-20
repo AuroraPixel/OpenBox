@@ -5,19 +5,92 @@ This enables:
 - Computing diffs between steps
 - Reverting to a specific snapshot
 - Tracking file changes across the session
+
+The git store lives *outside* the directory it snapshots — one store per
+project, under /workspace/.openbox/snapshots — driven with `--git-dir` and
+`--work-tree`. Initialising a repo inside the project instead would put a .git
+the agent can see (and commit into) in the middle of the user's files, and
+would collide with whatever repository the agent clones there itself.
+
+Sessions in one project share a directory, so they share a store, so they share
+one index file. Two concurrent `git add -A` runs against one index corrupt it;
+every command here is therefore serialised per store.
 """
 import asyncio
 from dataclasses import dataclass
 
 from core.log import create_logger
+from project.workspace import SNAPSHOT_ROOT, project_directory, slug_for
 
 log = create_logger("snapshot")
 
+#: Paths that must never enter a snapshot. Restoring one would take minutes and
+#: the contents are reproducible from a lockfile. `git clean` also leaves
+#: ignored paths alone, so this doubles as protection during a revert.
+EXCLUDE = [
+    "node_modules/", ".venv/", "venv/", "__pycache__/", ".mypy_cache/",
+    ".pytest_cache/", ".ruff_cache/", "dist/", "build/", ".next/", ".cache/",
+    "target/", "*.pyc", ".DS_Store",
+]
 
-def _get_workdir(session_id: str) -> str:
-    """Get the session-specific working directory for snapshot operations."""
-    from sandbox import sandbox_manager
-    return sandbox_manager.get_session_workdir(session_id)
+#: One lock per store, so two sessions in the same project cannot run git
+#: against the same index at once.
+_locks: dict[str, asyncio.Lock] = {}
+#: Stores already initialised this process; `git init` is idempotent but the
+#: round trip to the sandbox is not free.
+_ready: set[str] = set()
+
+
+def _lock(gitdir: str) -> asyncio.Lock:
+    lock = _locks.get(gitdir)
+    if lock is None:
+        lock = _locks.setdefault(gitdir, asyncio.Lock())
+    return lock
+
+
+@dataclass
+class Store:
+    """Where a session's snapshots are kept, and what they cover."""
+
+    gitdir: str
+    workdir: str
+
+    def git(self, args: str) -> str:
+        return f"git --git-dir={self.gitdir} --work-tree={self.workdir} {args}"
+
+
+async def _store(session_id: str) -> Store:
+    """Resolve the snapshot store for a session's project."""
+    slug = "default"
+    try:
+        from session.session import project_id_for
+        slug = await slug_for(await project_id_for(session_id))
+    except Exception as e:
+        log.debug(f"Could not resolve project for {session_id}: {e}")
+    return Store(gitdir=f"{SNAPSHOT_ROOT}/{slug}", workdir=project_directory(slug))
+
+
+async def _ensure_store(sandbox, store: Store) -> bool:
+    """Create the store and its exclude file. Idempotent."""
+    if store.gitdir in _ready:
+        return True
+    excludes = "\n".join(EXCLUDE)
+    script = (
+        f"mkdir -p {store.gitdir} {store.workdir} && "
+        f"git --git-dir={store.gitdir} init -q && "
+        f"mkdir -p {store.gitdir}/info && "
+        f"printf '{excludes}\n' > {store.gitdir}/info/exclude"
+    )
+    try:
+        result = await sandbox.execute(script, workdir=store.workdir, timeout=60)
+    except Exception as e:
+        log.warning(f"Could not initialise snapshot store {store.gitdir}: {e}")
+        return False
+    if result.exit_code != 0:
+        log.warning(f"Snapshot store init failed: {result.stderr}")
+        return False
+    _ready.add(store.gitdir)
+    return True
 
 
 @dataclass
@@ -42,22 +115,24 @@ async def track(session_id: str, sandbox=None) -> str | None:
             log.warning(f"Cannot get sandbox for snapshot: {e}")
             return None
 
+    store = await _store(session_id)
     try:
-        workdir = _get_workdir(session_id)
-        # Ensure git repo is initialized in session workdir
-        await sandbox.execute(f"git init -q {workdir} 2>/dev/null || true", workdir=workdir)
+        async with _lock(store.gitdir):
+            if not await _ensure_store(sandbox, store):
+                return None
 
-        # Stage all files
-        result = await sandbox.execute("git add -A", workdir=workdir)
-        if result.exit_code != 0:
-            log.warning(f"git add failed: {result.stderr}")
-            return None
+            result = await sandbox.execute(store.git("add -A"), workdir=store.workdir)
+            if result.exit_code != 0:
+                log.warning(f"git add failed: {result.stderr}")
+                return None
 
-        # Write the tree object (does not create a commit)
-        result = await sandbox.execute("git write-tree", workdir=workdir)
-        if result.exit_code != 0:
-            log.warning(f"git write-tree failed: {result.stderr}")
-            return None
+            # write-tree, not commit: the tree hash alone is enough to restore
+            # from, and skipping the commit keeps the store free of a history
+            # nobody reads.
+            result = await sandbox.execute(store.git("write-tree"), workdir=store.workdir)
+            if result.exit_code != 0:
+                log.warning(f"git write-tree failed: {result.stderr}")
+                return None
 
         tree_hash = result.stdout.strip()
         if tree_hash:
@@ -76,6 +151,10 @@ async def restore(snapshot_id: str, session_id: str, sandbox=None) -> bool:
 
     Uses git read-tree + checkout-index to restore files.
     Returns True on success, False on failure.
+
+    Note this reverts the whole project directory, not just one session's work.
+    Sessions in a project share the directory by design, so a revert is scoped
+    to the project the same way an `undo` in a shared checkout would be.
     """
     if not snapshot_id:
         return False
@@ -88,28 +167,28 @@ async def restore(snapshot_id: str, session_id: str, sandbox=None) -> bool:
             log.warning(f"Cannot get sandbox for restore: {e}")
             return False
 
+    store = await _store(session_id)
     try:
-        workdir = _get_workdir(session_id)
-        # Read the tree into the index
-        result = await sandbox.execute(
-            f"git read-tree {snapshot_id}", workdir=workdir
-        )
-        if result.exit_code != 0:
-            log.warning(f"git read-tree failed: {result.stderr}")
-            return False
+        async with _lock(store.gitdir):
+            if not await _ensure_store(sandbox, store):
+                return False
 
-        # Force checkout from index to working directory
-        result = await sandbox.execute(
-            "git checkout-index -a -f", workdir=workdir
-        )
-        if result.exit_code != 0:
-            log.warning(f"git checkout-index failed: {result.stderr}")
-            return False
+            result = await sandbox.execute(
+                store.git(f"read-tree {snapshot_id}"), workdir=store.workdir)
+            if result.exit_code != 0:
+                log.warning(f"git read-tree failed: {result.stderr}")
+                return False
 
-        # Clean untracked files that don't belong to this tree
-        result = await sandbox.execute(
-            "git clean -fd", workdir=workdir
-        )
+            result = await sandbox.execute(
+                store.git("checkout-index -a -f"), workdir=store.workdir)
+            if result.exit_code != 0:
+                log.warning(f"git checkout-index failed: {result.stderr}")
+                return False
+
+            # Untracked files added after the snapshot go too. Ignored paths
+            # (node_modules and friends) survive: `clean -fd` without -x leaves
+            # them alone, which is what makes a revert survivable.
+            await sandbox.execute(store.git("clean -fd"), workdir=store.workdir)
 
         log.info(f"Restored snapshot {snapshot_id[:12]} for session {session_id[:8]}")
         return True
@@ -138,11 +217,12 @@ async def diff(from_snapshot: str, to_snapshot: str, sandbox=None, session_id: s
             log.warning(f"Cannot get sandbox for diff: {e}")
             return []
 
+    store = await _store(session_id)
     try:
         # Get diff stats between two tree objects
         result = await sandbox.execute(
-            f"git diff-tree --numstat -r {from_snapshot} {to_snapshot}",
-            workdir=_get_workdir(session_id),
+            store.git(f"diff-tree --numstat -r {from_snapshot} {to_snapshot}"),
+            workdir=store.workdir,
         )
         if result.exit_code != 0:
             log.warning(f"git diff-tree failed: {result.stderr}")
@@ -177,8 +257,8 @@ async def diff(from_snapshot: str, to_snapshot: str, sandbox=None, session_id: s
 
         # Also get file status (A/M/D) for more accurate status info
         status_result = await sandbox.execute(
-            f"git diff-tree --name-status -r {from_snapshot} {to_snapshot}",
-            workdir=_get_workdir(session_id),
+            store.git(f"diff-tree --name-status -r {from_snapshot} {to_snapshot}"),
+            workdir=store.workdir,
         )
         if status_result.exit_code == 0:
             status_map = {}
@@ -222,11 +302,12 @@ async def diff_full(from_snapshot: str, to_snapshot: str, sandbox=None, session_
             log.warning(f"Cannot get sandbox for diff_full: {e}")
             return []
 
+    store = await _store(session_id)
     try:
         # Get unified diff
         result = await sandbox.execute(
-            f"git diff {from_snapshot} {to_snapshot} --unified=3",
-            workdir=_get_workdir(session_id),
+            store.git(f"diff {from_snapshot} {to_snapshot} --unified=3"),
+            workdir=store.workdir,
         )
         if result.exit_code != 0:
             # Fallback to basic diff

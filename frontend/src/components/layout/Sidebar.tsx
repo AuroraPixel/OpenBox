@@ -1,8 +1,9 @@
-import { useState, useCallback, useMemo } from "react"
-import { Plus, Search, MessageSquare, Box, ChevronRight, Settings, X, LogOut } from "lucide-react"
+import { useState, useCallback, useEffect, useMemo } from "react"
+import { Plus, Search, Box, ChevronRight, Settings, X, LogOut } from "lucide-react"
 import { useSessionStore } from "@/stores/session"
 import { useUIStore } from "@/stores/ui"
-import { SessionList } from "@/components/chat/SessionList"
+import { ProjectTree } from "@/components/project/ProjectTree"
+import { useProjectStore } from "@/stores/project"
 import { api } from "@/services/api"
 import { cn } from "@/lib/utils"
 import { useAuthStore } from "@/stores/auth"
@@ -23,18 +24,28 @@ export function Sidebar({ containers, onTerminal, onCreateSandbox, onNavigate }:
   const sidebarOpen = useUIStore((s) => s.sidebarOpen)
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen)
   const currentSessionId = useSessionStore((s) => s.currentSessionId)
-  const sessions = useSessionStore((s) => s.sessions)
+  const allSessions = useSessionStore((s) => s.sessions)
   const removeSession = useSessionStore((s) => s.removeSession)
+  const loadProjects = useProjectStore((s) => s.loadProjects)
+  const setCurrentProject = useProjectStore((s) => s.setCurrentProject)
+  const lastProjectId = useProjectStore((s) => s.currentProjectId)
 
-  const handleNewChat = useCallback(async () => {
+  useEffect(() => {
+    void loadProjects()
+  }, [loadProjects])
+
+  const handleNewChat = useCallback(async (projectId?: string) => {
     try {
-      const realId = await useSessionStore.getState().ensureRealSession()
+      const realId = await useSessionStore.getState().ensureRealSession(null, { projectId })
+      // Remembered so the composer and anything else that needs a default
+      // agrees with the project the session was actually filed under.
+      if (projectId) setCurrentProject(projectId)
       onNavigate(`/session/${realId}`)
       setSidebarOpen(false) // close on mobile
     } catch {
       addToast("error", "Failed to create a new chat session.")
     }
-  }, [onNavigate, setSidebarOpen, addToast])
+  }, [onNavigate, setSidebarOpen, addToast, setCurrentProject])
 
   const handleDeleteSession = useCallback(async (id: string) => {
     removeSession(id)
@@ -76,10 +87,11 @@ export function Sidebar({ containers, onTerminal, onCreateSandbox, onNavigate }:
         </button>
       </div>
 
-      {/* New Chat button */}
-      <div className="p-3">
+      {/* New Chat — lands in the last project used, or the default. Each
+          project also carries its own + for starting one there directly. */}
+      <div className="px-3 pt-3 pb-3">
         <button
-          onClick={handleNewChat}
+          onClick={() => handleNewChat(lastProjectId ?? undefined)}
           className={cn(
             "w-full flex items-center justify-center gap-2 px-3 py-3 sm:py-2.5 rounded-sm text-sm font-display font-medium transition-all cursor-pointer",
             "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]",
@@ -105,22 +117,14 @@ export function Sidebar({ containers, onTerminal, onCreateSandbox, onNavigate }:
         </div>
       </div>
 
-      {/* Sessions section */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="px-3 py-1.5">
-          <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-1">
-            <MessageSquare className="h-3 w-3" />
-            Sessions
-          </div>
-        </div>
-        <SessionList
-          sessions={sessions}
-          currentSessionId={currentSessionId}
-          searchQuery={searchQuery}
-          onSelect={handleSelectSession}
-          onDelete={handleDeleteSession}
-        />
-      </div>
+      <ProjectTree
+        sessions={allSessions}
+        currentSessionId={currentSessionId}
+        searchQuery={searchQuery}
+        onSelectSession={handleSelectSession}
+        onDeleteSession={handleDeleteSession}
+        onNewChat={handleNewChat}
+      />
 
       <div className="border-t border-[hsl(var(--border))]" />
 
