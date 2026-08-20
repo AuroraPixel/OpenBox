@@ -147,7 +147,7 @@ Deployment manifests for GKE live in `k8s/`. See `docs/gke.md`.
 
 ## Documentation
 
-Design docs in [`docs/`](docs/): `OPENAGENT_DESIGN.md` (agent architecture), `FRONTEND_DESIGN.md`, `API_INTERFACES.md`, `MULTI_USER_STORAGE_PLAN.md`, `CRON_SYSTEM_PLAN.md`, `PTY_UPGRADE_PLAN.md`, `PERFORMANCE_OPTIMIZATION.md`, `gke.md`.
+Design docs in [`docs/`](docs/): `OPENAGENT_DESIGN.md` (agent architecture), `FRONTEND_DESIGN.md`, `API_INTERFACES.md`, `MULTI_USER_STORAGE_PLAN.md`, `CRON_SYSTEM_PLAN.md`, `PTY_UPGRADE_PLAN.md`, `PERFORMANCE_OPTIMIZATION.md`, `gke.md`, [`WUYING_SANDBOX.md`](docs/WUYING_SANDBOX.md) (running the sandbox on an Alibaba Cloud desktop).
 
 ---
 

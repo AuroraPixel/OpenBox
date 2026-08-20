@@ -147,7 +147,7 @@ GKE 部署清单见 `k8s/`,详见 `docs/gke.md`。
 
 ## 文档
 
-设计文档见 [`docs/`](docs/):`OPENAGENT_DESIGN.md`(Agent 架构)、`FRONTEND_DESIGN.md`、`API_INTERFACES.md`、`MULTI_USER_STORAGE_PLAN.md`、`CRON_SYSTEM_PLAN.md`、`PTY_UPGRADE_PLAN.md`、`PERFORMANCE_OPTIMIZATION.md`、`gke.md`。
+设计文档见 [`docs/`](docs/):`OPENAGENT_DESIGN.md`(Agent 架构)、`FRONTEND_DESIGN.md`、`API_INTERFACES.md`、`MULTI_USER_STORAGE_PLAN.md`、`CRON_SYSTEM_PLAN.md`、`PTY_UPGRADE_PLAN.md`、`PERFORMANCE_OPTIMIZATION.md`、`gke.md`、[`WUYING_SANDBOX.md`](docs/WUYING_SANDBOX.md)(把沙箱跑在阿里云无影云电脑上)。
 
 ---
 
