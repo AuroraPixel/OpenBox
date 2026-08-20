@@ -307,7 +307,7 @@ async def process_compaction(
 
     # Force prune old tool outputs BEFORE building compaction messages.
     # This dramatically reduces token count before sending to the compaction LLM.
-    await prune_tool_outputs(session_id, aggressive=True)
+    await prune_tool_outputs(session_id, aggressive=True, protect_from_id=tail_start_id)
 
     # Re-fetch messages after pruning (tool outputs now cleared)
     from session.session import get_messages as _get_msgs
@@ -479,7 +479,8 @@ async def process_compaction(
     return "stop"
 
 
-async def prune_tool_outputs(session_id: str, aggressive: bool = False) -> None:
+async def prune_tool_outputs(session_id: str, aggressive: bool = False,
+                             protect_from_id: str | None = None) -> None:
     """Prune old tool outputs to reduce token usage.
 
     Scans from newest to oldest, protects the most recent PRUNE_PROTECT tokens
@@ -490,6 +491,12 @@ async def prune_tool_outputs(session_id: str, aggressive: bool = False) -> None:
         aggressive: If True, protect only 10K tokens (instead of 40K) and skip
                     minimum threshold check. Used before compaction to maximize
                     token savings.
+        protect_from_id: Message id at which a preserved compaction tail begins.
+                    Everything from there on is left alone. Those messages are
+                    replayed verbatim after the compaction and are never sent to
+                    the summarizer, so erasing their output would only recreate
+                    the problem the tail exists to solve — an agent that has to
+                    re-read the file it just read.
     """
     # Check config
     try:
@@ -509,8 +516,18 @@ async def prune_tool_outputs(session_id: str, aggressive: bool = False) -> None:
     to_prune = []  # list of (message_id, part_id, part_dict)
     turns = 0
 
+    # Newest-to-oldest, so the tail comes first and is skipped outright — it is
+    # not counted toward the protection budget either, which would otherwise
+    # spend the whole budget before reaching anything prunable.
+    in_tail = protect_from_id is not None and any(m.id == protect_from_id for m in msgs)
+
     # Scan from newest to oldest
     for msg in reversed(msgs):
+        if in_tail:
+            if msg.id == protect_from_id:
+                in_tail = False
+            continue
+
         role = msg.role if isinstance(msg.role, str) else msg.role.value
         if role == "user":
             turns += 1

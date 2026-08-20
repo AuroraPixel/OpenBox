@@ -12,6 +12,7 @@ between a user message and the assistant work answering it.
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 
 from core.log import create_logger
@@ -81,7 +82,25 @@ def turns(messages: list) -> list[Turn]:
 
 
 def estimate(messages: list) -> int:
-    """Rough token size of a message slice."""
+    """Token size of a message slice as the model will actually receive it.
+
+    Measured on the serialized request rather than by summing part fields:
+    tool names, call ids, roles and JSON structure ran ~18% of a real session's
+    tokens, and a budget that ignores them is a budget the tail quietly exceeds.
+    """
+    if not messages:
+        return 0
+    try:
+        # Imported here: loop imports compaction, which imports this module.
+        from agent.loop import _to_llm_messages
+        return token_estimate(json.dumps(_to_llm_messages(messages), default=str))
+    except Exception as e:
+        log.debug(f"Falling back to field-sum estimate: {e}")
+        return _estimate_parts(messages)
+
+
+def _estimate_parts(messages: list) -> int:
+    """Sum of the text-bearing part fields. Undercounts, but never raises."""
     total = 0
     for msg in messages:
         for part in (getattr(msg, "parts", None) or []):
