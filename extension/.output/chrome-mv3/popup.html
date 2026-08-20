@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OpenAgent Browser</title>
-    <script type="module" crossorigin src="/chunks/popup-CCfo_eA0.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/popup-DJd9Onfv.css">
+    <script type="module" crossorigin src="/chunks/popup-BRFnne_H.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/popup-DGasC9nk.css">
   </head>
   <body>
     <div class="popup">
@@ -30,6 +30,21 @@
 
       <!-- Client ID (readonly info) -->
       <p id="client-id-info" class="config-status" style="font-size:10px;opacity:0.5;margin-top:8px"></p>
+
+      <!-- Advanced: point the extension at a different OpenBox instance -->
+      <details class="advanced">
+        <summary>Advanced</summary>
+        <label class="field-label" for="server-url">Server URL</label>
+        <input type="text" id="server-url" class="field-input" spellcheck="false" autocomplete="off" placeholder="http://localhost:3000">
+        <div class="field-actions">
+          <button type="button" id="save-server-url" class="btn btn-primary">Save</button>
+          <button type="button" id="reset-server-url" class="btn">Reset</button>
+        </div>
+        <p id="server-url-status" class="field-status"></p>
+        <p class="field-hint">
+          The origin you sign in to. Changing it reconnects the relay.
+        </p>
+      </details>
     </div>
   </body>
 </html>

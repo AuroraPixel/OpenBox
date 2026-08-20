@@ -90,6 +90,12 @@ export interface CheckAuthMessage {
   type: "checkAuth";
 }
 
+export interface SetServerUrlMessage {
+  type: "setServerUrl";
+  /** Empty string resets to the built-in default. */
+  serverUrl: string;
+}
+
 export interface StateResponse {
   isActive: boolean;
   isConnected: boolean;
@@ -97,6 +103,10 @@ export interface StateResponse {
   authError?: string | null;
   username?: string | null;
   clientId?: string;
+  /** Origin currently in use (resolved, never empty). */
+  serverUrl?: string;
+  /** True when serverUrl is the built-in default rather than a saved override. */
+  isDefaultServerUrl?: boolean;
 }
 
 export interface AuthStatusResponse {
@@ -104,4 +114,15 @@ export interface AuthStatusResponse {
   username?: string | null;
 }
 
-export type PopupMessage = GetStateMessage | SetStateMessage | CheckAuthMessage;
+export interface SetServerUrlResponse {
+  ok: boolean;
+  /** Normalized origin now in effect (present when ok). */
+  serverUrl?: string;
+  error?: string;
+}
+
+export type PopupMessage =
+  | GetStateMessage
+  | SetStateMessage
+  | CheckAuthMessage
+  | SetServerUrlMessage;

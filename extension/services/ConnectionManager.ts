@@ -137,7 +137,7 @@ export class ConnectionManager {
 
   /** Check if refresh_token cookie exists for the server domain. */
   async checkCookie(): Promise<boolean> {
-    const serverUrl = this.stateManager.getServerUrl();
+    const serverUrl = await this.stateManager.getServerUrl();
     const cookie = await chrome.cookies.get({
       url: `${serverUrl}/api/auth`,
       name: "refresh_token",
@@ -160,7 +160,7 @@ export class ConnectionManager {
   }
 
   private async doConnect(): Promise<void> {
-    const serverUrl = this.stateManager.getServerUrl();
+    const serverUrl = await this.stateManager.getServerUrl();
     const config = await this.stateManager.getConfig();
 
     // Step 1: Read refresh_token cookie
