@@ -1,5 +1,6 @@
 """Skill discovery and loading from SKILL.md files."""
 import os
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -20,6 +21,70 @@ class SkillInfo:
 # Cache
 _skills: dict[str, SkillInfo] = {}
 _loaded = False
+# Fingerprint of what the last scan saw, so an edit on disk is noticed. The
+# server is long-lived; without this, adding or editing a skill did nothing
+# until a restart, and the description shipped to the model stayed stale.
+_fingerprint: tuple = ()
+# The freshness check stats every SKILL.md, which measured 7.3ms at 250 skills.
+# That is nothing against an LLM step, but it is blocking I/O on the event loop
+# and the loop asks once per step per session. Rate-limiting it bounds the cost
+# no matter how fast sessions step, and two seconds is well inside what someone
+# editing a skill file would notice.
+_CHECK_INTERVAL_SECONDS = 2.0
+_last_check = 0.0
+
+
+def _skill_dirs() -> list[Path]:
+    """Every directory scanned for SKILL.md files."""
+    config_home = os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
+    cwd = Path.cwd()
+    return [Path(config_home) / n / "skills" for n in ("openbox", "openagent")] + [
+        cwd / ".openbox" / "skills",
+        cwd / ".openagent" / "skills",
+        cwd / ".claude" / "skills",
+        cwd / ".agents" / "skills",
+    ]
+
+
+def _current_fingerprint() -> tuple:
+    """Cheap stat-only signature of the skills on disk.
+
+    Files catch edits and deletions; the directories holding them catch
+    additions, since a new skill directory bumps its parent's mtime.
+    """
+    entries = []
+    for base in _skill_dirs():
+        try:
+            if not base.exists():
+                continue
+            entries.append((str(base), base.stat().st_mtime_ns))
+            for md in base.rglob("SKILL.md"):
+                entries.append((str(md), md.stat().st_mtime_ns))
+                entries.append((str(md.parent), md.parent.stat().st_mtime_ns))
+        except OSError:
+            # A directory that vanished mid-scan just contributes nothing.
+            continue
+    return tuple(sorted(set(entries)))
+
+
+async def _ensure_fresh() -> None:
+    """Reload if the skills on disk no longer match what is cached."""
+    global _last_check
+    if not _loaded:
+        await load_skills()
+        return
+    now = time.monotonic()
+    if now - _last_check < _CHECK_INTERVAL_SECONDS:
+        return
+    _last_check = now
+    try:
+        current = _current_fingerprint()
+    except Exception as e:
+        log.debug(f"Could not fingerprint skills, keeping cache: {e}")
+        return
+    if current != _fingerprint:
+        log.info("Skills changed on disk, reloading")
+        await load_skills()
 
 
 MAX_DESCRIPTION_CHARS = 500
@@ -65,40 +130,33 @@ def _scan_directory(base_dir: Path, source: str) -> list[SkillInfo]:
 
 async def load_skills() -> None:
     """Load all available skills."""
-    global _skills, _loaded
+    global _skills, _loaded, _fingerprint, _last_check
     _skills.clear()
 
-    # 1. Global skills
-    config_home = os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
-    for global_name in ["openbox", "openagent"]:
-        global_dir = Path(config_home) / global_name / "skills"
+    globals_, projects = _skill_dirs()[:2], _skill_dirs()[2:]
+    for global_dir in globals_:
         for skill in _scan_directory(global_dir, "global"):
             _skills[skill.name] = skill
-
-    # 2. Project-level skills
-    cwd = Path.cwd()
-    for skills_dir in [
-        cwd / ".openbox" / "skills",
-        cwd / ".openagent" / "skills",
-        cwd / ".claude" / "skills",
-        cwd / ".agents" / "skills",
-    ]:
+    for skills_dir in projects:
         for skill in _scan_directory(skills_dir, "project"):
             _skills[skill.name] = skill
 
+    try:
+        _fingerprint = _current_fingerprint()
+    except Exception:
+        _fingerprint = ()
     _loaded = True
+    _last_check = time.monotonic()
     log.info(f"Loaded {len(_skills)} skills")
 
 
 async def get_skill(name: str) -> SkillInfo | None:
     """Get a skill by name."""
-    if not _loaded:
-        await load_skills()
+    await _ensure_fresh()
     return _skills.get(name)
 
 
 async def list_skills() -> list[SkillInfo]:
     """List all available skills."""
-    if not _loaded:
-        await load_skills()
+    await _ensure_fresh()
     return list(_skills.values())
