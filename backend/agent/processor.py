@@ -85,6 +85,7 @@ async def process_step(
     abort,
     doom_loop_history: list,
     user_variant: str | None = None,
+    tool_choice: str | None = None,
 ) -> StepResult:
     """Run one LLM turn: stream it, persist its parts, execute its tool calls.
 
@@ -113,6 +114,7 @@ async def process_step(
             ctx=ctx,
             hooks=hooks,
             variant=user_variant,
+            tool_choice=tool_choice,
         ):
             if abort.is_set():
                 break

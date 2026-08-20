@@ -10,6 +10,12 @@ from agent.caching import apply_caching
 from agent.compaction import is_overflow, create_compaction, process_compaction, prune_tool_outputs, get_model_context_limit
 from agent.hooks import ToolHooks
 from agent.processor import StepOutcome, process_step
+from agent.structured_output import (
+    SYSTEM_PROMPT as STRUCTURED_OUTPUT_SYSTEM_PROMPT,
+    TOOL_NAME as STRUCTURED_OUTPUT_TOOL,
+    create_structured_output_tool,
+    requested_schema,
+)
 from agent.tool_resolution import resolve_step_tools
 from agent.llm import stream_llm
 from agent.retry import with_retry, ContextOverflowError, is_context_overflow, is_retryable, retry_delay
@@ -455,6 +461,16 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
             config_rules = _get_permission_rules(config)
             tools = await resolve_step_tools(agent_def, sandbox, config_rules)
 
+            # Structured output is a synthetic tool rather than a provider
+            # response_format: every provider that can call tools supports it.
+            # `structured` is a one-slot mailbox the tool writes into.
+            structured: dict = {}
+            output_schema = requested_schema(last_user)
+            if output_schema:
+                tools[STRUCTURED_OUTPUT_TOOL] = create_structured_output_tool(
+                    output_schema, lambda payload: structured.setdefault("value", payload)
+                )
+
             # Build context with session-specific working directory
             session_workdir = sandbox_manager.get_session_workdir(session_id)
             ctx = ToolContext(
@@ -476,6 +492,8 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
 
             # Build system prompt (with instruction files)
             system = await _build_system_prompt(agent_def, model_id, workdir=session_workdir)
+            if output_schema:
+                system.append(STRUCTURED_OUTPUT_SYSTEM_PROMPT)
 
             # Convert messages to LLM format
             llm_messages = _to_llm_messages(msgs)
@@ -579,6 +597,10 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
                 abort=abort,
                 doom_loop_history=doom_loop_history,
                 user_variant=user_variant,
+                # "required" makes the model pick some tool; the system prompt
+                # names which one. Left unset otherwise so ordinary turns can
+                # still answer in plain text.
+                tool_choice="required" if output_schema else None,
             )
 
             # Retry policy lives here, not in the step: the step only reports
@@ -606,6 +628,15 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
                 break
 
             if result.outcome is StepOutcome.ERROR:
+                break
+
+            # The structured answer arrived — the run is done, whatever the
+            # model would have said next.
+            if "value" in structured:
+                assistant_info.structured = structured["value"]
+                assistant_info.finish = assistant_info.finish or "stop"
+                await update_message_info(assistant_info, user_id=user_id)
+                last_assistant_msg = assistant_info
                 break
 
             finish_reason = result.finish_reason

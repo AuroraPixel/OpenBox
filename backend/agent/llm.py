@@ -377,7 +377,7 @@ async def _stream_responses_api(
     # Build tool definitions for Responses API
     api_tools = []
     for tool_id, tool_info in tools.items():
-        schema = tool_info.parameters.model_json_schema()
+        schema = tool_info.raw_schema or tool_info.parameters.model_json_schema()
         schema = _inline_refs(schema)
         api_tools.append({
             "type": "function",
@@ -604,6 +604,7 @@ async def stream_llm(
     ctx: ToolContext,
     hooks: Any = None,
     variant: str | None = None,
+    tool_choice: str | None = None,
 ) -> AsyncIterator[dict]:
     """Stream LLM responses using LiteLLM.
 
@@ -624,7 +625,7 @@ async def stream_llm(
         return
 
     # All other models: use LiteLLM Chat Completions
-    async for event in _stream_litellm_direct(model_id, system, messages, tools, variant=variant):
+    async for event in _stream_litellm_direct(model_id, system, messages, tools, variant=variant, tool_choice=tool_choice):
         yield event
 
 
@@ -741,6 +742,7 @@ async def _stream_litellm_direct(
     messages: list[dict],
     tools: dict[str, ToolInfo],
     variant: str | None = None,
+    tool_choice: str | None = None,
 ) -> AsyncIterator[dict]:
     """Stream LLM via LiteLLM. Only yields stream events — no tool execution.
 
@@ -789,7 +791,7 @@ async def _stream_litellm_direct(
             tool_schemas = []
 
         for tool_id, tool_info in tools.items():
-            schema = tool_info.parameters.model_json_schema()
+            schema = tool_info.raw_schema or tool_info.parameters.model_json_schema()
             schema = _inline_refs(schema)
             tool_schemas.append({
                 "type": "function",
@@ -834,6 +836,10 @@ async def _stream_litellm_direct(
         }
         if extra_body:
             call_kwargs["extra_body"] = extra_body
+        # Only meaningful when there is something to choose from; sending it
+        # with an empty tool list is rejected by several providers.
+        if tool_choice and tool_schemas:
+            call_kwargs["tool_choice"] = tool_choice
 
         response = await litellm.acompletion(**call_kwargs)
 

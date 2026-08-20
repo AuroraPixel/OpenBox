@@ -294,6 +294,7 @@ async def create_user_message(
     synthetic: bool = False,
     variant: str | None = None,
     client_message_id: str | None = None,
+    output_format: dict | None = None,
     user_id: str = "default",
 ) -> MessageWithParts:
     """Create a user message with a text part.
@@ -326,6 +327,7 @@ async def create_user_message(
             agent=agent,
             model=model,
             variant=variant,
+            format=output_format,
             created_at=now,
         )
         db.add(msg_row)
@@ -432,6 +434,8 @@ async def update_message_info(info: MessageInfo, user_id: str = "default") -> No
         values["model_id"] = info.model_id
     if info.summary is not None:
         values["summary"] = info.summary
+    if info.structured is not None:
+        values["structured"] = info.structured
 
     if values:
         async with get_db_session() as db:
@@ -570,6 +574,8 @@ async def get_messages(session_id: str, offset: int = 0, limit: int = 200, user_
             finish=m.finish,
             summary=m.summary,
             tokens=tokens_obj,
+            format=m.format,
+            structured=m.structured,
         ))
 
     return result

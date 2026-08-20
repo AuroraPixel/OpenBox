@@ -28,6 +28,8 @@ class PromptBody(BaseModel):
     model: str | None = None
     variant: str | None = None
     client_message_id: str | None = None
+    # {"type": "json_schema", "schema": {...}} to require a structured answer.
+    format: dict | None = None
 
 
 class UpdateSessionBody(BaseModel):
@@ -179,6 +181,7 @@ async def send_message(
         model=body.model,
         variant=body.variant,
         client_message_id=body.client_message_id,
+        output_format=body.format,
         user_id=user_id,
     )
 
@@ -223,6 +226,7 @@ async def send_message_async(
         model=body.model,
         variant=body.variant,
         client_message_id=body.client_message_id,
+        output_format=body.format,
         user_id=user_id,
     )
 

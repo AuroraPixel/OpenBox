@@ -50,6 +50,10 @@ class ToolInfo:
     # Metadata
     sandbox_required: bool = True  # Whether this tool needs sandbox access
     never_prune: bool = False  # Whether output should never be pruned
+    # A JSON Schema to advertise verbatim instead of deriving one from
+    # `parameters`. Needed for tools whose shape is only known at runtime —
+    # structured output builds its schema from what the caller asked for.
+    raw_schema: dict | None = None
 
 
 def define_tool(
@@ -60,6 +64,7 @@ def define_tool(
     execute: Callable[..., Awaitable[ToolResult]],
     sandbox_required: bool = True,
     never_prune: bool = False,
+    raw_schema: dict | None = None,
 ) -> ToolInfo:
     """Factory function to create a tool with automatic validation and truncation."""
     from tool.truncation import truncate_output
@@ -93,4 +98,5 @@ def define_tool(
         execute=wrapped_execute,
         sandbox_required=sandbox_required,
         never_prune=never_prune,
+        raw_schema=raw_schema,
     )

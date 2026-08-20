@@ -232,7 +232,9 @@ class MessageInfo(BaseModel):
     # User-specific fields
     agent: str | None = None
     model: str | None = None
-    format: str | None = None
+    # {"type": "json_schema", "schema": {...}} on a user message; a bare
+    # schema dict is also accepted. str is tolerated for older rows.
+    format: dict | str | None = None
     system: str | None = None
     variant: str | None = None
     # Assistant-specific fields
@@ -243,6 +245,7 @@ class MessageInfo(BaseModel):
     cost: float | None = None
     finish: str | None = None
     summary: bool | None = None
+    structured: dict | None = None   # captured StructuredOutput payload
     error: dict[str, Any] | None = None
 
     class Config:
@@ -267,6 +270,9 @@ class MessageWithParts(BaseModel):
     summary: bool | None = None
     tokens: TokenUsage | None = None
     error: dict | None = None
+    # Structured output: the schema the user asked for, and what came back.
+    format: dict | str | None = None
+    structured: dict | None = None
 
     class Config:
         populate_by_name = True

@@ -20,7 +20,7 @@ class Message(Base):
     model_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     variant: Mapped[str | None] = mapped_column(String(32), nullable=True)
     provider_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    format: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    format: Mapped[dict | None] = mapped_column(JSONType, nullable=True)   # requested output schema
     system: Mapped[str | None] = mapped_column(String, nullable=True)
     parent_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     tokens: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
@@ -28,6 +28,7 @@ class Message(Base):
     finish: Mapped[str | None] = mapped_column(String(32), nullable=True)
     summary: Mapped[bool | None] = mapped_column(Boolean, server_default="false")
     error: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
+    structured: Mapped[dict | None] = mapped_column(JSONType, nullable=True)  # StructuredOutput payload
     created_at: Mapped[datetime] = mapped_column(nullable=False)
 
     __table_args__ = (
