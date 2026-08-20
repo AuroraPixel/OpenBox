@@ -8,6 +8,7 @@ from agent.agent import get_agent, AgentDef
 from agent.caching import apply_caching
 from agent.compaction import is_overflow, create_compaction, process_compaction, prune_tool_outputs, get_model_context_limit
 from agent.hooks import ToolHooks
+from agent.processor import StepOutcome, process_step
 from agent.llm import stream_llm
 from agent.retry import with_retry, ContextOverflowError, is_context_overflow, is_retryable, retry_delay
 from bus import bus
@@ -33,7 +34,72 @@ from core.log import create_logger
 
 log = create_logger("agent.loop")
 
-DOOM_LOOP_THRESHOLD = 3
+# Written onto a tool part by the post-loop cleanup when a tool call is
+# abandoned after an abort or an exhausted retry. Such a part is not pending
+# work: it must not keep the loop alive, and it must not be treated as a tool
+# call the model is still waiting on.
+ABORTED_TOOL_ERROR = "Tool execution aborted"
+
+
+def _part_as_dict(part) -> dict:
+    """Parts reach us as either plain dicts or pydantic models depending on the
+    path they took through the store. Normalise before inspecting."""
+    if isinstance(part, dict):
+        return part
+    if hasattr(part, "model_dump"):
+        return part.model_dump()
+    return {}
+
+
+def is_orphaned_interrupted_tool(part) -> bool:
+    """A tool part the cleanup gave up on, rather than one still in flight."""
+    p = _part_as_dict(part)
+    status = p.get("status")
+    status = getattr(status, "value", status)
+    return status == "error" and p.get("error") == ABORTED_TOOL_ERROR
+
+
+def has_live_tool_calls(message) -> bool:
+    """Whether an assistant message carries tool calls still awaiting results.
+
+    Some providers report finish="stop" on a message that nonetheless contains
+    tool calls. Terminating there strands them: the results are never fed back
+    and the run stops mid-task with no error. Mirrors opencode's hasToolCalls
+    guard in session/prompt.ts.
+    """
+    if message is None:
+        return False
+    for part in (getattr(message, "parts", None) or []):
+        p = _part_as_dict(part)
+        if p.get("type") != "tool":
+            continue
+        if p.get("provider_executed") or p.get("providerExecuted"):
+            continue  # the provider ran it; no result of ours is outstanding
+        if is_orphaned_interrupted_tool(p):
+            continue
+        return True
+    return False
+
+
+def should_terminate(last_assistant, last_user) -> bool:
+    """Pure termination decision for the outer loop.
+
+    Kept free of I/O so the rule can be tested directly — it is the single
+    condition that decides whether a run ends, and it has failed silently
+    before.
+    """
+    if last_assistant is None or last_user is None:
+        return False
+    if not getattr(last_assistant, "finish", None):
+        return False
+    # "unknown" is deliberately absent: opencode dropped it once the tool-call
+    # check below made it redundant, and keeping it here would swallow genuine
+    # terminations from providers that report an unrecognised finish reason.
+    if last_assistant.finish in ("tool_calls", "tool-calls"):
+        return False
+    if has_live_tool_calls(last_assistant):
+        return False
+    return last_user.id < last_assistant.id
 
 MAX_STEPS_PROMPT = """\
 CRITICAL - MAXIMUM STEPS REACHED
@@ -66,24 +132,6 @@ async def _has_pending_todos(session_id: str) -> bool:
         return False
     return any(item.status in ("pending", "in_progress") for item in todo.items)
 
-
-def _check_doom_loop(completed_tool_parts: list, tool_name: str, tool_args: dict) -> bool:
-    """Check if the same tool+args have been called DOOM_LOOP_THRESHOLD times consecutively.
-
-    Mirrors opencode's processor.ts doom loop detection.
-    Returns True if a doom loop is detected.
-    """
-    import json
-    if len(completed_tool_parts) < DOOM_LOOP_THRESHOLD - 1:
-        return False
-    recent = completed_tool_parts[-(DOOM_LOOP_THRESHOLD - 1):]
-    current_key = json.dumps(tool_args, sort_keys=True)
-    for part in recent:
-        if part.tool != tool_name:
-            return False
-        if json.dumps(part.input, sort_keys=True) != current_key:
-            return False
-    return True
 
 
 async def _upsert_plan_part(
@@ -303,14 +351,8 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
             if not last_user:
                 break
 
-            # Check termination: assistant finished with a non-tool-calls reason
-            # (matching opencode: finish && !["tool-calls","unknown"].includes(finish))
-            if (
-                last_assistant
-                and last_assistant.finish
-                and last_assistant.finish not in ("tool_calls", "tool-calls", "unknown")
-                and last_user.id < last_assistant.id
-            ):
+            # Check termination (see should_terminate for the rule itself).
+            if should_terminate(last_assistant, last_user):
                 # Don't terminate if there are pending todos and we haven't
                 # exhausted nudge attempts (model may have planned but not executed)
                 if todo_nudge_enabled and todo_nudge_count < max_todo_nudges and await _has_pending_todos(session_id):
@@ -506,15 +548,6 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
             await save_part(step_start, user_id=user_id)
 
             # Stream LLM response
-            collected_text = ""
-            collected_reasoning = ""
-            text_part_id = None
-            reasoning_part_id = None
-            pending_tool_calls = []  # Collect tool calls, execute after stream ends
-            streaming_tool_parts: dict[int, str] = {}  # index -> part_id (for arg streaming)
-            total_usage = {"input": 0, "output": 0, "total": 0}
-            finish_reason = "unknown"
-            step_start_time = time.time()
             # Track consecutive compaction failures to prevent infinite loops
             if step > 1 and finish_reason_prev == "compact":
                 compact_fail_count += 1
@@ -532,253 +565,60 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
             # Read variant from last user message (matching opencode)
             user_variant = getattr(last_user, "variant", None)
 
-            try:
-                async for event in stream_llm(
-                    agent_def=agent_def,
-                    system=system,
-                    messages=llm_messages,
-                    tools=tools,
-                    model_id=model_id,
-                    ctx=ctx,
-                    hooks=hooks,
-                    variant=user_variant,
-                ):
-                    if abort.is_set():
-                        break
+            result = await process_step(
+                session_id=session_id,
+                user_id=user_id,
+                session=session,
+                agent_def=agent_def,
+                system=system,
+                llm_messages=llm_messages,
+                tools=tools,
+                model_id=model_id,
+                ctx=ctx,
+                hooks=hooks,
+                assistant_info=assistant_info,
+                sandbox=sandbox,
+                abort=abort,
+                doom_loop_history=doom_loop_history,
+                user_variant=user_variant,
+            )
 
-                    if event["type"] == "reasoning_delta":
-                        text = event["text"]
-                        collected_reasoning += text
-
-                        if not reasoning_part_id:
-                            reasoning_part_id = ascending("part")
-                            reasoning_part = ReasoningPart(
-                                id=reasoning_part_id,
-                                text=text,
-                                session_id=session_id,
-                                message_id=assistant_info.id,
-                            )
-                            await save_part(reasoning_part, is_new=True, user_id=user_id)
-                        else:
-                            from bus.events import PART_DELTA
-                            bus.publish(PART_DELTA, {
-                                "userId": user_id,
-                                "sessionId": session_id,
-                                "messageId": assistant_info.id,
-                                "partId": reasoning_part_id,
-                                "delta": text,
-                            })
-
-                    elif event["type"] == "text_delta":
-                        text = event["text"]
-                        collected_text += text
-
-                        if not text_part_id:
-                            text_part_id = ascending("part")
-                            text_part = TextPart(
-                                id=text_part_id,
-                                text=text,
-                                session_id=session_id,
-                                message_id=assistant_info.id,
-                            )
-                            await save_part(text_part, is_new=True, user_id=user_id)
-                        else:
-                            bus.publish(MESSAGE_TEXT_DELTA, {
-                                "userId": user_id,
-                                "sessionId": session_id,
-                                "messageId": assistant_info.id,
-                                "partId": text_part_id,
-                                "text": text,
-                            })
-
-                    elif event["type"] == "tool_call_start":
-                        # LLM just started emitting a tool call — create a pending
-                        # tool part immediately so the frontend can show the card.
-                        tc_index = event["index"]
-                        tc_part_id = ascending("part")
-                        streaming_tool_parts[tc_index] = tc_part_id
-                        tool_part = ToolPartData(
-                            id=tc_part_id,
-                            tool=event["tool"],
-                            status=ToolStatus.PENDING,
-                            input={},
-                            session_id=session_id,
-                            message_id=assistant_info.id,
-                        )
-                        await save_part(tool_part, is_new=True, user_id=user_id)
-
-                    elif event["type"] == "tool_call_args_delta":
-                        # Stream argument chunks to the frontend for live preview.
-                        tc_index = event["index"]
-                        tc_part_id = streaming_tool_parts.get(tc_index)
-                        if tc_part_id:
-                            from bus.events import PART_DELTA
-                            bus.publish(PART_DELTA, {
-                                "userId": user_id,
-                                "sessionId": session_id,
-                                "messageId": assistant_info.id,
-                                "partId": tc_part_id,
-                                "delta": event["delta"],
-                            })
-
-                    elif event["type"] == "tool_call":
-                        pending_tool_calls.append(event)
-
-                    elif event["type"] == "finish":
-                        finish_reason = event.get("reason", "stop")
-                        total_usage = event.get("usage", {})
-                        llm_retry_count = 0
-
-                    elif event["type"] == "error":
-                        error = event["error"]
-                        if is_context_overflow(str(error)):
-                            await create_compaction(session_id, auto=True, user_id=user_id)
-                            finish_reason = "compact"
-                        else:
-                            raise error
-
-                # Execute tool calls after stream completes (with correct part_id)
-                ctx.message_id = assistant_info.id
-                for tc_idx, tc_event in enumerate(pending_tool_calls):
-                    if abort.is_set():
-                        break
-
-                    tool_name = tc_event["tool"]
-                    tool_args = tc_event["args"]
-                    is_invalid = tc_event.get("invalid", False)
-
-                    # Preserve the LLM's original call_id for accurate matching.
-                    # Kimi uses "functions.name:idx", OpenAI uses "call_xxxx".
-                    llm_call_id = tc_event.get("call_id", "")
-
-                    # Reuse the streaming part_id if we already created one during
-                    # LLM streaming, otherwise create a new part.
-                    existing_part_id = streaming_tool_parts.get(tc_idx)
-                    if existing_part_id:
-                        # Update the pending part → RUNNING with full args
-                        tool_part = ToolPartData(
-                            id=existing_part_id,
-                            tool=tool_name,
-                            status=ToolStatus.RUNNING,
-                            input=tool_args,
-                            call_id=llm_call_id,
-                            session_id=session_id,
-                            message_id=assistant_info.id,
-                        )
-                        await save_part(tool_part, is_new=False, user_id=user_id)
-                    else:
-                        tool_part = ToolPartData(
-                            id=ascending("part"),
-                            tool=tool_name,
-                            status=ToolStatus.RUNNING,
-                            input=tool_args,
-                            call_id=llm_call_id,
-                            session_id=session_id,
-                            message_id=assistant_info.id,
-                        )
-                        await save_part(tool_part, is_new=True, user_id=user_id)
-
-                    if is_invalid:
-                        tool_part.status = ToolStatus.ERROR
-                        tool_part.error = f"Tool '{tool_name}' not found. Available: {', '.join(tools.keys())}"
-                        await save_part(tool_part, user_id=user_id)
-                        continue
-
-                    # Doom loop detection: check if same tool+args repeated across steps
-                    if _check_doom_loop(doom_loop_history, tool_name, tool_args):
-                        log.warning(f"Doom loop detected: {tool_name} called {DOOM_LOOP_THRESHOLD} times with same args")
-                        tool_part.status = ToolStatus.ERROR
-                        tool_part.error = (
-                            f"Doom loop detected: '{tool_name}' has been called {DOOM_LOOP_THRESHOLD} "
-                            f"consecutive times with identical arguments. Breaking the loop. "
-                            f"Please try a different approach."
-                        )
-                        await save_part(tool_part, user_id=user_id)
-                        continue
-
-                    # Execute via hooks (passes part_id for SSE events)
-                    tool_info = tools.get(tool_name)
-                    if tool_info:
-                        result = await hooks.wrap_execute(
-                            tool_name, tool_info.execute, tool_args, ctx,
-                            part_id=tool_part.id,
-                        )
-
-                        # Check for agent_switch metadata
-                        agent_switch = result.metadata.get("agent_switch")
-                        if agent_switch:
-                            try:
-                                new_agent = get_agent(agent_switch)
-                                agent_def = new_agent
-                                await update_session(session_id, agent=agent_switch)
-                                log.info(f"Agent switched to {agent_switch}")
-                            except ValueError:
-                                log.warning(f"Unknown agent for switch: {agent_switch}")
-
-                        # Update tool part with result
-                        tool_part.status = ToolStatus.COMPLETED if not result.metadata.get("error") else ToolStatus.ERROR
-                        tool_part.output = result.output
-                        tool_part.title = result.title
-                        tool_part.error = result.output if result.metadata.get("error") else None
-                        await save_part(tool_part, user_id=user_id)
-
-                        # Track for doom loop detection (across steps)
-                        doom_loop_history.append(tool_part)
-
-                        # plan_exit: stop the loop so the user can review
-                        if result.metadata.get("plan_ready"):
-                            finish_reason = "stop"
-
-            except ContextOverflowError:
-                await create_compaction(session_id, auto=True, user_id=user_id)
-                finish_reason = "compact"
-            except Exception as e:
-                retry_msg = is_retryable(e)
-                if retry_msg and llm_retry_count < MAX_LLM_RETRIES:
+            # Retry policy lives here, not in the step: the step only reports
+            # that the failure was transient.
+            if result.outcome is StepOutcome.RETRY:
+                if llm_retry_count < MAX_LLM_RETRIES:
                     llm_retry_count += 1
-                    delay = retry_delay(llm_retry_count, e)
-                    log.warning(f"Retryable LLM error in session {session_id} (attempt {llm_retry_count}/{MAX_LLM_RETRIES}): {retry_msg}. Retrying in {delay:.1f}s")
+                    delay = retry_delay(llm_retry_count, None)
+                    log.warning(
+                        f"Retryable LLM error in session {session_id} "
+                        f"(attempt {llm_retry_count}/{MAX_LLM_RETRIES}): "
+                        f"{result.retry_reason}. Retrying in {delay:.1f}s"
+                    )
                     bus.publish(SESSION_STATUS, {
-                        "userId": user_id,
-                        "sessionId": session_id,
-                        "status": "retry",
+                        "userId": user_id, "sessionId": session_id, "status": "retry",
                     })
                     await asyncio.sleep(delay)
-                    step -= 1  # Don't count this as a real step
+                    step -= 1  # a retried attempt is not a step
                     continue
-                log.error(f"LLM error in session {session_id}: {e}")
+                log.error(f"LLM error in session {session_id} after {llm_retry_count} retries: {result.error}")
                 bus.publish(SESSION_ERROR, {
-                    "userId": user_id,
-                    "sessionId": session_id,
-                    "error": {"message": str(e)},
+                    "userId": user_id, "sessionId": session_id,
+                    "error": {"message": result.error or "LLM request failed"},
                 })
-                assistant_info.error = {"message": str(e)}
-                await update_message_info(assistant_info, user_id=user_id)
                 break
 
-            # Save final reasoning part (full text)
-            if reasoning_part_id and collected_reasoning:
-                final_reasoning = ReasoningPart(
-                    id=reasoning_part_id,
-                    text=collected_reasoning,
-                    session_id=session_id,
-                    message_id=assistant_info.id,
-                )
-                await save_part(final_reasoning, user_id=user_id)
+            if result.outcome is StepOutcome.ERROR:
+                break
 
-            # Save final text part (full text)
-            if text_part_id and collected_text:
-                final_text = TextPart(
-                    id=text_part_id,
-                    text=collected_text,
-                    session_id=session_id,
-                    message_id=assistant_info.id,
-                )
-                await save_part(final_text, user_id=user_id)
+            finish_reason = result.finish_reason
+            collected_text = result.text
+            collected_reasoning = result.reasoning
+            total_usage = result.usage
+            step_duration = result.duration
+            doom_loop_history.extend(result.completed_tool_parts)
 
             # Step finish with snapshot
             end_snapshot = await snapshot.track(session_id, sandbox)
-            step_duration = time.time() - step_start_time
             step_finish = StepFinishPart(
                 id=ascending("part"),
                 step=step,
@@ -823,7 +663,7 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
             await update_session_tokens(session_id, last_finished_tokens, user_id=user_id)
 
             # Check result
-            log.info(f"Step {step} finished: reason={finish_reason}, tool_calls={len(pending_tool_calls)}, text={len(collected_text)} chars")
+            log.info(f"Step {step} finished: reason={finish_reason}, tool_calls={len(result.completed_tool_parts)}, text={len(collected_text)} chars")
             if finish_reason == "stop":
                 # Nudge: if the model stopped but there are pending/in_progress
                 # todo items, inject a "Continue" message to keep the loop going.
@@ -897,7 +737,7 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
                                 if part_id:
                                     from session.session import update_part_data
                                     p["status"] = "error"
-                                    p["error"] = "Tool execution aborted"
+                                    p["error"] = ABORTED_TOOL_ERROR
                                     await update_part_data(part_id, p)
             except Exception as cleanup_err:
                 log.warning(f"Tool cleanup error: {cleanup_err}")
