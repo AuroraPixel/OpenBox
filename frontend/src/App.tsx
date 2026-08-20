@@ -12,6 +12,7 @@ import { ToastProvider } from "@/components/ui/Toast"
 import { SandboxRequiredDialog } from "@/components/sandbox/SandboxRequiredDialog"
 import { useWS } from "@/hooks/useWS"
 import { useAuthStore, refreshAccessToken } from "@/stores/auth"
+import { completeLogtoLogin, isLogtoCallback } from "@/lib/logto"
 import { LandingPage } from "@/pages/LandingPage"
 import { LoginPage } from "@/pages/LoginPage"
 import { useKeyboard } from "@/hooks/useKeyboard"
@@ -58,9 +59,22 @@ function AuthGate() {
   const authUserId = useAuthStore((s) => s.user?.id || null)
   const lastUserIdRef = useRef<string | null>(null)
   const [publicRoute, setPublicRoute] = useState<PublicRoute>("landing")
+  const [authError, setAuthError] = useState<string | null>(null)
 
-  // Try to refresh token on mount
+  // On mount: finish a Logto redirect if we're on /callback, otherwise try to
+  // restore the session from the refresh cookie.
   useEffect(() => {
+    if (isLogtoCallback()) {
+      useAuthStore.getState().setLoading(true)
+      completeLogtoLogin()
+        .then(({ access_token, user }) => useAuthStore.getState().setAuth(access_token, user))
+        .catch((e) => {
+          setAuthError(e instanceof Error ? e.message : String(e))
+          useAuthStore.getState().clearAuth()
+          setPublicRoute("login")
+        })
+      return
+    }
     refreshAccessToken()
   }, [])
 
@@ -97,7 +111,7 @@ function AuthGate() {
 
   if (!isAuthenticated) {
     if (publicRoute === "login") {
-      return <LoginPage onBack={() => setPublicRoute("landing")} />
+      return <LoginPage onBack={() => setPublicRoute("landing")} ssoError={authError} />
     }
     return <LandingPage onLogin={() => setPublicRoute("login")} />
   }

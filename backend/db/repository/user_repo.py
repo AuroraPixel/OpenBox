@@ -8,14 +8,32 @@ from db.models.user import User
 
 
 class PgUserRepo:
-    async def create(self, *, id: str, username: str, password_hash: str,
-                     email: str | None = None, role: str = "user") -> dict:
+    async def create(self, *, id: str, username: str, password_hash: str | None,
+                     email: str | None = None, role: str = "user",
+                     oauth_provider: str | None = None, oauth_id: str | None = None,
+                     avatar_url: str | None = None) -> dict:
+        # password_hash is None for federated users (Logto/OIDC) — they never
+        # authenticate against the local password path.
         now = datetime.now(timezone.utc)
         user = User(id=id, username=username, password_hash=password_hash,
-                     email=email, role=role, created_at=now, updated_at=now)
+                    email=email, role=role, oauth_provider=oauth_provider,
+                    oauth_id=oauth_id, avatar_url=avatar_url,
+                    created_at=now, updated_at=now)
         async with get_db_session() as session:
             session.add(user)
         return {"id": id, "username": username, "email": email, "role": role}
+
+    async def get_by_oauth(self, provider: str, oauth_id: str) -> dict | None:
+        async with get_db_session() as session:
+            result = await session.execute(
+                select(User).where(
+                    User.oauth_provider == provider,
+                    User.oauth_id == oauth_id,
+                    User.is_deleted == False,
+                )
+            )
+            user = result.scalar_one_or_none()
+            return _to_dict(user) if user else None
 
     async def get(self, user_id: str) -> dict | None:
         async with get_db_session() as session:

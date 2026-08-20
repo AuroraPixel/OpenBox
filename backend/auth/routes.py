@@ -41,6 +41,11 @@ class LoginRequest(BaseModel):
 class ExtensionAuthRequest(BaseModel):
     refresh_token: str
 
+class LogtoExchangeRequest(BaseModel):
+    code: str
+    code_verifier: str
+    redirect_uri: str | None = None
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -147,6 +152,87 @@ async def login(body: LoginRequest, request: Request, response: Response):
         samesite="lax", max_age=7 * 24 * 3600, path="/api/auth",
     )
 
+    return TokenResponse(access_token=access, user=_safe_user(user))
+
+
+@router.get("/logto/config")
+async def logto_config():
+    """Public values the browser needs to start the PKCE flow."""
+    from auth.logto import public_config
+    from core.config import get_config
+
+    config = get_config()
+    data = public_config()
+    data["redirect_uri"] = config.logto_redirect_uri
+    data["post_logout_redirect_uri"] = config.logto_post_logout_redirect_uri
+    return data
+
+
+@router.post("/logto/exchange", response_model=TokenResponse)
+async def logto_exchange(body: LogtoExchangeRequest, request: Request, response: Response):
+    """Trade a Logto authorization code for an OpenBox session.
+
+    The browser ran the PKCE dance up to the redirect; we complete the code
+    exchange server-side (avoids Logto's CORS allowlist), verify the resulting
+    ID token against JWKS, then upsert the user and issue our own JWT.
+    """
+    from auth.logto import (
+        PROVIDER, LogtoError, derive_username, exchange_code, is_enabled, verify_id_token,
+    )
+    from core.config import get_config
+
+    if not is_enabled():
+        raise HTTPException(status_code=503, detail="Logto is not configured on this server")
+
+    ip = request.client.host if request.client else "unknown"
+    await _check_rate_limit(f"logto:{ip}", limit=20, window=60)
+
+    redirect_uri = body.redirect_uri or get_config().logto_redirect_uri
+    try:
+        tokens = await exchange_code(body.code, body.code_verifier, redirect_uri)
+        claims = verify_id_token(tokens["id_token"])
+    except LogtoError as e:
+        log.warning(f"Logto sign-in rejected from {ip}: {e}")
+        raise HTTPException(status_code=401, detail=str(e))
+
+    subject = str(claims["sub"])
+    email = claims.get("email")
+    avatar = claims.get("picture")
+
+    # Keyed on `sub` only. A local username/password account with the same email
+    # stays a separate user — silently merging identities across auth methods is
+    # an account-takeover foot-gun, so we don't.
+    user = await _user_repo.get_by_oauth(PROVIDER, subject)
+    if user is None:
+        username = derive_username(claims)
+        if await _user_repo.get_by_username(username):
+            username = f"{username}-{subject[:6]}"
+
+        user_id = generate_id()
+        await _user_repo.create(
+            id=user_id, username=username, password_hash=None, email=email,
+            oauth_provider=PROVIDER, oauth_id=subject, avatar_url=avatar,
+        )
+
+        from db.models.project import Project
+        from db.base import get_db_session
+        now = datetime.now(timezone.utc)
+        async with get_db_session() as session:
+            session.add(Project(id=generate_id(), user_id=user_id, name="Default",
+                                slug="default", created_at=now, updated_at=now))
+
+        user = await _user_repo.get(user_id)
+        log.info(f"Provisioned Logto user {username} ({user_id})")
+
+    if not user.get("is_active", True):
+        raise HTTPException(status_code=403, detail="Account is disabled")
+
+    access = create_access_token(user["id"], user.get("role", "user"))
+    refresh_token = create_refresh_token(user["id"])
+    response.set_cookie(
+        key="refresh_token", value=refresh_token, httponly=True, secure=False,
+        samesite="lax", max_age=7 * 24 * 3600, path="/api/auth",
+    )
     return TokenResponse(access_token=access, user=_safe_user(user))
 
 
