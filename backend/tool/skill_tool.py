@@ -27,17 +27,38 @@ Usage:
 - The skill content will be returned in the tool output for you to follow"""
 
 
+# Never worth naming: the model cannot act on them and they crowd out the files
+# that matter. A single skill with a node_modules tree contributed 890 entries,
+# which is what a 50-line listing gets spent on if nothing filters it.
+_SKIP_DIRS = {"node_modules", ".git", "__pycache__", ".venv", "venv",
+              "dist", "build", ".next", ".cache"}
+
+
 def _host_files(base: str, limit: int = 20) -> list[str]:
-    """Files bundled beside a host skill's SKILL.md, sampled."""
+    """Files bundled beside a host skill's SKILL.md, sampled.
+
+    SKILL.md itself is excluded — its content is inlined right above the
+    listing. So are dotfiles and macOS AppleDouble stubs (._foo), which appear
+    whenever a skill has been zipped on a Mac.
+    """
     from pathlib import Path
     try:
+        out = []
         root = Path(base)
-        out = sorted(
-            str(f.relative_to(root))
-            for f in root.rglob("*")
-            if f.is_file() and f.name != "SKILL.md"
-        )
-        return out[:limit]
+        for f in sorted(root.rglob("*")):
+            if not f.is_file():
+                continue
+            rel = f.relative_to(root)
+            if any(p in _SKIP_DIRS for p in rel.parts):
+                continue
+            if any(p.startswith(".") for p in rel.parts):
+                continue
+            if rel.name == "SKILL.md":
+                continue
+            out.append(str(rel))
+            if len(out) >= limit:
+                break
+        return out
     except OSError:
         return []
 
