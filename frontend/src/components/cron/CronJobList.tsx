@@ -159,6 +159,14 @@ export function CronJobList({ sessionId, showSessionInfo: _showSessionInfo, comp
                     )}
                   </p>
 
+                  {/* Where it runs. A scheduled task acts on files, and the
+                      directory is the part you cannot infer from the prompt. */}
+                  {job.project_directory && (
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))]/60 font-mono truncate mt-0.5">
+                      {job.project_directory}
+                    </p>
+                  )}
+
                   {!compact && (
                     <p className="text-xs text-[hsl(var(--muted-foreground))]/70 mt-1 line-clamp-2 break-all">
                       {job.task_prompt}

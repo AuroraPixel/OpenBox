@@ -1,26 +1,47 @@
-import { useState, useCallback } from "react"
-import { ArrowLeft, Box, Eye, EyeOff, Loader2, Lock, Mail, Monitor, Moon, Sun, User } from "lucide-react"
+import { useState, useCallback, useEffect } from "react"
+import { ArrowLeft, Box, Eye, EyeOff, Loader2, Lock, Mail, Monitor, Moon, Shield, Sun, User } from "lucide-react"
 import { useAuthStore } from "@/stores/auth"
 import { useUIStore } from "@/stores/ui"
+import { beginLogtoLogin, getLogtoConfig, type LogtoConfig } from "@/lib/logto"
 import { cn } from "@/lib/utils"
 
 const BASE_URL = import.meta.env.VITE_API_URL || ""
 
 interface LoginPageProps {
   onBack?: () => void
+  /** Surfaced when a Logto redirect came back with a failure. */
+  ssoError?: string | null
 }
 
-export function LoginPage({ onBack }: LoginPageProps) {
+export function LoginPage({ onBack, ssoError }: LoginPageProps) {
   const [mode, setMode] = useState<"login" | "register">("login")
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [email, setEmail] = useState("")
   const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState("")
+  const [error, setError] = useState(ssoError || "")
   const [loading, setLoading] = useState(false)
+  const [logto, setLogto] = useState<LogtoConfig | null>(null)
   const setAuth = useAuthStore((s) => s.setAuth)
   const theme = useUIStore((s) => s.theme)
   const setTheme = useUIStore((s) => s.setTheme)
+
+  // Only render the SSO button if the backend actually has Logto configured.
+  useEffect(() => {
+    getLogtoConfig().then(setLogto)
+  }, [])
+
+  const handleLogtoLogin = useCallback(async () => {
+    if (!logto) return
+    setError("")
+    setLoading(true)
+    try {
+      await beginLogtoLogin(logto) // navigates away
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not start SSO sign-in")
+      setLoading(false)
+    }
+  }, [logto])
 
   const cycleTheme = useCallback(() => {
     const next = theme === "dark" ? "light" : theme === "light" ? "system" : "dark"
@@ -159,6 +180,34 @@ export function LoginPage({ onBack }: LoginPageProps) {
                 : "Get started with your AI development environment."}
             </p>
           </div>
+
+          {/* SSO — only shown when the backend reports Logto is configured */}
+          {logto && (
+            <div className="mb-6">
+              <button
+                type="button"
+                onClick={handleLogtoLogin}
+                disabled={loading}
+                className={cn(
+                  "w-full h-11 flex items-center justify-center gap-2.5 px-4",
+                  "border border-[hsl(var(--border))] bg-[hsl(var(--surface-1))]",
+                  "text-sm font-mono uppercase tracking-wider text-[hsl(var(--foreground))]",
+                  "transition-colors hover:bg-[hsl(var(--surface-2))] hover:border-[hsl(var(--primary))]",
+                  "disabled:opacity-50 disabled:cursor-not-allowed",
+                )}
+              >
+                <Shield className="h-4 w-4" />
+                Continue with SSO
+              </button>
+              <div className="flex items-center gap-3 mt-6">
+                <div className="flex-1 h-px bg-[hsl(var(--border))]" />
+                <span className="text-[10px] font-mono uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+                  or
+                </span>
+                <div className="flex-1 h-px bg-[hsl(var(--border))]" />
+              </div>
+            </div>
+          )}
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">

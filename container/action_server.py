@@ -1032,6 +1032,44 @@ def _ensure_skill_symlinks() -> None:
                         pass
 
 
+# Directories and files that are never worth listing to the model or shipping
+# over the tunnel. dev-browser alone carries ~890 node_modules entries, which
+# crowded the genuinely useful files (scripts/, references/) out of a 50-line
+# listing and made GET /skills a 55KB response on every agent step.
+_SKILL_FILE_SKIP_DIRS = {"node_modules", ".git", "__pycache__", ".venv",
+                         "venv", "dist", "build", ".next", ".cache"}
+_SKILL_FILE_LIST_LIMIT = 20    # /skills — the UI shows three and a count
+_SKILL_FILE_DETAIL_LIMIT = 50  # /skills/{name} — what the model sees
+
+
+def _skill_files(skill_data_dir, limit: int = _SKILL_FILE_DETAIL_LIMIT) -> list:
+    """Files bundled with a skill, minus the noise.
+
+    SKILL.md is excluded because its content is inlined right above the
+    listing. Dotfiles and macOS AppleDouble stubs (._foo, created when a skill
+    is zipped on a Mac) are excluded because they are not addressable content.
+    """
+    out = []
+    try:
+        for f in sorted(skill_data_dir.rglob("*")):
+            if not f.is_file():
+                continue
+            rel = f.relative_to(skill_data_dir)
+            parts = rel.parts
+            if any(p in _SKILL_FILE_SKIP_DIRS for p in parts):
+                continue
+            if any(p.startswith(".") or p.startswith("._") for p in parts):
+                continue
+            if rel.name == "SKILL.md":
+                continue
+            out.append(str(rel))
+            if len(out) >= limit:
+                break
+    except OSError:
+        pass
+    return out
+
+
 def _find_skill_mds(skill_dir: Path) -> list[Path]:
     """Find all SKILL.md files in a skill directory.
 
@@ -1079,11 +1117,7 @@ def _scan_skills_in_dir(skills_dir: Path, source: str) -> list[dict]:
             content = skill_md.read_text(encoding="utf-8", errors="replace")
             meta = _parse_skill_frontmatter(content)
             skill_data_dir = skill_md.parent
-            files = [
-                str(f.relative_to(skill_data_dir))
-                for f in skill_data_dir.rglob("*")
-                if f.is_file()
-            ]
+            files = _skill_files(skill_data_dir, _SKILL_FILE_LIST_LIMIT)
             skills.append({
                 "name": meta.get("name") or skill_data_dir.name,
                 "description": meta.get("description", ""),
@@ -1191,11 +1225,7 @@ async def install_skill(req: InstallSkillRequest):
     content = skill_md.read_text(encoding="utf-8", errors="replace")
     meta = _parse_skill_frontmatter(content)
     skill_data_dir = skill_md.parent
-    files = [
-        str(f.relative_to(skill_data_dir))
-        for f in skill_data_dir.rglob("*")
-        if f.is_file()
-    ]
+    files = _skill_files(skill_data_dir)
     return {
         "name": meta.get("name") or skill_name,
         "description": meta.get("description", ""),
@@ -1351,7 +1381,7 @@ async def upload_skill_archive(file: UploadFile = File(...), name: str = Form(""
         md_content = skill_md.read_text(encoding="utf-8", errors="replace")
         meta = _parse_skill_frontmatter(md_content)
         skill_data_dir = skill_md.parent
-        files = [str(f.relative_to(skill_data_dir)) for f in skill_data_dir.rglob("*") if f.is_file()]
+        files = _skill_files(skill_data_dir)
         all_skills.append({
             "name": meta.get("name") or skill_md.parent.name,
             "description": meta.get("description", ""),

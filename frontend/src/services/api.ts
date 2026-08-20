@@ -2,7 +2,7 @@ import type {
   ContainerInfo, ContainerListResponse, CreateContainerRequest, SystemInfo,
   Session, MessageWithParts, DiffEntry, TodoList,
   AgentConfig, SkillInfo, McpServer, CommandInfo, AppConfig,
-  PermissionRequest, QuestionRequest,
+  PermissionRequest, QuestionRequest, Project,
 } from "@/types"
 
 const BASE_URL = import.meta.env.VITE_API_URL || ""
@@ -185,14 +185,37 @@ const realApi = {
   listCronRuns: (jobId: string, limit = 20) =>
     request<Array<Record<string, unknown>>>(`/api/cron/jobs/${jobId}/runs?limit=${limit}`),
 
+  // ===== Projects =====
+  // A project is the directory sessions run in. Sessions in the same project
+  // share a working tree, so a follow-up conversation starts on the files the
+  // previous one left behind.
+  listProjects: () =>
+    request<Project[]>("/api/agent/project"),
+  createProject: (data: { name: string; slug?: string; description?: string }) =>
+    request<Project>("/api/agent/project", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  renameProject: (id: string, name: string) =>
+    request<Project>(`/api/agent/project/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    }),
+  deleteProject: (id: string) =>
+    request<{ ok: boolean }>(`/api/agent/project/${id}`, { method: "DELETE" }),
+
   // ===== New: OpenAgent Session =====
-  createSession: (options?: { model?: string; agent?: string }) =>
+  createSession: (options?: { model?: string; agent?: string; project_id?: string }) =>
     request<Session>("/api/agent/session", {
       method: "POST",
       body: options ? JSON.stringify(options) : undefined,
     }),
-  listSessions: () =>
-    request<Session[]>("/api/agent/session"),
+  listSessions: (projectId?: string) =>
+    request<Session[]>(
+      projectId
+        ? `/api/agent/session?project_id=${encodeURIComponent(projectId)}`
+        : "/api/agent/session",
+    ),
   getSession: (id: string) =>
     request<Session>(`/api/agent/session/${id}`),
   deleteSession: (id: string) =>

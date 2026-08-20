@@ -1,5 +1,6 @@
 """Retry logic with exponential backoff."""
 import asyncio
+import random
 import re
 from typing import Any, Callable, Awaitable
 
@@ -13,6 +14,9 @@ RETRY_INITIAL_DELAY = 2.0  # seconds
 RETRY_BACKOFF_FACTOR = 2
 RETRY_MAX_DELAY = 30.0  # seconds
 MAX_RETRIES = 10
+# Without jitter every caller that hit the same rate limit retries on the same
+# tick and stampedes the provider again. Spreads each delay over [1-f, 1+f].
+RETRY_JITTER_FACTOR = 0.25
 
 # Context overflow error patterns
 OVERFLOW_PATTERNS = [
@@ -55,6 +59,31 @@ def is_context_overflow(message: str) -> bool:
     return any(re.search(p, message, re.IGNORECASE) for p in OVERFLOW_PATTERNS)
 
 
+# Transient failures worth another attempt. Ported from opencode's
+# RETRYABLE_MESSAGE_PATTERNS, which covers considerably more ground than
+# matching a handful of substrings did — in particular the shapes that
+# OpenAI-compatible gateways return, where the real cause is wrapped in the
+# proxy's own message rather than surfacing as a status code.
+RETRYABLE_PATTERNS: list[tuple[str, re.Pattern]] = [
+    ("Rate limited", re.compile(
+        r"\b429\b|rate[ _-]?limit|rate increased too quickly|too many requests", re.I)),
+    ("Service unavailable", re.compile(
+        r"\b(500|502|503|504|524)\b|overloaded|service[ _-]?unavailable"
+        r"|internal (server )?error|server[ _-]?error|bad[ _-]?gateway"
+        r"|provider[ _-]?returned[ _-]?error", re.I)),
+    ("Network error", re.compile(
+        r"terminated|fetch failed|failed to fetch|network error|upstream connect"
+        r"|connection (error|refused|reset|lost|aborted)|socket hang up"
+        r"|reset before headers|getaddrinfo|remote (end )?closed"
+        r"|enotfound|eai_again|econnrefused|econnreset|etimedout", re.I)),
+    ("Timeout", re.compile(
+        r"^timeout$|\b(request|response|connection|network|stream|read)[ _-]?"
+        r"(timeout|timed out|time out)\b|read timeout", re.I)),
+    ("Resource exhausted", re.compile(
+        r"try your request again|retry your request|resource[ _-]?exhausted", re.I)),
+]
+
+
 def is_retryable(error: Exception) -> str | None:
     """Check if an error is retryable. Returns a display message or None."""
     if isinstance(error, ContextOverflowError):
@@ -71,21 +100,27 @@ def is_retryable(error: Exception) -> str | None:
             return "Provider is overloaded"
         return str(error)
 
-    # Check for retryable patterns in generic errors
-    retryable_patterns = [
-        "too_many_requests", "rate_limit", "exhausted",
-        "unavailable", "overloaded", "timeout", "connection",
-        "bad_gateway", "badgateway", "502",
-    ]
-    for pattern in retryable_patterns:
-        if pattern in msg:
-            return f"Retryable error: {pattern}"
+    for label, pattern in RETRYABLE_PATTERNS:
+        if pattern.search(msg):
+            return label
 
     return None
 
 
-def retry_delay(attempt: int, error: Exception | None = None) -> float:
-    """Calculate retry delay in seconds."""
+def _jitter(seconds: float, rand: float) -> float:
+    """Spread a delay over [1-f, 1+f] of its nominal value."""
+    return seconds * (1.0 + RETRY_JITTER_FACTOR * (2.0 * rand - 1.0))
+
+
+def retry_delay(attempt: int, error: Exception | None = None, rand: float | None = None) -> float:
+    """Calculate retry delay in seconds.
+
+    `rand` is injectable so the schedule can be asserted in tests; it defaults
+    to random.random(). A server-supplied retry-after is honoured verbatim —
+    jitter is only applied to delays we invented ourselves.
+    """
+    if rand is None:
+        rand = random.random()
     if isinstance(error, RetryableError) and error.headers:
         headers = error.headers
         # 1. retry-after-ms
@@ -98,12 +133,15 @@ def retry_delay(attempt: int, error: Exception | None = None) -> float:
             except ValueError:
                 pass
         # Has headers but no retry-after, exponential backoff (no cap)
-        return RETRY_INITIAL_DELAY * (RETRY_BACKOFF_FACTOR ** (attempt - 1))
+        return _jitter(RETRY_INITIAL_DELAY * (RETRY_BACKOFF_FACTOR ** (attempt - 1)), rand)
 
     # No headers, exponential backoff with cap
-    return min(
-        RETRY_INITIAL_DELAY * (RETRY_BACKOFF_FACTOR ** (attempt - 1)),
-        RETRY_MAX_DELAY,
+    return _jitter(
+        min(
+            RETRY_INITIAL_DELAY * (RETRY_BACKOFF_FACTOR ** (attempt - 1)),
+            RETRY_MAX_DELAY,
+        ),
+        rand,
     )
 
 

@@ -1,7 +1,10 @@
-"""Temporary session cleaner — removes expired cron execution sessions.
+"""Periodic cleanup, piggybacked on the cron timer tick.
 
-Runs periodically (piggybacked on timer tick), cleaning up temp sessions
-older than RETENTION_HOURS and cron_runs older than RETENTION_DAYS.
+Removes cron temp sessions older than RETENTION_HOURS, cron_runs older than
+RETENTION_DAYS, and project directories left behind in the sandbox by projects
+the user deleted. Nothing else reclaims the last of those: the sandbox outlives
+individual sessions, and WUYING's delete_container is a no-op, so without this
+sweep a deleted project's files stay on disk indefinitely.
 """
 from __future__ import annotations
 
@@ -32,11 +35,13 @@ async def sweep_if_due() -> None:
 
     _last_sweep_at_ms = now_ms
 
-    try:
-        await _sweep_temp_sessions()
-        await _sweep_old_runs()
-    except Exception as e:
-        log.error(f"Reaper sweep error: {e}")
+    # Each step is isolated: a sandbox that is unreachable must not stop the
+    # database-side cleanup, which is the part that always works.
+    for step in (_sweep_temp_sessions, _sweep_old_runs, _sweep_workspace):
+        try:
+            await step()
+        except Exception as e:
+            log.error(f"Reaper step {step.__name__} failed: {e}")
 
 
 async def _sweep_temp_sessions() -> None:
@@ -47,27 +52,34 @@ async def _sweep_temp_sessions() -> None:
 
     cutoff = datetime.now(timezone.utc) - timedelta(hours=RETENTION_HOURS)
 
+    from db.models.session import Session as SessionORM
+
     async with get_db_session() as db:
+        # The owning user comes along: delete_session scopes its update by
+        # user_id, and passing "default" against a real ULID matched no rows,
+        # so nothing was ever actually reaped.
         result = await db.execute(
-            select(CronRun.temp_session_id)
+            select(CronRun.temp_session_id, SessionORM.user_id)
+            .join(SessionORM, SessionORM.id == CronRun.temp_session_id)
             .where(
                 CronRun.temp_session_id.isnot(None),
                 CronRun.status != "running",
                 CronRun.started_at < cutoff,
+                SessionORM.is_deleted == False,  # noqa: E712
             )
             .distinct()
         )
-        expired_session_ids = [row[0] for row in result.all() if row[0]]
+        expired = [(sid, uid) for sid, uid in result.all() if sid]
 
-    if not expired_session_ids:
+    if not expired:
         return
 
     # Delete the temp sessions (cascade deletes messages + parts)
     from session.session import delete_session
     deleted = 0
-    for sid in expired_session_ids:
+    for sid, uid in expired:
         try:
-            await delete_session(sid, user_id="default")
+            await delete_session(sid, user_id=uid)
             deleted += 1
         except Exception:
             pass  # Session may already be deleted
@@ -90,3 +102,29 @@ async def _sweep_old_runs() -> None:
         )
         if result.rowcount > 0:
             log.info(f"Cleaned up {result.rowcount} old cron run(s)")
+
+
+async def _sweep_workspace() -> None:
+    """Bin directories for deleted projects, and empty stale trash.
+
+    Runs against whichever sandbox is up. Directories the database has never
+    heard of are left alone and only logged — an unrecognised directory is far
+    more likely to be something worth keeping than something worth deleting.
+    """
+    from project.reclaim import reclaim
+
+    try:
+        from sandbox import sandbox_manager
+        client = await sandbox_manager.get_client_any()
+    except Exception as e:
+        log.debug(f"No sandbox for workspace sweep: {e}")
+        return
+    if client is None:
+        return
+
+    result = await reclaim(client)
+    if result.get("binned") or result.get("purged"):
+        log.info(
+            f"Workspace sweep: binned {len(result['binned'])}, "
+            f"purged {len(result['purged'])}"
+        )

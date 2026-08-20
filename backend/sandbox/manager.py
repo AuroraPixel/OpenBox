@@ -25,6 +25,11 @@ class SandboxInfo:
     api_key: str
     project_id: str
     session_ids: set[str] = field(default_factory=set)
+    base_url: str | None = None   # set by URL-addressed providers (wuying)
+
+    @property
+    def alive_url(self) -> str:
+        return f"{(self.base_url or f'http://{self.host}:{self.port}').rstrip('/')}/alive"
 
 
 class SandboxManager:
@@ -46,8 +51,10 @@ class SandboxManager:
         import httpx
 
         try:
-            async with httpx.AsyncClient(timeout=3.0) as http:
-                resp = await http.get(f"http://{sandbox.host}:{sandbox.port}/alive")
+            # trust_env=False — the sandbox endpoint is direct infrastructure and
+            # must not be routed through a developer's HTTP(S)_PROXY.
+            async with httpx.AsyncClient(timeout=5.0, trust_env=False) as http:
+                resp = await http.get(sandbox.alive_url)
             if resp.status_code == 200:
                 return True
         except Exception:
@@ -159,12 +166,14 @@ class SandboxManager:
                 api_key=info.api_key or "",
                 project_id=project_id,
                 session_ids={session_id},
+                base_url=getattr(provider, "client_base_url", None),
             )
 
             client = SandboxClient(
                 host=info.host,
                 port=info.port,
                 api_key=info.api_key or "",
+                base_url=getattr(provider, "client_base_url", None),
             )
 
             async with self._lock:
@@ -182,20 +191,42 @@ class SandboxManager:
             raise
 
     async def _ensure_session_dir(self, client: SandboxClient, session_id: str) -> None:
-        """Create the session-specific working directory inside the container."""
-        workdir = f"/workspace/sessions/{session_id}"
+        """Create the directory this session will run in.
+
+        That is the project's directory, not one per session: sessions in a
+        project share a working tree the way two terminals open on the same
+        checkout do, so the agent can pick up where the last conversation left
+        off instead of starting in an empty folder every time.
+        """
+        from project.workspace import (
+            INTERNAL_ROOT, project_directory, slug_for, WORKSPACE_ROOT,
+        )
+        slug = "default"
+        try:
+            from session.session import project_id_for
+            slug = await slug_for(await project_id_for(session_id))
+        except Exception as e:
+            log.debug(f"Could not resolve project for session {session_id}: {e}")
+
+        workdir = project_directory(slug)
         try:
             await client.execute(
-                command=f"mkdir -p {workdir}",
-                timeout=5,
-                workdir="/workspace",
+                command=f"mkdir -p {workdir} {INTERNAL_ROOT}",
+                timeout=10,
+                workdir=WORKSPACE_ROOT,
             )
         except Exception as e:
-            log.warning(f"Failed to create session dir {workdir}: {e}")
+            log.warning(f"Failed to create project dir {workdir}: {e}")
 
-    def get_session_workdir(self, session_id: str) -> str:
-        """Get the session-specific working directory path."""
-        return f"/workspace/sessions/{session_id}"
+    async def get_session_workdir(self, session_id: str) -> str:
+        """The directory a session's tools run in — its project's directory."""
+        from project.workspace import project_directory, slug_for
+        try:
+            from session.session import project_id_for
+            return project_directory(await slug_for(await project_id_for(session_id)))
+        except Exception as e:
+            log.debug(f"Could not resolve workdir for {session_id}: {e}")
+        return project_directory("default")
 
     async def release(self, session_id: str) -> None:
         """Release a session from its sandbox. Only destroys container when no sessions remain."""

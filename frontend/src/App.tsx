@@ -12,10 +12,12 @@ import { ToastProvider } from "@/components/ui/Toast"
 import { SandboxRequiredDialog } from "@/components/sandbox/SandboxRequiredDialog"
 import { useWS } from "@/hooks/useWS"
 import { useAuthStore, refreshAccessToken } from "@/stores/auth"
+import { completeLogtoLogin, isLogtoCallback } from "@/lib/logto"
 import { LandingPage } from "@/pages/LandingPage"
 import { LoginPage } from "@/pages/LoginPage"
 import { useKeyboard } from "@/hooks/useKeyboard"
 import { useSessionStore } from "@/stores/session"
+import { useProjectStore } from "@/stores/project"
 import { usePermissionStore } from "@/stores/permission"
 import { useQuestionStore } from "@/stores/question"
 import { useTerminalStore } from "@/stores/terminal"
@@ -58,9 +60,22 @@ function AuthGate() {
   const authUserId = useAuthStore((s) => s.user?.id || null)
   const lastUserIdRef = useRef<string | null>(null)
   const [publicRoute, setPublicRoute] = useState<PublicRoute>("landing")
+  const [authError, setAuthError] = useState<string | null>(null)
 
-  // Try to refresh token on mount
+  // On mount: finish a Logto redirect if we're on /callback, otherwise try to
+  // restore the session from the refresh cookie.
   useEffect(() => {
+    if (isLogtoCallback()) {
+      useAuthStore.getState().setLoading(true)
+      completeLogtoLogin()
+        .then(({ access_token, user }) => useAuthStore.getState().setAuth(access_token, user))
+        .catch((e) => {
+          setAuthError(e instanceof Error ? e.message : String(e))
+          useAuthStore.getState().clearAuth()
+          setPublicRoute("login")
+        })
+      return
+    }
     refreshAccessToken()
   }, [])
 
@@ -68,6 +83,10 @@ function AuthGate() {
     const last = lastUserIdRef.current
     if (!isAuthenticated) {
       useSessionStore.getState().reset()
+      // Only on a real sign-out. This effect also runs on the first render,
+      // before the token refresh resolves, and clearing there would drop the
+      // remembered project on every reload.
+      if (last) useProjectStore.getState().reset()
       usePermissionStore.getState().clearAll()
       useQuestionStore.getState().clearAll()
       queryClient.removeQueries()
@@ -75,6 +94,7 @@ function AuthGate() {
     }
     if (last && authUserId && last !== authUserId) {
       useSessionStore.getState().reset()
+      useProjectStore.getState().reset()
       usePermissionStore.getState().clearAll()
       useQuestionStore.getState().clearAll()
       queryClient.removeQueries()
@@ -97,7 +117,7 @@ function AuthGate() {
 
   if (!isAuthenticated) {
     if (publicRoute === "login") {
-      return <LoginPage onBack={() => setPublicRoute("landing")} />
+      return <LoginPage onBack={() => setPublicRoute("landing")} ssoError={authError} />
     }
     return <LandingPage onLogin={() => setPublicRoute("login")} />
   }
@@ -170,7 +190,11 @@ function AppInner() {
   // Fetch session list from backend and populate store
   const { data: sessionList } = useQuery({
     queryKey: ["sessions", authUserId],
-    queryFn: api.listSessions,
+    // Wrapped, not passed bare: react-query calls queryFn with its context
+    // object, which would arrive as listSessions' projectId argument.
+    // Every session is fetched and the sidebar filters by project client-side,
+    // so switching project is instant and "All projects" needs no refetch.
+    queryFn: () => api.listSessions(),
     staleTime: 30000,
   })
 

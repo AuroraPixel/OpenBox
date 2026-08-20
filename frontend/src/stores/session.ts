@@ -52,7 +52,7 @@ interface SessionStore {
   isMockSessionId: (id: string) => boolean
   resolveSessionId: (id: string) => string
   registerSessionIdRemap: (mockId: string, realId: string, realSession?: Session) => void
-  ensureRealSession: (candidateId?: string | null, options?: { model?: string; agent?: string }) => Promise<string>
+  ensureRealSession: (candidateId?: string | null, options?: { model?: string; agent?: string; projectId?: string }) => Promise<string>
 
   // Message actions
   setMessages: (sessionId: string, messages: MessageWithParts[]) => void
@@ -191,8 +191,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       const createOpts = {
         model: options?.model ?? mockSession?.model,
         agent: options?.agent ?? mockSession?.agent,
+        // Omitted when no project is selected, which files the session under
+        // the user's default project server-side.
+        project_id: options?.projectId,
       }
-      const payload = createOpts.model || createOpts.agent ? createOpts : undefined
+      const payload = createOpts.model || createOpts.agent || createOpts.project_id
+        ? createOpts
+        : undefined
       const session = await api.createSession(payload)
 
       if (latestCandidate && latestCandidate.startsWith(MOCK_PREFIX)) {

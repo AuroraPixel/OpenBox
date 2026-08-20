@@ -9,6 +9,7 @@ export interface Session {
   created_at: string
   updated_at: string
   slug?: string
+  project_id?: string
   additions?: number
   deletions?: number
   files_changed?: number

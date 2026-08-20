@@ -24,8 +24,11 @@ export default defineConfig({
     },
   },
   server: {
+    // 3000 matches the redirect URI registered in Logto
+    // (http://localhost:3000/callback) — changing it means re-registering there.
     host: '0.0.0.0',
-    port: 5173,
+    port: 3000,
+    strictPort: true,
     allowedHosts: true,
     proxy: {
       '/api': 'http://localhost:8080',

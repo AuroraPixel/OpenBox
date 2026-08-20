@@ -25,6 +25,13 @@ class CompactionConfig(BaseModel):
     auto: bool = True
     prune: bool = True
     reserved: int | None = None  # Override default buffer
+    # How much recent history survives a compaction verbatim instead of being
+    # replaced by the summary. None = 25% of usable context, clamped to
+    # [8k, 60k] tokens. See agent/compaction_select.
+    preserve_recent_tokens: int | None = None
+    # Cap on how many recent turns are eligible for that tail. 0 disables the
+    # tail entirely (summary-only, the pre-0.2 behaviour).
+    tail_turns: int | None = None
 
 
 class McpServerConfig(BaseModel):
@@ -71,7 +78,7 @@ class OpenBoxConfig(BaseModel):
     )
 
     # -- Sandbox --
-    sandbox_provider: str = "docker"               # "docker" | "kubernetes"
+    sandbox_provider: str = "docker"               # "docker" | "kubernetes" | "wuying"
     sandbox_image: str = "openbox-sandbox:latest"
     container_name_prefix: str = "openbox-sandbox-"
     container_port_range: tuple[int, int] = (10000, 19999)
@@ -89,6 +96,13 @@ class OpenBoxConfig(BaseModel):
     k8s_sandbox_memory_limit: str = "1Gi"
     k8s_sandbox_service_account: str = ""           # SA for sandbox pods (Workload Identity)
     sandbox_idle_timeout: int = 1800                # idle reclaim seconds (30 min)
+
+    # -- WUYING cloud desktop (sandbox_provider="wuying") --
+    # A long-lived Alibaba Cloud desktop running the action server, reached over
+    # a tunnel. OpenBox never creates or destroys it.
+    wuying_endpoint: str = "http://127.0.0.1:18000"
+    wuying_api_key: str = ""                        # must match SESSION_API_KEY on the desktop
+    wuying_desktop_id: str = ""                     # ecd-... , informational only
 
     # -- Multi-user infrastructure --
     database_url: str = "postgresql+asyncpg://openbox:openbox@localhost:5432/openbox"
@@ -111,6 +125,18 @@ class OpenBoxConfig(BaseModel):
     monthly_cost_limit: float = 50.0
     rate_limit_login: str = "5/minute"
     rate_limit_api: str = "60/minute"
+
+    # -- Logto OIDC (optional; local username/password still works when unset) --
+    # The browser is a public PKCE client, so no client secret is stored here.
+    logto_endpoint: str = ""                 # e.g. https://account.example.com
+    logto_app_id: str = ""
+    # Required only for a confidential app (Logto "Traditional Web"); a SPA /
+    # Native app is a public client and leaves this empty.
+    logto_app_secret: str = ""
+    logto_issuer: str = ""                   # defaults to {endpoint}/oidc
+    logto_jwks_uri: str = ""                 # defaults to {endpoint}/oidc/jwks
+    logto_redirect_uri: str = "http://localhost:3000/callback"
+    logto_post_logout_redirect_uri: str = "http://localhost:3000"
 
     # -- Agent --
     model: str = "anthropic/claude-sonnet-4-20250514"
@@ -264,6 +290,9 @@ def _apply_env_overrides(data: dict) -> dict:
         "k8s_sandbox_memory_limit": "K8S_SANDBOX_MEMORY_LIMIT",
         "k8s_sandbox_service_account": "K8S_SANDBOX_SERVICE_ACCOUNT",
         "sandbox_idle_timeout": "SANDBOX_IDLE_TIMEOUT",
+        "wuying_endpoint": "WUYING_ENDPOINT",
+        "wuying_api_key": "WUYING_API_KEY",
+        "wuying_desktop_id": "WUYING_DESKTOP_ID",
         "database_url": "DATABASE_URL",
         "db_pool_size": "DB_POOL_SIZE",
         "db_pool_overflow": "DB_POOL_OVERFLOW",
@@ -282,6 +311,13 @@ def _apply_env_overrides(data: dict) -> dict:
         "monthly_cost_limit": "MONTHLY_COST_LIMIT",
         "rate_limit_login": "RATE_LIMIT_LOGIN",
         "rate_limit_api": "RATE_LIMIT_API",
+        "logto_endpoint": "LOGTO_ENDPOINT",
+        "logto_app_id": "LOGTO_APP_ID",
+        "logto_app_secret": "LOGTO_APP_SECRET",
+        "logto_issuer": "LOGTO_ISSUER",
+        "logto_jwks_uri": "LOGTO_JWKS_URI",
+        "logto_redirect_uri": "LOGTO_REDIRECT_URI",
+        "logto_post_logout_redirect_uri": "LOGTO_POST_LOGOUT_REDIRECT_URI",
     }
     for field_name, env_var in env_map.items():
         value = os.environ.get(env_var)

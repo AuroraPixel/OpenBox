@@ -3,6 +3,7 @@ import json
 import time
 from typing import Any
 
+from agent.doom_loop import DOOM_LOOP_THRESHOLD
 from bus import bus
 from bus.events import TOOL_RUNNING, TOOL_COMPLETED, TOOL_ERROR
 from permission import permission as perm_mod
@@ -10,8 +11,6 @@ from tool.tool import ToolResult, ToolContext
 from core.log import create_logger
 
 log = create_logger("agent.hooks")
-
-DOOM_LOOP_THRESHOLD = 3
 
 
 class ToolHooks:
@@ -208,7 +207,14 @@ class ToolHooks:
         return result
 
     def _extract_patterns(self, tool_id: str, args: dict) -> list[str]:
-        """Extract permission patterns from tool args."""
+        """The subject a permission rule matches against, taken from the args.
+
+        Falling back to "*" is not a safe default — it is the opposite. A rule
+        like skill/secret-* => deny is evaluated against the pattern passed in,
+        and "*" does not match "secret-*", so the rule never fires and the call
+        is allowed. Any tool whose rules are written per-target has to name that
+        target here or its deny rules are decorative.
+        """
         if tool_id == "bash":
             return [args.get("command", "")]
         elif tool_id in ("read", "write", "edit", "multiedit", "apply_patch"):
@@ -217,6 +223,10 @@ class ToolHooks:
             return [args.get("pattern", "")]
         elif tool_id == "grep":
             return [args.get("pattern", "")]
+        elif tool_id == "skill":
+            return [args.get("skill", "")]
+        elif tool_id == "web_fetch":
+            return [args.get("url", "")]
         return ["*"]
 
     def _check_doom_loop(self, tool_id: str, args: dict) -> bool:

@@ -18,5 +18,5 @@ declare module '#imports' {
   export { InvalidMatchPattern, MatchPattern } from 'wxt/utils/match-patterns';
   export { fakeBrowser } from 'wxt/testing';
   export { createLogger, LogLevel, LogMessage, SendMessageFn, Logger } from '../utils/logger';
-  export { ConnectionState, TabState, TabInfo, ExtensionState, ExtensionCommandMessage, ExtensionResponseMessage, ExtensionEventMessage, ExtensionLogMessage, ExtensionMessage, TargetInfo, GetStateMessage, SetStateMessage, CheckAuthMessage, StateResponse, AuthStatusResponse, PopupMessage } from '../utils/types';
+  export { ConnectionState, TabState, TabInfo, ExtensionState, ExtensionCommandMessage, ExtensionResponseMessage, ExtensionEventMessage, ExtensionLogMessage, ExtensionMessage, TargetInfo, GetStateMessage, SetStateMessage, CheckAuthMessage, SetServerUrlMessage, StateResponse, AuthStatusResponse, SetServerUrlResponse, PopupMessage } from '../utils/types';
 }

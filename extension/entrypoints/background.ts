@@ -10,7 +10,12 @@ import { TabManager } from "../services/TabManager";
 import { ConnectionManager } from "../services/ConnectionManager";
 import { CDPRouter } from "../services/CDPRouter";
 import { StateManager } from "../services/StateManager";
-import type { PopupMessage, StateResponse, AuthStatusResponse } from "../utils/types";
+import type {
+  PopupMessage,
+  StateResponse,
+  AuthStatusResponse,
+  SetServerUrlResponse,
+} from "../utils/types";
 
 export default defineBackground(() => {
   let connectionManager: ConnectionManager;
@@ -97,39 +102,56 @@ export default defineBackground(() => {
     (
       message: PopupMessage,
       _sender: chrome.runtime.MessageSender,
-      sendResponse: (response: StateResponse | AuthStatusResponse) => void
+      sendResponse: (
+        response: StateResponse | AuthStatusResponse | SetServerUrlResponse
+      ) => void
     ) => {
+      /** Snapshot shared by getState/setState so both stay in sync. */
+      const buildStateResponse = async (): Promise<StateResponse> => {
+        const state = await stateManager.getState();
+        const config = await stateManager.getConfig();
+        const isConnected = await connectionManager.checkConnection();
+        return {
+          isActive: state.isActive,
+          isConnected,
+          isReplaced: connectionManager.isReplaced(),
+          authError: connectionManager.getAuthError(),
+          username: connectionManager.getUsername(),
+          clientId: config.clientId || undefined,
+          serverUrl: await stateManager.getServerUrl(),
+          isDefaultServerUrl: !config.serverUrl,
+        };
+      };
+
       if (message.type === "getState") {
-        (async () => {
-          const state = await stateManager.getState();
-          const config = await stateManager.getConfig();
-          const isConnected = await connectionManager.checkConnection();
-          sendResponse({
-            isActive: state.isActive,
-            isConnected,
-            isReplaced: connectionManager.isReplaced(),
-            authError: connectionManager.getAuthError(),
-            username: connectionManager.getUsername(),
-            clientId: config.clientId || undefined,
-          });
-        })();
+        (async () => sendResponse(await buildStateResponse()))();
         return true;
       }
 
       if (message.type === "setState") {
         (async () => {
           await handleStateChange(message.isActive);
+          sendResponse(await buildStateResponse());
+        })();
+        return true;
+      }
+
+      if (message.type === "setServerUrl") {
+        (async () => {
+          const saved = await stateManager.setServerUrl(message.serverUrl);
+          if (saved === null) {
+            sendResponse({ ok: false, error: "Not a valid http(s) URL" });
+            return;
+          }
+          // The origin is baked into the auth cookie lookup and the relay URL,
+          // so an existing connection is now pointed at the wrong server —
+          // bounce it so the next attempt uses the new value.
           const state = await stateManager.getState();
-          const config = await stateManager.getConfig();
-          const isConnected = await connectionManager.checkConnection();
-          sendResponse({
-            isActive: state.isActive,
-            isConnected,
-            isReplaced: connectionManager.isReplaced(),
-            authError: connectionManager.getAuthError(),
-            username: connectionManager.getUsername(),
-            clientId: config.clientId || undefined,
-          });
+          if (state.isActive) {
+            await handleStateChange(false);
+            await handleStateChange(true);
+          }
+          sendResponse({ ok: true, serverUrl: saved });
         })();
         return true;
       }

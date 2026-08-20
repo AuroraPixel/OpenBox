@@ -7,7 +7,7 @@ declare global {
   const browser: typeof import('wxt/browser').browser
   const createIframeUi: typeof import('wxt/utils/content-script-ui/iframe').createIframeUi
   const createIntegratedUi: typeof import('wxt/utils/content-script-ui/integrated').createIntegratedUi
-  const createLogger: typeof import('/Users/andrewwang/workspace/box-new/OpenBox/extension/utils/logger').createLogger
+  const createLogger: typeof import('/Users/wang/workspace/OpenBox/extension/utils/logger').createLogger
   const createShadowRootUi: typeof import('wxt/utils/content-script-ui/shadow-root').createShadowRootUi
   const defineAppConfig: typeof import('wxt/utils/define-app-config').defineAppConfig
   const defineBackground: typeof import('wxt/utils/define-background').defineBackground
@@ -49,9 +49,9 @@ declare global {
   export type { ScriptPublicPath, InjectScriptOptions } from 'wxt/utils/inject-script'
   import('wxt/utils/inject-script')
   // @ts-ignore
-  export type { LogLevel, LogMessage, SendMessageFn, Logger } from '/Users/andrewwang/workspace/box-new/OpenBox/extension/utils/logger'
-  import('/Users/andrewwang/workspace/box-new/OpenBox/extension/utils/logger')
+  export type { LogLevel, LogMessage, SendMessageFn, Logger } from '/Users/wang/workspace/OpenBox/extension/utils/logger'
+  import('/Users/wang/workspace/OpenBox/extension/utils/logger')
   // @ts-ignore
-  export type { ConnectionState, TabState, TabInfo, ExtensionState, ExtensionCommandMessage, ExtensionResponseMessage, ExtensionEventMessage, ExtensionLogMessage, ExtensionMessage, TargetInfo, GetStateMessage, SetStateMessage, CheckAuthMessage, StateResponse, AuthStatusResponse, PopupMessage } from '/Users/andrewwang/workspace/box-new/OpenBox/extension/utils/types'
-  import('/Users/andrewwang/workspace/box-new/OpenBox/extension/utils/types')
+  export type { ConnectionState, TabState, TabInfo, ExtensionState, ExtensionCommandMessage, ExtensionResponseMessage, ExtensionEventMessage, ExtensionLogMessage, ExtensionMessage, TargetInfo, GetStateMessage, SetStateMessage, CheckAuthMessage, SetServerUrlMessage, StateResponse, AuthStatusResponse, SetServerUrlResponse, PopupMessage } from '/Users/wang/workspace/OpenBox/extension/utils/types'
+  import('/Users/wang/workspace/OpenBox/extension/utils/types')
 }

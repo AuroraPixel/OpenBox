@@ -41,17 +41,27 @@ class SandboxClient:
     All file and command operations go through this client to the sandbox.
     """
 
-    def __init__(self, host: str, port: int, api_key: str):
-        self.base_url = f"http://{host}:{port}"
+    def __init__(self, host: str, port: int, api_key: str, base_url: str | None = None):
+        # base_url wins when set — remote providers (wuying) address the action
+        # server through a tunnel endpoint rather than a host/port pair.
+        self.base_url = base_url.rstrip("/") if base_url else f"http://{host}:{port}"
         self.api_key = api_key
         self._headers = {"X-API-Key": api_key}
 
     def _client(self, timeout: float = 30.0) -> httpx.AsyncClient:
-        """Create an httpx async client."""
+        """Create an httpx async client.
+
+        trust_env=False is deliberate: the sandbox endpoint is always directly
+        reachable infrastructure (local container, in-cluster service, or an
+        SSH tunnel on loopback). Honouring HTTP_PROXY/HTTPS_PROXY from the
+        environment sends those requests through a developer's proxy, which
+        typically cannot reach them and fails with an opaque timeout.
+        """
         return httpx.AsyncClient(
             base_url=self.base_url,
             headers=self._headers,
             timeout=timeout,
+            trust_env=False,
         )
 
     async def execute(
@@ -282,7 +292,7 @@ class SandboxClient:
         import httpx
         files = {"file": (filename, file_bytes)}
         data = {"name": name or ""}
-        async with httpx.AsyncClient(timeout=90.0) as client:
+        async with httpx.AsyncClient(timeout=90.0, trust_env=False) as client:
             url = f"{self.base_url}/skills/upload"
             resp = await client.post(url, files=files, data=data, headers=self._headers)
             if resp.status_code != 200:
