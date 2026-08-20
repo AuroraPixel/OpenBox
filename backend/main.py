@@ -82,11 +82,13 @@ async def lifespan(app: FastAPI):
     _init_infrastructure(config)
     _init_agent()
 
-    # Sandbox provider: reconcile (K8s) or cleanup (Docker)
+    # Sandbox provider startup: reconcile against the real runtime where the
+    # provider owns long-lived resources (K8s pods, an external WUYING desktop);
+    # only Docker starts from a clean slate each boot.
     from sandbox import provider
-    if config.sandbox_provider == "kubernetes":
+    if config.sandbox_provider in ("kubernetes", "wuying"):
         await provider.reconcile()
-        log.info("OpenBox starting (kubernetes provider, reconciled)")
+        log.info(f"OpenBox starting ({config.sandbox_provider} provider, reconciled)")
     else:
         await provider.cleanup_all()
         log.info("OpenBox starting (docker provider, cleaned up)")

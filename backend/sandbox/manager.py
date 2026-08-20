@@ -25,6 +25,11 @@ class SandboxInfo:
     api_key: str
     project_id: str
     session_ids: set[str] = field(default_factory=set)
+    base_url: str | None = None   # set by URL-addressed providers (wuying)
+
+    @property
+    def alive_url(self) -> str:
+        return f"{(self.base_url or f'http://{self.host}:{self.port}').rstrip('/')}/alive"
 
 
 class SandboxManager:
@@ -46,8 +51,10 @@ class SandboxManager:
         import httpx
 
         try:
-            async with httpx.AsyncClient(timeout=3.0) as http:
-                resp = await http.get(f"http://{sandbox.host}:{sandbox.port}/alive")
+            # trust_env=False — the sandbox endpoint is direct infrastructure and
+            # must not be routed through a developer's HTTP(S)_PROXY.
+            async with httpx.AsyncClient(timeout=5.0, trust_env=False) as http:
+                resp = await http.get(sandbox.alive_url)
             if resp.status_code == 200:
                 return True
         except Exception:
@@ -159,12 +166,14 @@ class SandboxManager:
                 api_key=info.api_key or "",
                 project_id=project_id,
                 session_ids={session_id},
+                base_url=getattr(provider, "client_base_url", None),
             )
 
             client = SandboxClient(
                 host=info.host,
                 port=info.port,
                 api_key=info.api_key or "",
+                base_url=getattr(provider, "client_base_url", None),
             )
 
             async with self._lock:

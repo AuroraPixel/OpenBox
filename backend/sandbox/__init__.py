@@ -12,6 +12,9 @@ def _create_provider() -> SandboxProvider:
     if config.sandbox_provider == "kubernetes":
         from sandbox.kubernetes import KubernetesProvider
         return KubernetesProvider()
+    elif config.sandbox_provider == "wuying":
+        from sandbox.wuying import WuyingProvider
+        return WuyingProvider()
     else:
         from sandbox.docker import DockerManager
         return DockerManager()

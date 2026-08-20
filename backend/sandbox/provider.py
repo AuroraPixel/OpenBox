@@ -33,6 +33,11 @@ class SandboxProvider(ABC):
 
     supports_build: bool = False
 
+    # Providers that address the action server by URL (rather than by the
+    # host/port pair on ContainerInfo) set this; SandboxManager prefers it when
+    # building the client. Needed for tunnelled or TLS endpoints.
+    client_base_url: str | None = None
+
     _containers: dict[str, ContainerInfo]
     _api_keys: dict[str, str]
 
