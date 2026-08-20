@@ -3,6 +3,7 @@ import json
 import time
 from typing import Any
 
+from agent.doom_loop import DOOM_LOOP_THRESHOLD
 from bus import bus
 from bus.events import TOOL_RUNNING, TOOL_COMPLETED, TOOL_ERROR
 from permission import permission as perm_mod
@@ -10,8 +11,6 @@ from tool.tool import ToolResult, ToolContext
 from core.log import create_logger
 
 log = create_logger("agent.hooks")
-
-DOOM_LOOP_THRESHOLD = 3
 
 
 class ToolHooks:
