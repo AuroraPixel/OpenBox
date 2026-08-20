@@ -101,3 +101,52 @@ def test_non_retryable_error_uses_plain_backoff():
     assert retry_delay(2, ValueError("nope"), rand=MID) == pytest.approx(
         RETRY_INITIAL_DELAY * RETRY_BACKOFF_FACTOR
     )
+
+
+# ── which errors are worth another attempt ──
+#
+# The failures that actually reach us come through OpenAI-compatible gateways,
+# which wrap the real cause in their own prose. Matching a few substrings missed
+# most of them, so these pin the shapes seen in practice.
+
+import pytest
+
+from agent.retry import is_retryable
+
+
+@pytest.mark.parametrize("message", [
+    "429 Too Many Requests",
+    "rate limit exceeded, please slow down",
+    "You have sent requests at a rate increased too quickly",
+    "Internal Server Error",
+    "provider returned error",
+    "HTTP 504 Gateway Timeout",
+    "upstream connect error or disconnect/reset before headers",
+    "socket hang up",
+    "fetch failed",
+    "ECONNRESET",
+    "getaddrinfo EAI_AGAIN api.example.com",
+    "The model is overloaded. Please try your request again later.",
+    "read timeout",
+    "connection refused",
+    "503 Service Unavailable",
+])
+def test_transient_failures_are_retried(message):
+    assert is_retryable(Exception(message)) is not None, message
+
+
+@pytest.mark.parametrize("message", [
+    "invalid api key",
+    "malformed request: messages[0].role is required",
+    "model 'nope' does not exist",
+    "content policy violation",
+    "",
+])
+def test_permanent_failures_are_not_retried(message):
+    assert is_retryable(Exception(message)) is None, message
+
+
+def test_the_label_names_the_category_not_the_raw_error():
+    # Surfaced in logs and to the user; the raw provider string is noise there.
+    assert is_retryable(Exception("HTTP 502 bad gateway")) == "Service unavailable"
+    assert is_retryable(Exception("429 slow down")) == "Rate limited"

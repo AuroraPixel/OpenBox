@@ -59,6 +59,31 @@ def is_context_overflow(message: str) -> bool:
     return any(re.search(p, message, re.IGNORECASE) for p in OVERFLOW_PATTERNS)
 
 
+# Transient failures worth another attempt. Ported from opencode's
+# RETRYABLE_MESSAGE_PATTERNS, which covers considerably more ground than
+# matching a handful of substrings did — in particular the shapes that
+# OpenAI-compatible gateways return, where the real cause is wrapped in the
+# proxy's own message rather than surfacing as a status code.
+RETRYABLE_PATTERNS: list[tuple[str, re.Pattern]] = [
+    ("Rate limited", re.compile(
+        r"\b429\b|rate[ _-]?limit|rate increased too quickly|too many requests", re.I)),
+    ("Service unavailable", re.compile(
+        r"\b(500|502|503|504|524)\b|overloaded|service[ _-]?unavailable"
+        r"|internal (server )?error|server[ _-]?error|bad[ _-]?gateway"
+        r"|provider[ _-]?returned[ _-]?error", re.I)),
+    ("Network error", re.compile(
+        r"terminated|fetch failed|failed to fetch|network error|upstream connect"
+        r"|connection (error|refused|reset|lost|aborted)|socket hang up"
+        r"|reset before headers|getaddrinfo|remote (end )?closed"
+        r"|enotfound|eai_again|econnrefused|econnreset|etimedout", re.I)),
+    ("Timeout", re.compile(
+        r"^timeout$|\b(request|response|connection|network|stream|read)[ _-]?"
+        r"(timeout|timed out|time out)\b|read timeout", re.I)),
+    ("Resource exhausted", re.compile(
+        r"try your request again|retry your request|resource[ _-]?exhausted", re.I)),
+]
+
+
 def is_retryable(error: Exception) -> str | None:
     """Check if an error is retryable. Returns a display message or None."""
     if isinstance(error, ContextOverflowError):
@@ -75,15 +100,9 @@ def is_retryable(error: Exception) -> str | None:
             return "Provider is overloaded"
         return str(error)
 
-    # Check for retryable patterns in generic errors
-    retryable_patterns = [
-        "too_many_requests", "rate_limit", "exhausted",
-        "unavailable", "overloaded", "timeout", "connection",
-        "bad_gateway", "badgateway", "502",
-    ]
-    for pattern in retryable_patterns:
-        if pattern in msg:
-            return f"Retryable error: {pattern}"
+    for label, pattern in RETRYABLE_PATTERNS:
+        if pattern.search(msg):
+            return label
 
     return None
 
