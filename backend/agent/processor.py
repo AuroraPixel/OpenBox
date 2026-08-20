@@ -35,7 +35,7 @@ from core.log import create_logger
 from models.message import (
     ReasoningPart, TextPart, ToolPartData, ToolStatus,
 )
-from session.session import save_part, update_message_info, update_session
+from session.session import get_messages, save_part, update_message_info, update_session
 from tool.tool import ToolContext
 
 log = create_logger("agent.processor")
@@ -66,6 +66,16 @@ class StepResult:
     retry_reason: str | None = None
     error: str | None = None
     duration: float = 0.0
+
+
+async def _history_for_compaction(session_id: str) -> list:
+    """History for sizing the preserved tail. Best effort — losing the tail is
+    much better than losing the compaction that keeps the session alive."""
+    try:
+        return await get_messages(session_id)
+    except Exception as e:
+        log.warning(f"Could not load history for compaction tail: {e}")
+        return []
 
 
 async def process_step(
@@ -204,7 +214,9 @@ async def process_step(
             elif event["type"] == "error":
                 error = event["error"]
                 if is_context_overflow(str(error)):
-                    await create_compaction(session_id, auto=True, user_id=user_id)
+                    await create_compaction(session_id, auto=True, user_id=user_id,
+                                        messages=await _history_for_compaction(session_id),
+                                        model_id=model_id)
                     finish_reason = "compact"
                 else:
                     raise error
@@ -280,8 +292,11 @@ async def process_step(
                 agent_switch = result.metadata.get("agent_switch")
                 if agent_switch:
                     try:
-                        new_agent = get_agent(agent_switch)
-                        agent_def = new_agent
+                        # Validate before persisting; the switch itself takes
+                        # effect on the next step, which re-resolves the agent
+                        # from the session. Rebinding agent_def here would only
+                        # touch this function's local and mislead the reader.
+                        get_agent(agent_switch)
                         await update_session(session_id, agent=agent_switch)
                         log.info(f"Agent switched to {agent_switch}")
                     except ValueError:
@@ -302,7 +317,9 @@ async def process_step(
                     finish_reason = "stop"
 
     except ContextOverflowError:
-        await create_compaction(session_id, auto=True, user_id=user_id)
+        await create_compaction(session_id, auto=True, user_id=user_id,
+                                        messages=await _history_for_compaction(session_id),
+                                        model_id=model_id)
         finish_reason = "compact"
     except Exception as e:
         retry_msg = is_retryable(e)

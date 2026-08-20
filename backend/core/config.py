@@ -25,6 +25,13 @@ class CompactionConfig(BaseModel):
     auto: bool = True
     prune: bool = True
     reserved: int | None = None  # Override default buffer
+    # How much recent history survives a compaction verbatim instead of being
+    # replaced by the summary. None = 25% of usable context, clamped to
+    # [8k, 60k] tokens. See agent/compaction_select.
+    preserve_recent_tokens: int | None = None
+    # Cap on how many recent turns are eligible for that tail. 0 disables the
+    # tail entirely (summary-only, the pre-0.2 behaviour).
+    tail_turns: int | None = None
 
 
 class McpServerConfig(BaseModel):

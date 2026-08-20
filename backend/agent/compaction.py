@@ -112,8 +112,14 @@ async def is_overflow(tokens: TokenUsage | None, model_id: str = "") -> bool:
     return count >= usable
 
 
-async def create_compaction(session_id: str, auto: bool = True, user_id: str = "default") -> None:
-    """Create a compaction request (special user message with compaction part)."""
+async def create_compaction(session_id: str, auto: bool = True, user_id: str = "default",
+                            messages: list | None = None, model_id: str = "") -> None:
+    """Create a compaction request (special user message with compaction part).
+
+    When `messages` is supplied, a tail of recent history is marked to survive
+    verbatim — see agent/compaction_select. Without it the summary replaces
+    everything, which is the older, lossier behaviour.
+    """
     from session.session import create_user_message
     from models.message import CompactionPart
     from core.identifier import ascending
@@ -130,12 +136,33 @@ async def create_compaction(session_id: str, auto: bool = True, user_id: str = "
         )
         log.info(f"Created compaction user message: {msg.id}")
 
+        # Decide how much recent history survives verbatim.
+        tail_start_id = None
+        if messages:
+            try:
+                from agent.compaction_select import select
+                from core.config import get_config
+                cfg = get_config()
+                reserved = getattr(getattr(cfg, "compaction", None), "reserved", None) or COMPACTION_BUFFER
+                usable = max(0, get_model_context_limit(model_id) - reserved)
+                configured = getattr(getattr(cfg, "compaction", None), "preserve_recent_tokens", None)
+                tail_turns = getattr(getattr(cfg, "compaction", None), "tail_turns", None)
+                sel = select(messages, usable, configured, tail_turns)
+                tail_start_id = sel.tail_start_id
+                log.info(f"Compaction tail starts at {tail_start_id or '(none)'} "
+                         f"(summarising {len(sel.head)}/{len(messages)} messages)")
+            except Exception as e:
+                # A failed tail calculation must not block compaction itself —
+                # the summary-only path still keeps the session alive.
+                log.warning(f"Could not compute compaction tail: {e}")
+
         # Add compaction part
         part = CompactionPart(
             id=ascending("part"),
             auto=auto,
             session_id=session_id,
             message_id=msg.id,
+            tail_start_id=tail_start_id,
         )
         from session.session import save_part
         await save_part(part, is_new=True)
@@ -254,13 +281,16 @@ async def process_compaction(
     # Find the compaction user message (the one with the compaction part).
     # parent_id MUST point to this message for filter_compacted() boundary detection.
     compaction_user_id = ""
+    tail_start_id = None
     for msg in reversed(messages):
         role = msg.role if isinstance(msg.role, str) else msg.role.value
         if role == "user":
             for part in (msg.parts or []):
-                p = part if isinstance(part, dict) else ({"type": getattr(part, "type", "")} if hasattr(part, "type") else {})
+                p = part if isinstance(part, dict) else (
+                    part.model_dump() if hasattr(part, "model_dump") else {})
                 if p.get("type") == "compaction":
                     compaction_user_id = msg.id
+                    tail_start_id = p.get("tail_start_id")
                     break
             if compaction_user_id:
                 break
@@ -288,6 +318,17 @@ async def process_compaction(
     # defeating the purpose of compaction.
     from session.compaction import filter_compacted
     messages = await filter_compacted(messages)
+
+    # Summarize only the head. The tail from tail_start_id onward is replayed
+    # verbatim after this summary, so describing it here would both duplicate it
+    # and spend the summarizer's context on messages that are not being lost.
+    if tail_start_id:
+        for i, m in enumerate(messages):
+            if m.id == tail_start_id:
+                if i > 0:
+                    log.info(f"Summarizing {i} messages, preserving {len(messages) - i} verbatim")
+                    messages = messages[:i]
+                break
 
     # Build messages using the full LLM message builder (includes tool calls/results)
     from agent.loop import _to_llm_messages

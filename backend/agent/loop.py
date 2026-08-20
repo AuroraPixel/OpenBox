@@ -399,7 +399,8 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
                     })
                     break
                 log.info(f"Proactive compaction triggered for session {session_id} (attempt {compact_fail_count})")
-                await create_compaction(session_id, auto=True, user_id=user_id)
+                await create_compaction(session_id, auto=True, user_id=user_id,
+                                        messages=msgs, model_id=model_id)
                 last_finished_tokens = None
                 continue
 

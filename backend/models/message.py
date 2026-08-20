@@ -139,6 +139,9 @@ class CompactionPart(BaseModel):
     id: str = Field(default_factory=lambda: ascending("part"))
     summary: str | None = None
     auto: bool = False
+    # First message kept verbatim after this compaction. None means the summary
+    # replaces everything before the boundary (pre-tail behaviour).
+    tail_start_id: str | None = None
     session_id: str = ""
     message_id: str = ""
 
