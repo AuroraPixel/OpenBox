@@ -1,5 +1,6 @@
 """Retry logic with exponential backoff."""
 import asyncio
+import random
 import re
 from typing import Any, Callable, Awaitable
 
@@ -13,6 +14,9 @@ RETRY_INITIAL_DELAY = 2.0  # seconds
 RETRY_BACKOFF_FACTOR = 2
 RETRY_MAX_DELAY = 30.0  # seconds
 MAX_RETRIES = 10
+# Without jitter every caller that hit the same rate limit retries on the same
+# tick and stampedes the provider again. Spreads each delay over [1-f, 1+f].
+RETRY_JITTER_FACTOR = 0.25
 
 # Context overflow error patterns
 OVERFLOW_PATTERNS = [
@@ -84,8 +88,20 @@ def is_retryable(error: Exception) -> str | None:
     return None
 
 
-def retry_delay(attempt: int, error: Exception | None = None) -> float:
-    """Calculate retry delay in seconds."""
+def _jitter(seconds: float, rand: float) -> float:
+    """Spread a delay over [1-f, 1+f] of its nominal value."""
+    return seconds * (1.0 + RETRY_JITTER_FACTOR * (2.0 * rand - 1.0))
+
+
+def retry_delay(attempt: int, error: Exception | None = None, rand: float | None = None) -> float:
+    """Calculate retry delay in seconds.
+
+    `rand` is injectable so the schedule can be asserted in tests; it defaults
+    to random.random(). A server-supplied retry-after is honoured verbatim —
+    jitter is only applied to delays we invented ourselves.
+    """
+    if rand is None:
+        rand = random.random()
     if isinstance(error, RetryableError) and error.headers:
         headers = error.headers
         # 1. retry-after-ms
@@ -98,12 +114,15 @@ def retry_delay(attempt: int, error: Exception | None = None) -> float:
             except ValueError:
                 pass
         # Has headers but no retry-after, exponential backoff (no cap)
-        return RETRY_INITIAL_DELAY * (RETRY_BACKOFF_FACTOR ** (attempt - 1))
+        return _jitter(RETRY_INITIAL_DELAY * (RETRY_BACKOFF_FACTOR ** (attempt - 1)), rand)
 
     # No headers, exponential backoff with cap
-    return min(
-        RETRY_INITIAL_DELAY * (RETRY_BACKOFF_FACTOR ** (attempt - 1)),
-        RETRY_MAX_DELAY,
+    return _jitter(
+        min(
+            RETRY_INITIAL_DELAY * (RETRY_BACKOFF_FACTOR ** (attempt - 1)),
+            RETRY_MAX_DELAY,
+        ),
+        rand,
     )
 
 
