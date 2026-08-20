@@ -128,9 +128,10 @@ def test_a_malformed_rule_does_not_hide_working_skills():
 # ── the listing must reach the model ──
 
 @pytest.mark.asyncio
-async def test_skills_are_listed_even_without_a_sandbox(monkeypatch):
-    # The enrichment used to live behind merge_sandbox_tools' early return, so
-    # a local run handed the model a skill tool with no idea what it could load.
+async def test_host_skills_are_listed_without_consulting_a_sandbox(monkeypatch):
+    # Skills on the backend host must reach the listing on their own. Note that
+    # run_loop always has a sandbox, so this is about where the two sources are
+    # merged, not about a no-sandbox run — that state does not occur.
     import skill.skill as sk
     from skill.skill import SkillInfo
     from agent.tool_resolution import attach_skill_listing

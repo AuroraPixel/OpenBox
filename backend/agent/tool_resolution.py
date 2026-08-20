@@ -73,10 +73,11 @@ async def merge_sandbox_tools(tools: dict, sandbox, ruleset: list | None = None)
 async def attach_skill_listing(tools: dict, sandbox, ruleset: list | None = None) -> dict:
     """Advertise the available skills in the skill tool's description.
 
-    Deliberately not gated on a sandbox. Skills are discovered locally as well
-    as in the container, and running without one used to mean the model was
-    handed the skill tool with no idea which skills existed — so it never
-    called it.
+    Separate from merge_sandbox_tools because skills are not a sandbox tool:
+    they are discovered on the backend host as well as in the container. This
+    is a structural split, not a bug fix — run_loop gets its sandbox from
+    get_client, which returns a client or raises, so `sandbox` is never None
+    here today and the old placement was unreachable rather than wrong.
     """
     if "skill" not in tools:
         return tools
