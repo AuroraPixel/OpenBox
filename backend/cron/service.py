@@ -329,7 +329,24 @@ class CronService:
             result = await db.execute(query)
             rows = result.scalars().all()
 
-        return [_job_to_dict(row) for row in rows]
+        jobs = [_job_to_dict(row) for row in rows]
+
+        # Which project each job runs in. Shown in the UI because a scheduled
+        # task acts on files, and "where" is the part you cannot infer from the
+        # prompt. Resolved through the cached slug lookup, so this is not a
+        # query per job.
+        from project.workspace import project_directory, slug_for
+        from session.session import project_id_for
+        for job in jobs:
+            try:
+                pid = await project_id_for(job["session_id"])
+                slug = await slug_for(pid)
+                job["project_id"] = pid
+                job["project_directory"] = project_directory(slug)
+            except Exception:
+                job["project_id"] = None
+                job["project_directory"] = None
+        return jobs
 
     async def get_job(self, job_id: str, user_id: str) -> dict | None:
         """Get a single cron job."""

@@ -233,13 +233,19 @@ async def _create_temp_session(job: dict) -> str:
         config = get_config()
         model = config.model or ""
 
+    # The run belongs in the same project as the session that scheduled it.
+    # Pinning it to "default" meant a task set up from a project ran against a
+    # different directory — "check my build every morning" would find nothing.
+    from session.session import project_id_for
+    project_id = await project_id_for(job["session_id"]) or None
+
     session = await create_session(
         user_id=job["user_id"],
         agent=job.get("agent", "build"),
         model=model,
         title=f"[Cron] {job.get('name', 'task')}",
         parent_id=job["session_id"],
-        project_id="default",
+        project_id=project_id,
     )
     return session.id
 
