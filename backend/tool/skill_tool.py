@@ -27,11 +27,28 @@ Usage:
 - The skill content will be returned in the tool output for you to follow"""
 
 
+def _host_files(base: str, limit: int = 20) -> list[str]:
+    """Files bundled beside a host skill's SKILL.md, sampled."""
+    from pathlib import Path
+    try:
+        root = Path(base)
+        out = sorted(
+            str(f.relative_to(root))
+            for f in root.rglob("*")
+            if f.is_file() and f.name != "SKILL.md"
+        )
+        return out[:limit]
+    except OSError:
+        return []
+
+
 async def execute(args: SkillArgs, ctx: ToolContext) -> ToolResult:
     """Load a skill and inject its content. Tries container first, then local."""
     content = None
     base_dir = ""
     files: list[str] = []
+    host_only = False
+    container_error: str | None = None
 
     # Try loading from container sandbox first
     if ctx.sandbox:
@@ -40,19 +57,41 @@ async def execute(args: SkillArgs, ctx: ToolContext) -> ToolResult:
             content = skill_data.get("content", "")
             base_dir = skill_data.get("base_dir", "")
             files = skill_data.get("files", [])
-        except Exception:
-            pass  # Fall back to local
+        except Exception as e:
+            # Kept, not swallowed: an unreachable container and a genuinely
+            # missing skill need different answers. Reporting "not found" for a
+            # dropped tunnel tells the model to give up on a skill that exists.
+            container_error = str(e) or e.__class__.__name__
+            log.debug(f"Container lookup for skill {args.skill!r} failed: {e}")
 
     # Fall back to local skills
     if not content:
         from skill.skill import get_skill
         skill = await get_skill(args.skill)
         if not skill:
+            if container_error:
+                return ToolResult(
+                    title=f"Could not reach the container to load: {args.skill}",
+                    output=(
+                        f"The skill could not be loaded because the container was "
+                        f"unreachable: {container_error}\n"
+                        f"No skill named '{args.skill}' exists on the backend host "
+                        f"either, so this may still be a valid skill. This is an "
+                        f"infrastructure failure, not a missing skill — retrying "
+                        f"may work."
+                    ),
+                    metadata={"error": "container_unreachable"},
+                )
             return ToolResult(
                 title=f"Skill not found: {args.skill}",
                 output=f"No skill named '{args.skill}' found.",
             )
         content = skill.content
+        # A host skill's bundled files live on the backend, which the agent's
+        # tools cannot see — they run in the sandbox. Name them, but do not hand
+        # over a path the model would only fail to read.
+        host_only = True
+        files = _host_files(skill.path) if skill.path else []
 
     if args.args:
         content = content.replace("$ARGUMENTS", args.args)
@@ -69,6 +108,11 @@ async def execute(args: SkillArgs, ctx: ToolContext) -> ToolResult:
         output_parts.append("The skill directory is also symlinked at /workspace/skills/ for convenience.")
     if files:
         output_parts.append("")
+        if host_only:
+            output_parts.append("This skill is installed on the backend host, not in")
+            output_parts.append("your workspace. The files below ship with it but are")
+            output_parts.append("NOT readable from here — follow the instructions above")
+            output_parts.append("without trying to open them.")
         output_parts.append("<skill_files>")
         for f in files[:50]:
             output_parts.append(f"  {f}")
@@ -198,10 +242,17 @@ async def build_skill_tool_with_listing(sandbox=None, ruleset: list | None = Non
     try:
         from skill.skill import list_skills as list_local_skills
         local = await list_local_skills()
+        container_names = {cs.get("name") for cs in skills}
         for s in local:
-            # Avoid duplicates (container skills take precedence)
-            if not any(cs.get("name") == s.name for cs in skills):
-                skills.append({"name": s.name, "description": s.description})
+            # Container skills win: they are the ones the agent's tools can
+            # actually reach. Say so, though — a host skill being shadowed by a
+            # different container skill of the same name is worth knowing about
+            # when the loaded instructions are not the ones that were edited.
+            if s.name in container_names:
+                log.info(f"Skill {s.name!r} exists in both the container and on "
+                         f"the host; using the container's copy")
+                continue
+            skills.append({"name": s.name, "description": s.description})
     except Exception:
         pass
 

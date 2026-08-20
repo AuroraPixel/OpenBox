@@ -16,6 +16,9 @@ class SkillInfo:
     description: str
     source: str  # "global", "project", "remote"
     content: str
+    # Directory holding SKILL.md, on the machine running the backend. Note this
+    # is NOT reachable from the agent's tools, which execute in the sandbox.
+    path: str = ""
 
 
 # Cache
@@ -121,6 +124,7 @@ def _scan_directory(base_dir: Path, source: str) -> list[SkillInfo]:
                 description=description,
                 source=source,
                 content=body,
+                path=str(skill_md.parent),
             ))
         except Exception as e:
             log.warning(f"Failed to load skill from {skill_md}: {e}")
