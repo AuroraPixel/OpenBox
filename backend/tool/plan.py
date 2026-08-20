@@ -119,7 +119,8 @@ plan_enter_tool = define_tool(
 )
 
 
-async def _update_plan_part_status(session_id: str, status: str, message_id: str = "") -> None:
+async def _update_plan_part_status(session_id: str, status: str, message_id: str = "",
+                                   user_id: str = "default") -> None:
     """Find the most recent PlanPart in the session and update its status.
 
     If no PlanPart exists yet, create one by extracting content from write tool
@@ -147,7 +148,7 @@ async def _update_plan_part_status(session_id: str, status: str, message_id: str
                 return
 
     # No PlanPart found — create one from write tool content
-    session = await get_session(session_id, user_id=ctx.user_id or "default")
+    session = await get_session(session_id, user_id=user_id)
     plan_file = plan_path(session) if session else ""
     content = ""
     target_msg_id = message_id
@@ -189,7 +190,8 @@ class PlanExitArgs(BaseModel):
 async def execute_exit(args: PlanExitArgs, ctx: ToolContext) -> ToolResult:
     """Mark plan as ready for user review. Does NOT block — user accepts/rejects via PlanCard UI."""
     # Mark plan as ready
-    await _update_plan_part_status(ctx.session_id, "ready", message_id=ctx.message_id)
+    await _update_plan_part_status(ctx.session_id, "ready", message_id=ctx.message_id,
+                                   user_id=ctx.user_id or "default")
 
     return ToolResult(
         title="Plan ready for review",

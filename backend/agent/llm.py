@@ -6,7 +6,7 @@ import json as _json
 from typing import Any, AsyncIterator
 
 from agent.agent import AgentDef
-from tool.tool import ToolInfo
+from tool.tool import ToolContext, ToolInfo
 from core.log import create_logger
 
 log = create_logger("agent.llm")

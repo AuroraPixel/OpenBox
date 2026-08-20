@@ -642,7 +642,6 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
 
             finish_reason = result.finish_reason
             collected_text = result.text
-            collected_reasoning = result.reasoning
             total_usage = result.usage
             step_duration = result.duration
             doom_loop_history.extend(result.completed_tool_parts)
