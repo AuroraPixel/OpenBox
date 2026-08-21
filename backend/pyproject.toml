@@ -34,6 +34,8 @@ dependencies = [
     # GKE sandbox + backup
     "kubernetes>=29.0.0",
     "google-cloud-storage>=2.14.0",
+    # Wuying cloud-desktop view (ECD GetConnectionTicket)
+    "alibabacloud-ecd20200930>=4.0.0",
 ]
 
 [project.optional-dependencies]

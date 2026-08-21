@@ -102,7 +102,9 @@ class OpenBoxConfig(BaseModel):
     # a tunnel. OpenBox never creates or destroys it.
     wuying_endpoint: str = "http://127.0.0.1:18000"
     wuying_api_key: str = ""                        # must match SESSION_API_KEY on the desktop
-    wuying_desktop_id: str = ""                     # ecd-... , informational only
+    wuying_desktop_id: str = ""                     # ecd-... , used by the desktop-view ticket API
+    wuying_region_id: str = "cn-hangzhou"           # region the desktop lives in
+    wuying_end_user_id: str = ""                    # Wuying end user the web view logs in as
 
     # -- Multi-user infrastructure --
     database_url: str = "postgresql+asyncpg://openbox:openbox@localhost:5432/openbox"
@@ -293,6 +295,8 @@ def _apply_env_overrides(data: dict) -> dict:
         "wuying_endpoint": "WUYING_ENDPOINT",
         "wuying_api_key": "WUYING_API_KEY",
         "wuying_desktop_id": "WUYING_DESKTOP_ID",
+        "wuying_region_id": "WUYING_REGION_ID",
+        "wuying_end_user_id": "WUYING_END_USER_ID",
         "database_url": "DATABASE_URL",
         "db_pool_size": "DB_POOL_SIZE",
         "db_pool_overflow": "DB_POOL_OVERFLOW",
