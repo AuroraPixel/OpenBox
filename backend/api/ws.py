@@ -18,7 +18,14 @@ log = create_logger("api.ws")
 
 router = APIRouter()
 
-CRITICAL_EVENT_TYPES = {"session.status", "session.finalizing", "session.error", "message.created"}
+# Events a client cannot recover from by watching the next one. todo.updated
+# is here because the task card is the frame the rest of the turn renders
+# inside: drop one and the card shows the wrong step until something else
+# forces a refetch.
+CRITICAL_EVENT_TYPES = {
+    "session.status", "session.finalizing", "session.error", "message.created",
+    "todo.updated",
+}
 BROADCAST_WHITELIST = {"build.progress", "build.complete", "build.error", "server.announcement"}
 
 

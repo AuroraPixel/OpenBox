@@ -157,6 +157,31 @@ async def replace_todos(
         return todo
 
 
+async def pending_notices(session_id: str) -> list[str]:
+    """Edits the user made that the model has not been told about yet."""
+    data = await storage.read(["todo_notice", session_id])
+    return list(data.get("notices", [])) if data else []
+
+
+async def add_notice(session_id: str, notice: str) -> None:
+    """Queue one line to hand the model at the start of its next step.
+
+    The merge already guarantees a user's item survives, so a lost notice
+    costs attention, not data — the item is still on the list either way.
+    """
+    notices = await pending_notices(session_id)
+    notices.append(notice)
+    await storage.write(["todo_notice", session_id], {"notices": notices[-20:]})
+
+
+async def take_notices(session_id: str) -> list[str]:
+    """Read the queued notices and clear them, so they are said once."""
+    notices = await pending_notices(session_id)
+    if notices:
+        await storage.write(["todo_notice", session_id], {"notices": []})
+    return notices
+
+
 async def add_todo_item(
     session_id: str,
     subject: str,

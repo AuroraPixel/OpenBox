@@ -643,6 +643,84 @@ async def get_todo(session_id: str, current_user: dict = Depends(get_current_use
     return todo.model_dump()
 
 
+class TodoAddBody(BaseModel):
+    subject: str
+    #: Insert right after this item; append when absent or unknown.
+    after_id: str | None = None
+
+
+async def _record_todo_edit(session_id: str, user_id: str, items: list) -> None:
+    """Append the edited list to the conversation, as a TodoPart.
+
+    The card is rebuilt from the part stream, not from the todo store, so an
+    edit that only touched the store would be invisible on reload and would
+    leave the tool rows around it attributed to the wrong task. The part
+    hangs off the newest assistant message — a session with none has no card
+    to edit yet, so there is nothing to record.
+    """
+    from models.message import TodoPart
+    from session.session import get_messages, save_part
+
+    messages = await get_messages(session_id, user_id=user_id)
+    anchor = next((m for m in reversed(messages) if m.role == "assistant"), None)
+    if anchor is None:
+        return
+    await save_part(
+        TodoPart(
+            items=items,
+            source="user",
+            session_id=session_id,
+            message_id=anchor.id,
+        ),
+        is_new=True,
+        user_id=user_id,
+    )
+
+
+@router.post("/session/{session_id}/todo/items")
+async def add_todo_item(
+    session_id: str, body: TodoAddBody, current_user: dict = Depends(get_current_user)
+):
+    """Add a task the user typed on the card."""
+    user_id = current_user["user_id"]
+    await _require_session_owned(session_id, user_id)
+
+    subject = body.subject.strip()
+    if not subject:
+        raise HTTPException(status_code=400, detail="Task cannot be empty")
+
+    from session.todo import add_notice, add_todo_item as add_item
+    todo = await add_item(session_id, subject, after_id=body.after_id, user_id=user_id)
+    await add_notice(session_id, f"- added: {subject}")
+    await _record_todo_edit(session_id, user_id, todo.items)
+    return todo.model_dump()
+
+
+@router.delete("/session/{session_id}/todo/items/{item_id}")
+async def remove_todo_item(
+    session_id: str, item_id: str, current_user: dict = Depends(get_current_user)
+):
+    """Drop a task the user dismissed.
+
+    Their own item goes away; one the model planned is marked cancelled, so
+    the card keeps a struck-through trace and the model can see it was
+    overruled rather than silently losing a step.
+    """
+    user_id = current_user["user_id"]
+    await _require_session_owned(session_id, user_id)
+
+    from session.todo import add_notice, get_todo, remove_todo_item as remove_item
+    before = await get_todo(session_id)
+    target = next((t for t in before.items if t.id == item_id), None)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    todo = await remove_item(session_id, item_id, user_id=user_id)
+    await add_notice(session_id, f"- dropped: {target.subject}")
+    await _record_todo_edit(session_id, user_id, todo.items)
+    return todo.model_dump()
+
+
 # ─── Plan ───
 
 class PlanUpdateBody(BaseModel):

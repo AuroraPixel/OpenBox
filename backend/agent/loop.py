@@ -564,6 +564,12 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
                     user_id=user_id,
                 )
 
+            # Todo edits are announced on every step, including the first:
+            # unlike the reminders above, this is the only moment the model
+            # learns the user touched its list, and the first step of a run
+            # is exactly when an edit made while idle is waiting.
+            llm_messages = await _insert_todo_notices(llm_messages, session_id)
+
             # Estimate context size and update frontend in real-time
             from core.token import token_estimate as _te
             _ctx_estimate = sum(_te(str(m.get("content", ""))) for m in llm_messages)
@@ -1438,6 +1444,38 @@ async def _insert_reminders(
         msg.pop("_synthetic", None)
         msg.pop("_ignored", None)
 
+    return result
+
+
+async def _insert_todo_notices(messages: list[dict], session_id: str) -> list[dict]:
+    """Tell the model what the user changed on the todo card.
+
+    Ephemeral, like the other reminders: appended to the last user message
+    for this one call rather than persisted, and taken off the queue so it
+    is said once. The item itself is already on the list — this only makes
+    sure the model notices it instead of working around it.
+    """
+    from session.todo import take_notices
+
+    if not messages:
+        return messages
+    notices = await take_notices(session_id)
+    if not notices:
+        return messages
+
+    body = "\n".join(notices)
+    reminder = (
+        "<system-reminder>\n"
+        f"The user edited the todo list:\n{body}\n\n"
+        "Keep these changes in your todo list and act on them.\n"
+        "</system-reminder>"
+    )
+    result = list(messages)
+    for i in range(len(result) - 1, -1, -1):
+        if result[i].get("role") == "user":
+            result[i] = dict(result[i])
+            result[i]["content"] = (result[i].get("content") or "") + "\n\n" + reminder
+            return result
     return result
 
 
