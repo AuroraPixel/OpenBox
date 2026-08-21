@@ -135,7 +135,10 @@ class OpenBoxConfig(BaseModel):
     jwt_refresh_expire_days: int = 7
     max_containers_per_user: int = 5
     max_sessions_per_user: int = 200
-    max_concurrent_agents: int = 1
+    # Concurrent agent runs per user. One meant a second conversation could not
+    # start while the first was still thinking — the common case of parking a
+    # long task and working on something else was simply blocked.
+    max_concurrent_agents: int = 5
     monthly_cost_limit: float = 50.0
     rate_limit_login: str = "5/minute"
     rate_limit_api: str = "60/minute"

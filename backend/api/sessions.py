@@ -234,11 +234,19 @@ async def send_message_async(
     # The agent loop calls sandbox_manager.get_client() which auto-creates
     # containers if needed. This lets the response return immediately.
 
+    # A model the deployment no longer offers must not reach the provider: it
+    # comes back as an opaque "no channel for model X" that the retry layer
+    # attempts five times before failing the turn.
+    from agent.model_resolve import resolve as resolve_model
+    chosen_model, dropped_model = resolve_model(body.model, get_config(), context=f"session {session_id}")
+    if dropped_model:
+        await session_mod.update_session(session_id, model=chosen_model, user_id=user_id)
+
     user_msg = await session_mod.create_user_message(
         session_id=session_id,
         text=body.text,
         agent=body.agent or session.agent,
-        model=body.model,
+        model=chosen_model if body.model else None,
         variant=body.variant,
         client_message_id=body.client_message_id,
         output_format=body.format,

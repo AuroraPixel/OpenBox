@@ -74,7 +74,7 @@ const TOOL_TABLE: Record<string, ToolGlyph> = {
 }
 
 /** Structural layout for a tool's detail column — how its output is composed. */
-export type ToolLayout = "search" | "fetch" | "shell" | "file" | "find" | "agent" | "generic"
+export type ToolLayout = "search" | "fetch" | "shell" | "file" | "find" | "agent" | "skill" | "generic"
 
 const FILE_TOOLS = ["read", "write", "edit", "multiedit", "apply_patch", "str_replace", "readfile", "writefile", "view", "create", "new_file"]
 const FIND_TOOLS = ["glob", "grep", "find", "search", "ls", "ripgrep"]
@@ -87,7 +87,11 @@ export function resolveToolLayout(tool: string): ToolLayout {
   if (t === "bash" || t === "shell" || t === "terminal") return "shell"
   if (FILE_TOOLS.includes(t)) return "file"
   if (FIND_TOOLS.includes(t)) return "find"
-  if (t === "task" || t === "agent" || t === "skill" || t.startsWith("skill")) return "agent"
+  // A skill load injects a whole instruction document; rendering it in the
+  // transcript buries the conversation under the manual. The name is the only
+  // part a reader needs.
+  if (t === "skill" || t.startsWith("skill")) return "skill"
+  if (t === "task" || t === "agent") return "agent"
   return "generic"
 }
 

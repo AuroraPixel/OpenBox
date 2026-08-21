@@ -253,6 +253,28 @@ function AgentOutput({ part, failed }: LayoutProps) {
   )
 }
 
+/** A skill load: just which skill, and whether it loaded.
+ *
+ *  The output is the skill's full instruction document — thousands of words
+ *  written for the model, not the reader. Showing it turned every skill call
+ *  into a wall of manual the user had to scroll past to find the answer. */
+function SkillOutput({ part, failed }: LayoutProps) {
+  const { t } = useTranslation("chat")
+  const name = strv((part.input ?? {}).skill) || part.title || ""
+  return (
+    <Wrap failed={failed}>
+      <StatusLine status={part.status} />
+      {name && <div className="font-mono text-xs break-words">{name}</div>}
+      {failed && part.error && (
+        <div>
+          <ToolMiniLabel>{t("toolDetail.error")}</ToolMiniLabel>
+          <ToolDetailText failed>{part.error}</ToolDetailText>
+        </div>
+      )}
+    </Wrap>
+  )
+}
+
 function GenericOutput({ part, failed }: LayoutProps) {
   const { t } = useTranslation("chat")
   const input = part.input ?? {}
@@ -309,6 +331,8 @@ export function ToolOutput({ part }: { part: ToolPart | SubtaskPart }) {
       return <FileOutput part={part} failed={failed} />
     case "find":
       return <FindOutput part={part} failed={failed} />
+    case "skill":
+      return <SkillOutput part={part} failed={failed} />
     case "agent":
       return <AgentOutput part={part} failed={failed} />
     default:

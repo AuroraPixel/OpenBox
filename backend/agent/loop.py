@@ -352,7 +352,22 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
         config = get_config()
         todo_nudge_enabled = bool(getattr(config, "agent_todo_nudge_enabled", True))
         max_todo_nudges = max(0, int(getattr(config, "agent_max_todo_nudges", 3)))
-        model_id = session.model or config.model or "anthropic/claude-sonnet-4-20250514"
+        # A session's stored model can outlive the provider that served it.
+        # Honour it only while the deployment still offers it, and write the
+        # replacement back so the fallback happens once rather than every step.
+        from agent.model_resolve import resolve as resolve_model
+        model_id, replaced_from = resolve_model(session.model, config, context=f"session {session_id}")
+        if replaced_from:
+            log.warning(
+                f"Session {session_id} was on {replaced_from!r}, which this deployment no "
+                f"longer offers; continuing on {model_id!r}"
+            )
+            try:
+                # user_id is required: update_session scopes by owner, and the
+                # default would silently match nothing.
+                await update_session(session_id, user_id=user_id, model=model_id)
+            except Exception as e:
+                log.debug(f"Could not persist model fallback: {e}")
         doom_loop_history = []  # Track tool parts across steps for doom loop detection
         compact_fail_count = 0  # Consecutive compaction failure counter
         finish_reason_prev = ""  # Previous step's finish reason
