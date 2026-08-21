@@ -57,8 +57,18 @@ def sanitize_call_id(raw: str) -> str:
     Only has to stay unique within one assistant turn, so replacing illegal
     characters and clipping is enough — and it must stay deterministic, since
     the id is what pairs a call with its result.
+
+    The trailing strip is not cosmetic. This function is itself the source of
+    the separators it removes: substitution turns `/` and `+` into `_`, and the
+    64-character clip can land straight on one. An id ending in `_` is accepted
+    everywhere here and then rejected by the OpenAI Responses API the next time
+    the conversation is opened on a GPT model — with an error that blames the
+    character set instead.
     """
-    return _CALL_ID_ILLEGAL.sub("_", raw or "")[:MAX_CALL_ID]
+    cleaned = _CALL_ID_ILLEGAL.sub("_", raw or "")[:MAX_CALL_ID].rstrip("_-")
+    # Never return empty: an id of "" pairs a call with the wrong result, or
+    # with nothing at all. Only reachable when the id was entirely separators.
+    return cleaned or "call"
 
 
 class StepOutcome(str, Enum):

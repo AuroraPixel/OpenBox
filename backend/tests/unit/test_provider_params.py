@@ -38,3 +38,31 @@ def test_claude4_max_budget_would_collide_with_the_output_cap():
         "this collision is the bug being guarded"
     )
     assert budget + THINKING_OUTPUT_RESERVE > budget
+
+
+# ── DeepSeek variant clamp ───────────────────────────────────────────────
+# A variant rides on the message, not the model, so one chosen on a GPT model
+# arrives intact after the session resolves to DeepSeek. reasoning_effort is a
+# parameter DeepSeek *supports*, so drop_params will not strip an out-of-range
+# value — it reaches the API and is rejected there.
+
+@pytest.mark.parametrize("variant,expected", [
+    ("low", "low"),
+    ("medium", "medium"),
+    ("high", "high"),
+    ("max", "high"),      # GPT's top tier has no DeepSeek equivalent
+    ("xhigh", "high"),    # ditto
+])
+def test_deepseek_clamps_a_foreign_variant(variant, expected):
+    out = _get_variant_kwargs("deepseek/deepseek-v4-flash", variant)
+    assert out == {"reasoning_effort": expected}
+
+
+@pytest.mark.parametrize("variant", ["minimal", "none", "turbo"])
+def test_deepseek_drops_a_variant_it_cannot_express(variant):
+    """Dropping is right: the request still runs, just without the hint.
+
+    An empty variant is NOT this case — it means "nothing was chosen" and
+    correctly falls through to the family default.
+    """
+    assert _get_variant_kwargs("deepseek/deepseek-v4-flash", variant) == {}

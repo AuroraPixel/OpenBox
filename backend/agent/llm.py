@@ -20,6 +20,105 @@ OUTPUT_TOKEN_MAX = 32000  # Fallback for unknown models
 THINKING_OUTPUT_RESERVE = 8000
 
 
+#: What the Responses API actually accepts for an item id: `fc_`, then up to 61
+#: more characters, the last of which must be alphanumeric. Total length 4..64.
+#:
+#: This is a POSITIVE pattern on purpose. The rules were previously enumerated
+#: as "not too long" and then "no illegal characters", and each time a
+#: conversation that had changed providers found a third rule we had not
+#: listed. The API's own error message is no help — a trailing underscore is
+#: reported as "Expected an ID that contains letters, numbers, underscores, or
+#: dashes, but this value contained additional characters", which describes a
+#: charset violation the value does not have. The rule below was established by
+#: probing the API directly (see tests): `fc_abcDEF_` is rejected while
+#: `fc_abcDEF-`, `fc__abcDEF` and `fc_abcDEF` are all accepted.
+#:
+#: Anything that does not match is replaced wholesale rather than repaired, so
+#: a rule we still have not discovered cannot slip through.
+_FC_ID_OK = _re.compile(r"fc_[A-Za-z0-9_-]{0,60}[A-Za-z0-9]")
+
+
+def ensure_fc_id(raw_id: str) -> str:
+    """A stable, Responses-API-legal id for a function call.
+
+    Must be a pure function of `raw_id`: the same call reaches this twice —
+    once as the assistant's `function_call` and once as its
+    `function_call_output` — and the API pairs the two by id. Hashing keeps
+    that pairing intact where truncation would collide, since ids from a
+    provider that packs a signature into them share long common prefixes.
+
+    The hashed form is `fc_` + 32 hex characters, which satisfies the pattern
+    by construction: hex digits are alphanumeric, so it can never end on a
+    separator, and 35 characters is well inside the limit.
+    """
+    fc_id = raw_id if raw_id.startswith("fc_") else f"fc_{raw_id.replace('call_', '')}"
+    if _FC_ID_OK.fullmatch(fc_id):
+        return fc_id
+    return f"fc_{_hashlib.sha256(raw_id.encode()).hexdigest()[:32]}"
+
+
+def build_responses_input(messages: list[dict], system: list[str] | None = None) -> list[dict]:
+    """Convert internal chat history into OpenAI Responses API input items.
+
+    Module-level and pure so it can be tested against directly. It used to live
+    inside `_stream_responses_api`, which meant the only way to cover it was to
+    re-implement it in the test file — and a test that mirrors the code it
+    checks stays green while the real thing drifts. That is exactly how the
+    trailing-underscore id bug shipped.
+
+    Every id is re-derived through `ensure_fc_id` rather than trusted: history
+    recorded under another provider carries that provider's ids, and Gemini
+    packs an encrypted thought signature into them.
+    """
+    items: list[dict] = []
+    if system:
+        items.append({"role": "system", "content": "\n\n".join(system)})
+
+    for msg in messages:
+        role = msg.get("role", "")
+        content = msg.get("content", "")
+
+        if role == "tool":
+            items.append({
+                "type": "function_call_output",
+                "call_id": ensure_fc_id(msg.get("tool_call_id", "")),
+                "output": content if isinstance(content, str) else _json.dumps(content),
+            })
+            continue
+
+        if role == "assistant" and msg.get("tool_calls"):
+            # A turn that said something *and* then called a tool arrives as one
+            # message carrying both. Emitting only the calls drops the model's
+            # own stated reasoning from the replayed context — silently, since
+            # nothing rejects a shorter history. Narration first, in the order
+            # it was produced.
+            if isinstance(content, str) and content.strip():
+                items.append({"role": "assistant", "content": content})
+            for tc in msg["tool_calls"]:
+                fc_id = ensure_fc_id(tc.get("id", ""))
+                items.append({
+                    "type": "function_call",
+                    "id": fc_id,
+                    "call_id": fc_id,
+                    "name": tc.get("function", {}).get("name", ""),
+                    "arguments": tc.get("function", {}).get("arguments", "{}"),
+                })
+            continue
+
+        # The Responses API image form differs from Chat Completions.
+        images = [u for u in (msg.get("_images") or []) if isinstance(u, str)]
+        if role == "user" and images:
+            parts: list[dict] = []
+            if isinstance(content, str) and content:
+                parts.append({"type": "input_text", "text": content})
+            parts.extend({"type": "input_image", "image_url": u} for u in images)
+            items.append({"role": role, "content": parts})
+        else:
+            items.append({"role": role, "content": content})
+
+    return items
+
+
 def _get_max_output_tokens(model_id: str) -> int:
     """Return the max_output_tokens for a model.
 
@@ -311,7 +410,17 @@ def _get_variant_kwargs(model_id: str, variant: str | None) -> dict:
         return {}
 
     if provider == "deepseek":
-        return {"reasoning_effort": variant}
+        # Same clamp as the openai branch, and for the same reason: the variant
+        # rides on the message, so a "max" or "xhigh" chosen on a GPT model
+        # arrives here intact when the session later resolves to DeepSeek.
+        # `reasoning_effort` is a parameter DeepSeek supports, so drop_params
+        # will not strip an out-of-range value — it reaches the API and is
+        # rejected there.
+        effort = {"max": "high", "xhigh": "high"}.get(variant, variant)
+        if effort not in ("low", "medium", "high"):
+            log.debug(f"dropping unusable reasoning effort {variant!r} for {model_id}")
+            return {}
+        return {"reasoning_effort": effort}
 
     return {}
 
@@ -370,72 +479,7 @@ async def _stream_responses_api(
     if variant_kwargs:
         log.info(f"Responses API reasoning for {model_id}: effort={effort}")
 
-    # Build input messages for Responses API format
-    input_messages = []
-    if system:
-        input_messages.append({"role": "system", "content": "\n\n".join(system)})
-    #: The Responses API caps ids at 64 characters. History recorded under
-    #: another provider can carry far longer ones — Gemini packs an encrypted
-    #: thought signature into the call id, which reaches several KB — and the
-    #: rejection reads as "Invalid 'input[N].id': string too long", giving no
-    #: hint that the cause is a conversation that changed providers.
-    _FC_ID_MAX = 64
-    _FC_ID_SAFE = _re.compile(r"[A-Za-z0-9_-]+")
-
-    def _ensure_fc_id(raw_id: str) -> str:
-        """A stable, Responses-API-legal id for a function call.
-
-        The API constrains ids two ways — at most 64 characters, and only
-        letters, digits, underscore and dash. Gemini's embedded signature
-        violates both: it is kilobytes long AND base64, so it carries `+` and
-        `/`. Shortening alone left the illegal characters behind and the same
-        turn failed again with a different message.
-
-        Must be a pure function of `raw_id`: the same call reaches this twice —
-        once as the assistant's function_call and once as its
-        function_call_output — and the API pairs them by id. Hashing keeps that
-        pairing intact where truncation would collide, since Gemini's ids share
-        a long common prefix.
-        """
-        fc_id = raw_id if raw_id.startswith("fc_") else f"fc_{raw_id.replace('call_', '')}"
-        if len(fc_id) <= _FC_ID_MAX and _FC_ID_SAFE.fullmatch(fc_id):
-            return fc_id
-        digest = _hashlib.sha256(raw_id.encode()).hexdigest()[:32]
-        return f"fc_{digest}"
-
-    for msg in messages:
-        role = msg.get("role", "")
-        content = msg.get("content", "")
-        if role == "tool":
-            # Convert tool results back to Responses API format
-            raw_call_id = msg.get("tool_call_id", "")
-            input_messages.append({
-                "type": "function_call_output",
-                "call_id": _ensure_fc_id(raw_call_id),
-                "output": content if isinstance(content, str) else _json.dumps(content),
-            })
-        elif role == "assistant" and msg.get("tool_calls"):
-            # Convert assistant tool calls
-            for tc in msg["tool_calls"]:
-                fc_id = _ensure_fc_id(tc.get("id", ""))
-                input_messages.append({
-                    "type": "function_call",
-                    "id": fc_id,
-                    "call_id": fc_id,
-                    "name": tc.get("function", {}).get("name", ""),
-                    "arguments": tc.get("function", {}).get("arguments", "{}"),
-                })
-        else:
-            # Responses API image form differs from Chat Completions.
-            images = [u for u in (msg.get("_images") or []) if isinstance(u, str)]
-            if role == "user" and images:
-                parts: list[dict] = []
-                if isinstance(content, str) and content:
-                    parts.append({"type": "input_text", "text": content})
-                parts.extend({"type": "input_image", "image_url": u} for u in images)
-                input_messages.append({"role": role, "content": parts})
-            else:
-                input_messages.append({"role": role, "content": content})
+    input_messages = build_responses_input(messages, system)
 
     # Build tool definitions for Responses API
     api_tools = []
