@@ -89,6 +89,7 @@ class ComputerArgs(BaseModel):
         "scroll",
         "cursor_position",
         "wait",
+        "open_browser",
     ] = Field(description="What to do on the desktop")
     coordinate: list[int] | None = Field(
         default=None,
@@ -273,6 +274,79 @@ async def _attach_screenshot(ctx: ToolContext, geometry: dict) -> str:
     return f"{width}x{height}"
 
 
+async def _open_browser(ctx: ToolContext, key: str) -> ToolResult:
+    """Start (or re-attach to) the desktop's managed browser.
+
+    This exists because the obvious alternative does not work. A closed browser
+    looks to a computer-use agent like a missing window, so it goes hunting for
+    an icon — and a Chrome started by clicking its icon comes up with **no
+    remote-debugging port**, which is precisely the browser `dev-browser`
+    cannot drive. Succeeding at the icon hunt produces a broken state that
+    then fails later and further away.
+
+    `ensure_browser` is the only launcher that gets the profile, the policy,
+    the CDP port and the extension right, and it re-probes the live port rather
+    than trusting a cache, so a browser the user closed by hand comes back.
+    """
+    if not ctx.sandbox:
+        return ToolResult(title="no sandbox", output="There is no sandbox to open a browser on.")
+
+    from sandbox.browser import ensure_browser
+    from session.browser_pref import get_browser_mode, relay_mode
+
+    preference = await get_browser_mode(ctx.user_id)
+    try:
+        state = await ensure_browser(ctx.sandbox, ctx.session_id, relay_mode(preference))
+    except Exception as e:
+        return ToolResult(
+            title="could not open the browser",
+            output=(
+                f"The managed browser failed to start: {str(e)[:300]}\n"
+                "Do NOT fall back to clicking a browser icon on the desktop — that "
+                "starts a Chrome with no debug port, which dev-browser cannot drive. "
+                "Report this instead."
+            ),
+            metadata={"error": True},
+        )
+
+    effective = state.get("mode", "unknown")
+    lines = [f"Browser ready (running as: {effective}, preference: {preference})."]
+    if effective == "local":
+        lines.append(
+            "This is the cloud desktop's Chrome, so it is on the screen you can "
+            "screenshot — but drive pages with the dev-browser skill, not by clicking "
+            "pixels. Use `computer` only for what the page cannot reach."
+        )
+    elif effective == "extension":
+        lines.append(
+            "This is the user's OWN browser, on their machine. It is NOT on this "
+            "desktop, so screenshots here will not show it."
+        )
+
+    # Show the model the browser it just opened — but only for the desktop's
+    # own Chrome, since the user's browser is not on this screen. Screenshots
+    # need the desktop toolchain and OSS, neither of which `open_browser`
+    # otherwise requires: opening a browser is still worth doing on a sandbox
+    # that cannot produce images, so a failure here degrades to a note.
+    note = ""
+    if effective == "local":
+        try:
+            await _prepare(ctx, key)
+            geometry = await take_screenshot(ctx.sandbox)
+            _geometry_cache[key] = geometry
+            dims = await _attach_screenshot(ctx, geometry)
+            note = f" Screenshot attached ({dims}); you will see it next turn."
+        except Exception as e:
+            log.warning(f"post-open screenshot failed: {e}")
+            note = " (could not capture the screen just now; take a `screenshot` explicitly)"
+
+    return ToolResult(
+        title=f"browser ready ({effective})",
+        output=" ".join(lines) + note,
+        metadata={"mode": effective, "preference": preference},
+    )
+
+
 async def execute(args: ComputerArgs, ctx: ToolContext) -> ToolResult:
     from core.oss import OssNotConfigured, get_oss
 
@@ -282,6 +356,9 @@ async def execute(args: ComputerArgs, ctx: ToolContext) -> ToolResult:
     if action == "wait":
         await asyncio.sleep(max(0.0, min(10.0, args.duration)))
         return ToolResult(title=f"waited {args.duration:g}s", output="Waited.")
+
+    if action == "open_browser":
+        return await _open_browser(ctx, key)
 
     # A screenshot must reach the model as an image, which needs OSS. Fail
     # loudly here rather than silently acting blind.
@@ -398,7 +475,16 @@ launcher or overview overlay is covering the screen, press Escape — twice if \
 a search box still holds text, since the first Escape only clears it.
 
 Keys use xdotool names: Return, Escape, Tab, BackSpace, Delete, Up/Down/Left/\
-Right, super, and combos like ctrl+c, ctrl+shift+t, alt+Tab."""
+Right, super, and combos like ctrl+c, ctrl+shift+t, alt+Tab.
+
+**Need a browser and there is none on screen? Use `open_browser`.** Never hunt \
+for a browser icon in a dock, launcher or menu. A Chrome started by clicking \
+its icon comes up with no remote-debugging port, so the dev-browser skill \
+cannot drive it — the icon hunt fails, and succeeding at it would be worse. \
+`open_browser` starts the managed browser (correct profile, policy, debug \
+port, extension) and re-attaches to one that is already running, including one \
+the user closed by hand. Once it reports ready, drive pages with the \
+dev-browser skill; keep `computer` for what the page itself cannot reach."""
 
 computer_tool = define_tool(
     "computer",

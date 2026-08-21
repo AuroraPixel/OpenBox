@@ -165,6 +165,13 @@ AGENTS: dict[str, AgentDef] = {
         tools=[
             "bash", "read", "write", "edit", "multiedit", "glob", "grep",
             "web_fetch", "web_search", "view_image", "computer", "browser_mode",
+            # `skill` belongs beside `computer` and `browser_mode`: without it
+            # this agent can open a browser and then has no way to drive one,
+            # so it falls back to clicking pixels — the exact thing the system
+            # prompt forbids. It grants no new authority either, since `bash`
+            # can already run anything a skill would instruct; what it adds is
+            # the instructions.
+            "skill",
         ],
         max_steps=100,
         mode="subagent",

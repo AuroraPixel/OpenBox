@@ -39,18 +39,22 @@ curl -s http://localhost:9222/ | head -c 300
 site the user is logged into and `mode` is `local`, stop and ask the user — either they
 connect their own browser, or they accept logging in on the cloud one.
 
-## Setup
+## Setup — there isn't any
 
-**Start the relay server** (mode comes from the user's setting; override with
-`DEV_BROWSER_MODE=local|extension|auto`):
+**The browser and the relay are already running.** Loading this skill started both and
+waited for them; the `<browser_mode>` block at the end of the skill output tells you
+which browser you got. Go straight to writing a script.
+
+Do **not** run `npm run start-relay` first. It is not harmless: it kills the running
+relay and starts another, costing a wasted step and several seconds, and the relay it
+replaces was the one already wired to the browser you were told about.
+
+Only start it by hand if the `<browser_mode>` block reported a failure — and then say
+what it reported, rather than retrying blindly:
 
 ```bash
 cd /opt/openbox/skills/dev-browser && npm run start-relay &
 ```
-
-Wait until the relay logs the mode it resolved to. In `local` mode it also needs Chrome
-running with remote debugging on port 9333 — the backend starts that for you; if
-`chromeAvailable` is `false` in the server info, say so rather than retrying blindly.
 
 **If you need the user's own browser and the extension is not connected**, tell them to:
 1. Open the Browser tab in the OpenBox frontend
@@ -78,6 +82,22 @@ console.log({ title: await page.title(), url: page.url() });
 await client.disconnect();
 EOF
 ```
+
+> ⚠️ **The script is TypeScript. The callbacks you pass to the browser are not.**
+>
+> `npx tsx` compiles the file, so annotations are fine at the top level — and that is
+> exactly what makes this trap easy to fall into. The function bodies handed to
+> `page.evaluate()`, `page.$$eval()` and `page.addInitScript()` are serialised and run
+> *inside the browser*, which never sees the compiler. One `:any` in there and the whole
+> run dies on `SyntaxError: Unexpected token ':'` — you pay a full round trip to learn it.
+>
+> ```ts
+> await page.evaluate(() => Array.from(document.images).map((i) => i.src));       // ✅
+> await page.evaluate(() => Array.from(document.images).map((i: any) => i.src));  // ❌
+> ```
+>
+> Inside those callbacks write plain JS: no type annotations, no `as`, no generics,
+> no interfaces.
 
 **Write to `tmp/` files only when** the script needs reuse, is complex, or user explicitly requests it.
 
@@ -219,6 +239,24 @@ console.log(snapshot); // Find the ref you need
 const element = await client.selectSnapshotRef("hackernews", "e2");
 await element.click();
 ```
+
+## When there is no browser at all
+
+The user can close the browser whenever they like — it is their desktop. If a script
+reports it cannot connect, or a screenshot shows no browser window, **do not look for a
+browser icon**. Call:
+
+```
+computer  action: "open_browser"
+```
+
+That starts the managed browser and re-attaches to one already running. Loading this
+skill does the same thing, so either route works.
+
+Clicking a Chrome icon is not an equivalent fallback, even if you can see one. Chrome
+started that way has **no remote-debugging port**, so `connect()` cannot reach it — the
+hunt either fails outright or leaves you with a browser that looks right on screen and
+is undrivable, which fails later and further from the cause.
 
 ## When the browser stops responding: hand off to `computer`
 

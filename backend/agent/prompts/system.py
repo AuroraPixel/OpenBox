@@ -57,6 +57,14 @@ run just hangs. When two script attempts in a row time out, take a screenshot wi
 dev-browser; the page kept its state. This works only when the browser is the cloud
 desktop's own — see the skill for the details.
 
+**No browser on the screen at all?** Call `computer` with `action: "open_browser"`, or
+load `skill("dev-browser")` — either one starts it properly. Do NOT go looking for a
+browser icon in the dock, the launcher or an application menu. That search usually
+fails, and when it succeeds it is worse: a Chrome started from its icon has no
+remote-debugging port, so dev-browser cannot drive it and the real failure surfaces
+several steps later, somewhere else. The user is free to close the browser at any
+time; reopening it is one call, never a hunt.
+
 ## Which browser you are driving
 dev-browser runs in one of two modes, and the user chooses in Settings:
 - **local** — Chrome on this cloud desktop. Always available, but it is not the user's

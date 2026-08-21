@@ -44,13 +44,23 @@ CHROME_PROFILE = ".config/obx-chrome"
 #: Where wuying_bootstrap.py deploys the relay.
 SKILL_DIR = "/opt/openbox/skills/dev-browser"
 
-#: Chrome for Testing — the build that still honours --load-extension. Branded
-#: Chrome dropped that flag in 137, so the dev-browser extension can only be
-#: loaded here. Falls back to whatever chrome is on PATH when absent.
-CHROME_FOR_TESTING = "/opt/chrome-for-testing/chrome"
-
-#: Unpacked dev-browser extension on the desktop.
-EXTENSION_DIR = "/opt/openbox/extensions/dev-browser"
+#: The desktop's browser, in preference order.
+#:
+#: Ordinary Google Chrome, deliberately. An earlier iteration installed Chrome
+#: for Testing here because it is the last build honouring --load-extension —
+#: but on this desktop the extension was never needed. In `local` mode the
+#: relay is only a page directory: it hands back Chrome's own
+#: webSocketDebuggerUrl and Playwright speaks CDP to Chrome directly, so the
+#: relay is not on the data path and no extension is involved. Carrying a
+#: second 290MB Chrome to enable a flag nothing used was pure weight.
+#:
+#: The extension still matters in `extension` mode — but that is the user's
+#: OWN browser on their OWN machine, which this desktop never launches.
+CHROME_CANDIDATES = (
+    "/usr/bin/google-chrome-stable",
+    "/usr/bin/google-chrome",
+    "/opt/google/chrome/google-chrome",
+)
 
 _VALID_MODES = ("local", "extension", "auto")
 
@@ -119,6 +129,40 @@ async def _curl_json(client, url: str, timeout: int = 3) -> dict | None:
     return _parse_json(res.stdout)
 
 
+#: How long to wait on a command whose only job is to *start* something.
+#:
+#: The action server waits for every descendant of the command it runs, and no
+#: amount of detaching changes that — measured on the live desktop, a bare
+#: `( setsid sleep 25 >/dev/null 2>&1 </dev/null & )` still blocks the exec for
+#: the full timeout. Chrome and the relay are long-lived by definition, so both
+#: launches sat there until their timeout expired: 30s and 60s of dead waiting
+#: on every cold start, while the ports were actually answering within a second
+#: of the command returning.
+#:
+#: Cutting the wait short is safe: the timeout does not kill what was started.
+#: Verified by launching a 20s marker with a 3s timeout — the exec returned at
+#: 5s and the marker still ran to completion.
+LAUNCH_SETTLE = 3
+
+
+async def _fire_and_forget(client, command: str) -> None:
+    """Start something long-lived without waiting for it to finish.
+
+    Readiness is never inferred from this call: the caller polls the port it
+    expects, which is the only signal that means anything. A timeout here is
+    the expected outcome, not an error.
+
+    Only the timeout is tolerated. Swallowing every exception would turn a real
+    failure — a dropped tunnel, a missing binary, a permission error — into a
+    full readiness poll followed by a vague "it never came up", hiding the one
+    piece of information that would have explained it.
+    """
+    try:
+        await client.execute(command, timeout=LAUNCH_SETTLE)
+    except (asyncio.TimeoutError, TimeoutError):
+        log.debug("launch command hit its settle timeout, as expected; polling for readiness")
+
+
 async def _log_tail(client, path: str, lines: int = 40) -> str:
     try:
         res = await client.execute(f"tail -n {lines} {shlex.quote(path)} 2>/dev/null", timeout=10)
@@ -127,11 +171,10 @@ async def _log_tail(client, path: str, lines: int = 40) -> str:
         return ""
 
 
-#: Where Chrome for Testing reads enterprise policy. NOT /etc/opt/chrome —
-#: that path belongs to branded Chrome, and a policy written there is silently
-#: ignored by this build.
+#: Where branded Google Chrome reads enterprise policy on Linux. Confirmed
+#: loaded from here — chrome://policy lists these entries as
+#: Platform / Machine / Mandatory / OK.
 POLICY_DIRS = (
-    "/etc/opt/chrome_for_testing/policies/managed",
     "/etc/opt/chrome/policies/managed",
 )
 
@@ -141,18 +184,44 @@ POLICY_DIRS = (
 #: offender is the external-protocol prompt ("Open xdg-open?") that Chinese
 #: sites trigger constantly trying to hand off to their native app.
 AUTOMATION_POLICY = {
-    # Silently refuse app hand-offs instead of prompting. Blocking beats
-    # AutoLaunchProtocolsFromOrigins, which suppresses the prompt by actually
-    # launching the handler — on a shared desktop that opens real programs.
-    "URLBlocklist": [
-        "snssdk1128:*", "snssdk1233:*", "aweme:*", "bytedance:*", "douyin:*",
-        "weixin:*", "wechat:*", "alipay:*", "alipays:*", "taobao:*", "tbopen:*",
-        "openapp:*", "baiduboxapp:*", "zhihu:*", "bilibili:*",
-        "mailto:*", "tel:*", "sms:*", "callto:*",
-        "ms-word:*", "ms-excel:*", "ms-powerpoint:*", "onenote:*",
-        "zoommtg:*", "skype:*", "slack:*", "spotify:*", "itms-apps:*", "market:*",
+    # Default-deny, then allow back what automation actually navigates to.
+    #
+    # This replaced a list of 29 app schemes (`douyin:*`, `snssdk1128:*`, …).
+    # Enumeration cannot win: the scheme behind the report that prompted this
+    # was `bitbrowser://cc/`, a fingerprint-browser probe on
+    # creator.douyin.com, which nobody would have thought to list.
+    #
+    # **This does NOT suppress the "Open xdg-open?" hand-off dialog**, and it
+    # is important not to believe otherwise. `URLBlocklist` is enforced by
+    # PolicyBlocklistNavigationThrottle at the navigation layer, while the
+    # dialog is drawn by ExternalProtocolHandler, whose GetBlockState() never
+    # consults it — a renderer-initiated launch reaches the handler without
+    # passing the throttle. The only policy that acts on that path is
+    # AutoLaunchProtocolsFromOrigins — and it suppresses the prompt by actually
+    # *launching* the handler, which on a desktop the user shares with the agent
+    # means starting real programs. Not enabled here for that reason.
+    #
+    # What this setting does buy is real: it cancels throttled navigations to
+    # anything that is not an automation scheme. Verified on the live desktop —
+    # example.com and creator.douyin.com both load and interact normally
+    # (132 a11y refs after a login click).
+    "URLBlocklist": ["*"],
+    "URLAllowlist": [
+        "http://*", "https://*", "ws://*", "wss://*",
+        # chrome:// and devtools:// keep chrome://policy and DevTools usable;
+        # about:// covers the about:blank we launch with.
+        "chrome://*", "chrome-extension://*", "devtools://*", "about://*",
+        "blob://*", "data://*", "file://*",
     ],
     "ExternalProtocolDialogShowAlwaysOpenCheckbox": False,
+    # 5 == open the New Tab page. Policy rather than a profile preference,
+    # because the two failure modes here trade off against each other and only
+    # a policy pins both: an unclean exit makes Chrome offer "Restore pages?"
+    # (a browser-drawn bubble no CDP call can dismiss), while marking the exit
+    # clean makes it silently reopen every tab of the last run instead —
+    # measured, a killed session came back with ten stale tabs. This setting
+    # closes the second door, and it cannot be undone from inside the profile.
+    "RestoreOnStartup": 5,
     # 2 == block, for every prompt that would otherwise stop the run dead.
     "DefaultNotificationsSetting": 2,
     "DefaultGeolocationSetting": 2,
@@ -199,34 +268,53 @@ def _chrome_launch_script() -> str:
     """
     # Chrome 136+ refuses --remote-debugging-port when it is pointed at the
     # DEFAULT user-data-dir, a hardening measure against other local processes
-    # hijacking the debug endpoint. A dedicated obx-chrome profile sidesteps it.
-    #
-    # The binary is Chrome for Testing when present. Branded Chrome 137+ ignores
-    # --load-extension entirely (removed as an abuse vector), and Chrome for
-    # Testing is the build Google kept it working in — so it is the only way the
-    # dev-browser extension can ride along on this desktop.
+    # hijacking the debug endpoint. A dedicated obx-chrome profile sidesteps it,
+    # which is what lets ordinary Google Chrome serve as the automation browser
+    # — verified on this desktop: Chrome 151 opens the port on this profile.
     return f"""set -e
 U=$(ps -o user= -p "$(pgrep -x gnome-shell | head -n1)" 2>/dev/null | tr -d ' ')
 if [ -z "$U" ] || [ "$U" = root ]; then U=$(stat -c %U /tmp/.X11-unix/X* 2>/dev/null | grep -v '^root$' | head -n1); fi
 if [ -z "$U" ]; then U=$(getent passwd 1000 | cut -d: -f1); fi
 H=$(getent passwd "$U" | cut -d: -f6)
-BIN={CHROME_FOR_TESTING}
-[ -x "$BIN" ] || BIN=$(command -v google-chrome || command -v chromium || true)
+BIN=""
+for c in {" ".join(CHROME_CANDIDATES)}; do [ -x "$c" ] && {{ BIN="$c"; break; }}; done
+[ -n "$BIN" ] || BIN=$(command -v google-chrome || command -v chromium || true)
 [ -n "$BIN" ] || {{ echo "no chrome binary found" >&2; exit 3; }}
-EXT=""
-if [ -f {EXTENSION_DIR}/manifest.json ]; then EXT="--load-extension={EXTENSION_DIR}"; fi
+# An automation browser must start from nothing every time, and two separate
+# mechanisms fight that.
+#
+# 1. We stop Chrome with a signal, so it records an unclean exit and offers
+#    "Restore pages?" on the next start — a bubble the BROWSER draws, so no CDP
+#    call can dismiss it, over the top-right of whatever page is loaded.
+#    --disable-session-crashed-bubble no longer suppresses it; marking the exit
+#    clean in the profile does.
+# 2. Marking it clean then lets Chrome silently reopen the previous session
+#    instead — measured here: a killed run came back with ten stale tabs, which
+#    cost memory and pollute the relay's page list. RestoreOnStartup=5 in the
+#    managed policy did NOT stop it.
+#
+# Deleting the session files closes both: there is no crash to report and
+# nothing to restore. They are pure scratch state; the profile's cookies,
+# logins and history live in other files and survive.
+PROF="$H/{CHROME_PROFILE}"
+PREF="$PROF/Default/Preferences"
+if [ -f "$PREF" ]; then
+  sudo -u "$U" sed -i 's/"exit_type":"[^"]*"/"exit_type":"Normal"/g; s/"exited_cleanly":false/"exited_cleanly":true/g' "$PREF" 2>/dev/null || true
+fi
+sudo -u "$U" rm -rf "$PROF/Default/Sessions" 2>/dev/null || true
+sudo -u "$U" rm -f "$PROF/Default/Current Session" "$PROF/Default/Current Tabs" \
+                   "$PROF/Default/Last Session" "$PROF/Default/Last Tabs" 2>/dev/null || true
 ( setsid sudo -u "$U" -H env -u CHROME_HEADLESS -u PLAYWRIGHT_HEADLESS -u PUPPETEER_HEADLESS \\
   DISPLAY="$DISPLAY" XAUTHORITY="$XAUTHORITY" \\
   "$BIN" \\
   --remote-debugging-port={CHROME_PORT} \\
   --remote-debugging-address=127.0.0.1 \\
   --user-data-dir="$H/{CHROME_PROFILE}" \\
-  $EXT \\
   --no-first-run \\
   --no-default-browser-check \\
   --disable-session-crashed-bubble \\
   --restore-last-session=false \\
-  --disable-features=ExternalProtocolDialog,TranslateUI,MediaRouter \\
+  --disable-features=TranslateUI,MediaRouter \\
   --disable-notifications \\
   --deny-permission-prompts \\
   --disable-infobars \\
@@ -287,7 +375,7 @@ async def ensure_chrome(client, container_key: str) -> dict:
     # Policy must be on disk before Chrome starts: it is read once at launch.
     await client.execute(_policy_install_script(), timeout=30)
     log.info("launching headed Chrome with remote debugging on :%d", CHROME_PORT)
-    await client.execute(x("sh -c " + shlex.quote(_chrome_launch_script())), timeout=30)
+    await _fire_and_forget(client, x("sh -c " + shlex.quote(_chrome_launch_script())))
 
     deadline = time.monotonic() + CHROME_READY_BUDGET
     while time.monotonic() < deadline:
@@ -319,7 +407,7 @@ async def ensure_relay(client, container_key: str, mode: str) -> dict:
         return existing
 
     log.info("(re)starting dev-browser relay in %s mode", mode)
-    await client.execute(_relay_start_script(mode), timeout=30)
+    await _fire_and_forget(client, _relay_start_script(mode))
 
     deadline = time.monotonic() + RELAY_READY_BUDGET
     while time.monotonic() < deadline:
