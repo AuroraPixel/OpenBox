@@ -18,6 +18,7 @@ user, not as the root action server, which is why launches go through the
 `obx-x` wrapper and `sudo -u`.
 """
 import asyncio
+import base64
 import json
 import shlex
 import time
@@ -126,6 +127,68 @@ async def _log_tail(client, path: str, lines: int = 40) -> str:
         return ""
 
 
+#: Where Chrome for Testing reads enterprise policy. NOT /etc/opt/chrome —
+#: that path belongs to branded Chrome, and a policy written there is silently
+#: ignored by this build.
+POLICY_DIRS = (
+    "/etc/opt/chrome_for_testing/policies/managed",
+    "/etc/opt/chrome/policies/managed",
+)
+
+#: An automation browser must never stop and ask a human something. The native
+#: dialogs are the dangerous ones: they are drawn by the browser, not the page,
+#: so no amount of CDP can dismiss them and the run simply hangs. The worst
+#: offender is the external-protocol prompt ("Open xdg-open?") that Chinese
+#: sites trigger constantly trying to hand off to their native app.
+AUTOMATION_POLICY = {
+    # Silently refuse app hand-offs instead of prompting. Blocking beats
+    # AutoLaunchProtocolsFromOrigins, which suppresses the prompt by actually
+    # launching the handler — on a shared desktop that opens real programs.
+    "URLBlocklist": [
+        "snssdk1128:*", "snssdk1233:*", "aweme:*", "bytedance:*", "douyin:*",
+        "weixin:*", "wechat:*", "alipay:*", "alipays:*", "taobao:*", "tbopen:*",
+        "openapp:*", "baiduboxapp:*", "zhihu:*", "bilibili:*",
+        "mailto:*", "tel:*", "sms:*", "callto:*",
+        "ms-word:*", "ms-excel:*", "ms-powerpoint:*", "onenote:*",
+        "zoommtg:*", "skype:*", "slack:*", "spotify:*", "itms-apps:*", "market:*",
+    ],
+    "ExternalProtocolDialogShowAlwaysOpenCheckbox": False,
+    # 2 == block, for every prompt that would otherwise stop the run dead.
+    "DefaultNotificationsSetting": 2,
+    "DefaultGeolocationSetting": 2,
+    "DefaultPopupsSetting": 2,
+    "DefaultMediaStreamSetting": 2,
+    "DefaultSensorsSetting": 2,
+    "DefaultFileSystemWriteGuardSetting": 2,
+    "PromptForDownloadLocation": False,
+    # Nothing here should try to be a browser for a person.
+    "PasswordManagerEnabled": False,
+    "AutofillAddressEnabled": False,
+    "AutofillCreditCardEnabled": False,
+    "BrowserSignin": 0,
+    "SyncDisabled": True,
+    "DefaultBrowserSettingEnabled": False,
+    "MetricsReportingEnabled": False,
+    "BackgroundModeEnabled": False,
+}
+
+
+def _policy_install_script() -> str:
+    """Shell that drops the automation policy into every path Chrome reads."""
+    payload = json.dumps(AUTOMATION_POLICY, indent=2)
+    b64 = base64.b64encode(payload.encode()).decode()
+    dirs = " ".join(shlex.quote(d) for d in POLICY_DIRS)
+    return f"""set -e
+printf %s {b64} | base64 -d > /tmp/.obx-chrome-policy.json
+for d in {dirs}; do
+  mkdir -p "$d" 2>/dev/null || continue
+  cp /tmp/.obx-chrome-policy.json "$d/openbox-automation.json" 2>/dev/null || true
+  chmod 644 "$d/openbox-automation.json" 2>/dev/null || true
+done
+rm -f /tmp/.obx-chrome-policy.json
+"""
+
+
 def _chrome_launch_script() -> str:
     """Shell that launches a headed, debuggable Chrome as the desktop user.
 
@@ -162,6 +225,13 @@ if [ -f {EXTENSION_DIR}/manifest.json ]; then EXT="--load-extension={EXTENSION_D
   --no-default-browser-check \\
   --disable-session-crashed-bubble \\
   --restore-last-session=false \\
+  --disable-features=ExternalProtocolDialog,TranslateUI,MediaRouter \\
+  --disable-notifications \\
+  --deny-permission-prompts \\
+  --disable-infobars \\
+  --no-service-autorun \\
+  --password-store=basic \\
+  --use-mock-keychain \\
   about:blank \\
   >{CHROME_LOG} 2>&1 </dev/null & ) >/dev/null 2>&1 </dev/null
 exit 0
@@ -212,6 +282,8 @@ async def ensure_chrome(client, container_key: str) -> dict:
 
     # obx-x is what discovers the desktop's X session for the sudo launch below.
     await ensure_x_helper(client, container_key)
+    # Policy must be on disk before Chrome starts: it is read once at launch.
+    await client.execute(_policy_install_script(), timeout=30)
     log.info("launching headed Chrome with remote debugging on :%d", CHROME_PORT)
     await client.execute(x("sh -c " + shlex.quote(_chrome_launch_script())), timeout=30)
 
