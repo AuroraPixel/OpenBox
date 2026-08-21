@@ -27,6 +27,8 @@ export interface SendMessageVars {
 }
 
 export function useSendMessage(sessionId: string) {
+  const qc = useQueryClient()
+  const userId = useUserId()
   return useMutation({
     mutationFn: (vars: SendMessageVars) =>
       http.post<{ ok: boolean }>(`/api/agent/session/${sessionId}/prompt_async`, {
@@ -37,6 +39,10 @@ export function useSendMessage(sessionId: string) {
         attachments: vars.attachments?.length ? vars.attachments : undefined,
         client_message_id: vars.clientMessageId,
       }),
+    // The backend records the chosen model on the session, so the cached copy
+    // is stale the moment a send goes out — and it is what restores the picker
+    // when the user comes back to this conversation.
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["session", userId, sessionId] }),
   })
 }
 

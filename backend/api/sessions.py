@@ -49,6 +49,24 @@ class CommandBody(BaseModel):
     arguments: str | None = None
 
 
+async def _remember_model(session, requested: str | None, user_id: str) -> str:
+    """Settle on a model for this turn and keep it on the session.
+
+    Each conversation carries its own model, so reopening one restores what it
+    was last using instead of snapping back to the global default. A model the
+    deployment no longer offers is replaced here rather than at the provider,
+    where it returns an opaque "no channel for model X" that the retry layer
+    attempts five times before the turn fails.
+    """
+    from agent.model_resolve import resolve as resolve_model
+
+    chosen, _dropped = resolve_model(requested or session.model, get_config(),
+                                     context=f"session {session.id}")
+    if chosen and chosen != session.model:
+        await session_mod.update_session(session.id, model=chosen, user_id=user_id)
+    return chosen
+
+
 async def _require_session_owned(session_id: str, user_id: str):
     session = await session_mod.get_session(session_id, user_id=user_id)
     if not session:
@@ -106,8 +124,11 @@ async def create_session(
     user_id = current_user["user_id"]
     config = get_config()
     await check_session_quota(user_id, config)
+    # Validate at birth so a retired model never gets stored in the first place.
+    from agent.model_resolve import resolve as resolve_model
+    model, _ = resolve_model(body.model, config, context="new session")
     session = await session_mod.create_session(
-        model=body.model,
+        model=model,
         agent=body.agent,
         title=body.title,
         user_id=user_id,
@@ -189,11 +210,13 @@ async def send_message(
     from sandbox.manager import sandbox_manager
     await sandbox_manager.get_client(session_id, user_id=user_id)
 
+    chosen_model = await _remember_model(session, body.model, user_id)
+
     user_msg = await session_mod.create_user_message(
         session_id=session_id,
         text=body.text,
         agent=body.agent or session.agent,
-        model=body.model,
+        model=chosen_model,
         variant=body.variant,
         client_message_id=body.client_message_id,
         output_format=body.format,
@@ -237,16 +260,13 @@ async def send_message_async(
     # A model the deployment no longer offers must not reach the provider: it
     # comes back as an opaque "no channel for model X" that the retry layer
     # attempts five times before failing the turn.
-    from agent.model_resolve import resolve as resolve_model
-    chosen_model, dropped_model = resolve_model(body.model, get_config(), context=f"session {session_id}")
-    if dropped_model:
-        await session_mod.update_session(session_id, model=chosen_model, user_id=user_id)
+    chosen_model = await _remember_model(session, body.model, user_id)
 
     user_msg = await session_mod.create_user_message(
         session_id=session_id,
         text=body.text,
         agent=body.agent or session.agent,
-        model=chosen_model if body.model else None,
+        model=chosen_model,
         variant=body.variant,
         client_message_id=body.client_message_id,
         output_format=body.format,

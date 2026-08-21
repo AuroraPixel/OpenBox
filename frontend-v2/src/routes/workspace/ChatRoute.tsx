@@ -22,6 +22,7 @@ import {
   useStreamStore,
   useTodoQuery,
 } from "@/features/chat"
+import { useSessionQuery } from "@/features/chat/api/message-actions"
 
 const EMPTY_MESSAGES: MessageWithParts[] = []
 const EMPTY_PERMS: PermissionRequest[] = []
@@ -64,6 +65,7 @@ export default function ChatRoute() {
   )
   const busy = isBusyStatus(status) || hasRunningTool
 
+  const session = useSessionQuery(sessionId)
   const send = useSendChat(sessionId)
   const abort = useAbortSession(sessionId)
   const stop = () => {
@@ -99,7 +101,13 @@ export default function ChatRoute() {
       ) : (
         <ChatFlow turns={turns} sessionId={sessionId} busy={busy} footer={footer} />
       )}
-      <Composer busy={busy} onSubmit={(text, opts) => send(text, opts)} onStop={stop} />
+      <Composer
+        busy={busy}
+        onSubmit={(text, opts) => send(text, opts)}
+        onStop={stop}
+        sessionModel={session.data?.model}
+        sessionKey={sessionId}
+      />
     </div>
   )
 }

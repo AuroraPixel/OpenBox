@@ -8,6 +8,7 @@ import { useRunningContainer } from "../api/containers"
 import { useAttachments } from "../hooks/useAttachments"
 import { useMentionMenu } from "../hooks/useMentionMenu"
 import { useSendShortcut } from "../hooks/useSendShortcut"
+import { useModelChoice } from "../hooks/useModelChoice"
 import { useComposerDrop } from "../hooks/useComposerDrop"
 import { InputGroup } from "./composer/InputGroup"
 import { AttachmentRow } from "./composer/AttachmentRow"
@@ -27,6 +28,12 @@ interface Props {
   onSubmit: (text: string, opts: ComposerSubmit) => void
   onStop?: () => void
   autoFocus?: boolean
+  /** The model this conversation last used. Each session carries its own, so
+   *  reopening one restores that choice rather than the global default. */
+  sessionModel?: string
+  /** Changes when the user moves to another conversation, which resets the
+   *  picker — an unsent choice belongs to the chat it was made in. */
+  sessionKey?: string
   /** G2's mention/command menu mounts here — it renders inside the relative
    *  anchor that wraps the textarea, so it can position against the input. */
   mentionSlot?: ReactNode
@@ -38,11 +45,10 @@ const MAX_HEIGHT = 200 // matches max-h-50
 /** Design composer: a single focus-owning shell (InputGroup) holding the
  *  attachment strip, the chromeless textarea, and one action row whose sole
  *  round button morphs between send and stop. */
-export function Composer({ busy, onSubmit, onStop, autoFocus, mentionSlot }: Props) {
+export function Composer({ busy, onSubmit, onStop, autoFocus, mentionSlot, sessionModel, sessionKey }: Props) {
   const { t } = useTranslation("chat")
   const { data: config } = useConfigQuery()
   const models = config?.models ?? []
-  const [modelId, setModelId] = useState<string | undefined>(undefined)
   const [text, setText] = useState("")
   const [caret, setCaret] = useState(0)
   const taRef = useRef<HTMLTextAreaElement>(null)
@@ -52,7 +58,11 @@ export function Composer({ busy, onSubmit, onStop, autoFocus, mentionSlot }: Pro
   const attachments = useAttachments(running?.id ?? null)
   const shortcut = useSendShortcut()
 
-  const activeId = modelId ?? config?.default_model ?? models[0]?.id
+  const { activeId, pick } = useModelChoice({
+    sessionModel,
+    sessionKey,
+    fallback: config?.default_model ?? models[0]?.id,
+  })
 
   const pickFiles = (files: File[]) => {
     const ok = files.filter((f) => {
@@ -167,7 +177,7 @@ export function Composer({ busy, onSubmit, onStop, autoFocus, mentionSlot }: Pro
               onFiles={pickFiles}
             />
 
-            <ModelPicker models={models} activeId={activeId} onPick={setModelId} />
+            <ModelPicker models={models} activeId={activeId} onPick={pick} />
             <ShortcutPicker shortcut={shortcut.shortcut} onChange={shortcut.setShortcut} />
 
             <button
