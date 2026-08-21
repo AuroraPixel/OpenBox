@@ -340,6 +340,12 @@ class ReactionBody(BaseModel):
     reaction: str | None = None  # "up" | "down" | null to clear
 
 
+class RegenerateBody(BaseModel):
+    # Optional: retry on a different model. A turn that failed because of the
+    # model it ran on is the main reason anyone presses regenerate.
+    model: str | None = None
+
+
 @router.get("/session/{session_id}/diff/step")
 async def get_step_diff(
     session_id: str,
@@ -373,6 +379,76 @@ async def set_message_reaction(
         raise HTTPException(400, "reaction must be 'up', 'down' or null")
     await session_mod.set_message_reaction(message_id, session_id, body.reaction)
     return {"ok": True, "reaction": body.reaction}
+
+
+@router.delete("/session/{session_id}/message/{message_id}")
+async def dismiss_failed_turn(
+    session_id: str,
+    message_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Remove a turn that failed, once the user has moved past it.
+
+    Only errored assistant messages qualify — see `delete_failed_turn`. A 404
+    here means "that message is not a failure", not "no such session".
+    """
+    user_id = current_user["user_id"]
+    await _require_session_owned(session_id, user_id)
+    removed = await session_mod.delete_failed_turn(session_id, message_id)
+    if not removed:
+        raise HTTPException(404, "No failed turn to dismiss at that message")
+    return {"ok": True, "removed": removed}
+
+
+@router.post("/session/{session_id}/regenerate/{message_id}")
+async def regenerate_message(
+    session_id: str,
+    message_id: str,
+    body: RegenerateBody | None = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """Answer the same prompt again, discarding this assistant turn.
+
+    `message_id` is the assistant message to replace. It and everything after
+    it are removed, leaving the user message that prompted it as the newest in
+    the history — which is exactly the state `run_loop` expects, so no new user
+    message is created and the prompt is not duplicated.
+
+    The common case is a turn that failed: the error is the only thing the user
+    can see, and without this there is nothing to act on but retyping.
+    """
+    user_id = current_user["user_id"]
+    config = get_config()
+    await check_concurrent_agents(user_id, config)
+    session = await session_mod.get_session(session_id, user_id=user_id)
+    if not session:
+        raise HTTPException(404, "Session not found")
+
+    if session.status == SessionStatus.BUSY:
+        # Same contract as prompt_async: the newest instruction wins, so cancel
+        # the run in flight rather than refusing. Deleting messages out from
+        # under a live loop is the one thing we must not do.
+        from session.status import trigger_abort
+        trigger_abort(session_id)
+        await session_mod.set_session_status(session_id, SessionStatus.IDLE, user_id=user_id)
+        await asyncio.sleep(0.3)
+
+    # Let the caller switch models on the way, so "it failed on this model"
+    # and "try it on another one" are a single action.
+    if body and body.model:
+        await _remember_model(session, body.model, user_id)
+
+    last_user = await session_mod.delete_messages_from(session_id, message_id)
+    if not last_user:
+        raise HTTPException(404, "Nothing to regenerate: no prompt precedes that message")
+
+    # No explicit "messages were deleted" event: the loop is about to emit a
+    # fresh message stream for this same prompt, which is what any other open
+    # tab needs anyway. The caller invalidates its own snapshot on success.
+    task = asyncio.create_task(_run_loop_with_log(session_id, user_id))
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return {"ok": True, "from_message": last_user}
 
 
 @router.post("/session/{session_id}/fork")

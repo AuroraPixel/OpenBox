@@ -1,12 +1,15 @@
 // Meta strip under an assistant turn: data badges (model / tokens / latency)
 // stacked over the action row (copy, react, fork) and the timestamp.
-import { Check, Copy, GitFork, ThumbsDown, ThumbsUp } from "lucide-react"
+import { Check, Copy, GitFork, RefreshCw, ThumbsDown, ThumbsUp } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router"
+import { useApiErrorMessage } from "@/shared/hooks/useApiErrorMessage"
 import { useCopy } from "@/shared/hooks/useCopy"
 import { paths } from "@/shared/router/paths"
+import { toast } from "@/shared/ui/Toast"
 import type { MessageReaction, TokenUsage } from "@/shared/types/api"
-import { useForkMessage, useSetReaction } from "../../api/message-actions"
+import { useForkMessage, useRegenerate, useSetReaction } from "../../api/message-actions"
+import { useModelChoiceStore } from "../../stores/model-choice"
 import { useStreamStore } from "../../stores/stream"
 import { LatencyBadge, MessageTimestamp, ModelBadge, TokenBadge } from "./MetaBadges"
 import { MetaContainer } from "./MetaContainer"
@@ -39,6 +42,9 @@ export function AssistantMeta({
   const setReaction = useStreamStore((s) => s.setMessageReaction)
   const { mutate: react } = useSetReaction(sessionId)
   const { mutate: fork, isPending: forking } = useForkMessage(sessionId)
+  const { mutate: regenerate, isPending: regenerating } = useRegenerate(sessionId)
+  const errorMessage = useApiErrorMessage()
+  const pickedModel = useModelChoiceStore((s) => s.picked.get(sessionId))
   const current = reaction ?? null
 
   const toggleReaction = (next: Exclude<MessageReaction, null>) => {
@@ -52,6 +58,13 @@ export function AssistantMeta({
 
   const onFork = () => {
     fork(messageId, { onSuccess: (session) => navigate(paths.chat(session.id)) })
+  }
+
+  const onRegenerate = () => {
+    regenerate(
+      { messageId, model: pickedModel },
+      { onError: (e) => toast("error", errorMessage(e)) },
+    )
   }
 
   return (
@@ -96,6 +109,17 @@ export function AssistantMeta({
             onClick={onFork}
           >
             <GitFork size={14} strokeWidth={1.8} />
+          </MetaIconButton>
+          <MetaIconButton
+            label={regenerating ? t("meta.regenerating") : t("meta.regenerate")}
+            disabled={streaming || regenerating}
+            onClick={onRegenerate}
+          >
+            <RefreshCw
+              size={14}
+              strokeWidth={1.8}
+              className={regenerating ? "animate-spin" : undefined}
+            />
           </MetaIconButton>
           <MessageTimestamp iso={createdAt} />
         </div>

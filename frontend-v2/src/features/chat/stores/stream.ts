@@ -30,6 +30,11 @@ interface StreamState {
     status: ToolStatus,
     data?: Record<string, unknown>,
   ) => void
+  /** Forget a session's messages so the next snapshot is taken verbatim.
+   *  Needed whenever the server deleted messages: {@link setMessages} merges
+   *  by keeping whichever copy has more parts, which would otherwise restore
+   *  the very turn that was just removed. */
+  clearMessages: (sessionId: string) => void
   setStatus: (sessionId: string, status: SessionStatus) => void
   /** Optimistic thumbs up/down for one message (server echo follows). */
   setMessageReaction: (sessionId: string, messageId: string, reaction: MessageReaction) => void
@@ -167,6 +172,13 @@ export const useStreamStore = create<StreamState>((set) => ({
             : m,
         ),
       )
+    }),
+
+  clearMessages: (sessionId) =>
+    set((s) => {
+      const map = new Map(s.messages)
+      map.delete(sessionId)
+      return { messages: map }
     }),
 
   setStatus: (sessionId, status) =>

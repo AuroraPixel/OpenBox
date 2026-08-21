@@ -75,7 +75,14 @@ export function AssistantTurn({ parts, sessionId, meta, streaming }: Props) {
         ) : null}
       </div>
 
-      {meta.error ? <InlineErrorCard error={meta.error} /> : null}
+      {meta.error ? (
+        <InlineErrorCard
+          error={meta.error}
+          sessionId={sessionId}
+          messageId={meta.messageId}
+          streaming={streaming}
+        />
+      ) : null}
 
       {(view.patches.length > 0 || view.files.length > 0 || view.plans.length > 0) && (
         <div className="mt-2 flex flex-col gap-2">

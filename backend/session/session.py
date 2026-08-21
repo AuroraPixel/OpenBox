@@ -609,6 +609,99 @@ async def get_messages(session_id: str, offset: int = 0, limit: int = 200, user_
     return result
 
 
+async def delete_messages_from(session_id: str, message_id: str) -> str | None:
+    """Drop `message_id` and everything after it. Returns the id of the last
+    user message that survives, or None if the session has none left.
+
+    This is what "regenerate" is made of: the assistant's attempt is removed so
+    the loop answers the same prompt again, rather than the model reading its
+    own failed turn as context and apologising for it.
+
+    A hard delete, deliberately. The alternative — a `superseded` flag — leaves
+    the old turn in every history read (compaction, token counting, the model's
+    own context) unless all of them learn to filter it, and one that forgets is
+    a silent context bug rather than a visible one.
+    """
+    async with get_db_session() as db:
+        target = await db.execute(
+            select(MessageORM.created_at).where(
+                MessageORM.id == message_id,
+                MessageORM.session_id == session_id,
+            )
+        )
+        cutoff = target.scalar_one_or_none()
+        if cutoff is None:
+            return None
+
+        doomed = (await db.execute(
+            select(MessageORM.id).where(
+                MessageORM.session_id == session_id,
+                MessageORM.created_at >= cutoff,
+            )
+        )).scalars().all()
+
+        if doomed:
+            # Parts first: they carry a foreign key onto messages.
+            await db.execute(PartORM.__table__.delete().where(PartORM.message_id.in_(doomed)))
+            await db.execute(MessageORM.__table__.delete().where(MessageORM.id.in_(doomed)))
+
+        survivor = await db.execute(
+            select(MessageORM.id).where(
+                MessageORM.session_id == session_id,
+                MessageORM.role == "user",
+            ).order_by(MessageORM.created_at.desc()).limit(1)
+        )
+        last_user = survivor.scalar_one_or_none()
+
+    log.info(f"Regenerate: dropped {len(doomed)} message(s) from {message_id} in {session_id}")
+    return last_user
+
+
+async def delete_failed_turn(session_id: str, message_id: str) -> int:
+    """Remove an errored assistant message, and the prompt that produced it.
+
+    For a failed turn the user has already moved past: it answers nothing, and
+    it is not free to keep — an assistant message with no text still rides
+    along in every future request as context.
+
+    The prompt goes too, but only when nothing else answered it. Deleting the
+    reply alone would leave the question sitting there unanswered, which is a
+    worse artefact than the error card was.
+
+    Restricted to messages that actually carry an error, deliberately: this is
+    "dismiss a failure", not a general history-rewriting endpoint. Returns the
+    number of messages removed, 0 if the id does not qualify.
+    """
+    async with get_db_session() as db:
+        row = (await db.execute(
+            select(MessageORM.id, MessageORM.parent_id, MessageORM.error, MessageORM.role).where(
+                MessageORM.id == message_id,
+                MessageORM.session_id == session_id,
+            )
+        )).one_or_none()
+        if row is None or row.role != "assistant" or not row.error:
+            return 0
+
+        doomed = [message_id]
+
+        if row.parent_id:
+            siblings = (await db.execute(
+                select(MessageORM.id).where(
+                    MessageORM.session_id == session_id,
+                    MessageORM.parent_id == row.parent_id,
+                    MessageORM.id != message_id,
+                )
+            )).scalars().all()
+            if not siblings:
+                doomed.append(row.parent_id)
+
+        await db.execute(PartORM.__table__.delete().where(PartORM.message_id.in_(doomed)))
+        await db.execute(MessageORM.__table__.delete().where(MessageORM.id.in_(doomed)))
+
+    log.info(f"Dismissed failed turn {message_id} in {session_id} ({len(doomed)} message(s))")
+    return len(doomed)
+
+
 async def set_message_reaction(message_id: str, session_id: str, reaction: str | None) -> None:
     """Persist thumbs up/down feedback for an assistant message."""
     async with get_db_session() as db:

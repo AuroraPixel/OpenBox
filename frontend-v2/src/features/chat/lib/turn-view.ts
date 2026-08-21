@@ -61,9 +61,12 @@ export function mergeTurns(messages: MessageWithParts[]): Turn[] {
     const last = turns[turns.length - 1]
     if (last && last.kind === "assistant") {
       last.parts = [...last.parts, ...m.parts]
-      // Adopt the newest message's meta — reaction/tokens/error belong to the
-      // final assistant message of the merged turn.
-      last.meta = metaOf(m)
+      // Adopt the newest message's meta — reaction/tokens belong to the final
+      // assistant message of the merged turn. The error is the exception: it
+      // must not be erased by a message that merely carries none, or a turn
+      // that failed would render as if it had succeeded and the retry
+      // affordance would vanish with it.
+      last.meta = { ...metaOf(m), error: m.error ?? last.meta.error }
     } else {
       turns.push({ kind: "assistant", key: m.id, parts: [...m.parts], meta: metaOf(m) })
     }
