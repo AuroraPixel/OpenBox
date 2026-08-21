@@ -34,6 +34,7 @@ RELAY_PORT = 9222
 
 CHROME_LOG = "/tmp/obx-chrome.log"
 RELAY_LOG = "/tmp/obx-relay.log"
+RELAY_PID = "/tmp/obx-relay.pid"
 
 #: Dedicated profile, relative to the desktop user's home. See the launch script
 #: for why a non-default profile is mandatory.
@@ -41,6 +42,14 @@ CHROME_PROFILE = ".config/obx-chrome"
 
 #: Where wuying_bootstrap.py deploys the relay.
 SKILL_DIR = "/opt/openbox/skills/dev-browser"
+
+#: Chrome for Testing — the build that still honours --load-extension. Branded
+#: Chrome dropped that flag in 137, so the dev-browser extension can only be
+#: loaded here. Falls back to whatever chrome is on PATH when absent.
+CHROME_FOR_TESTING = "/opt/chrome-for-testing/chrome"
+
+#: Unpacked dev-browser extension on the desktop.
+EXTENSION_DIR = "/opt/openbox/extensions/dev-browser"
 
 _VALID_MODES = ("local", "extension", "auto")
 
@@ -128,33 +137,63 @@ def _chrome_launch_script() -> str:
     # Chrome 136+ refuses --remote-debugging-port when it is pointed at the
     # DEFAULT user-data-dir, a hardening measure against other local processes
     # hijacking the debug endpoint. A dedicated obx-chrome profile sidesteps it.
+    #
+    # The binary is Chrome for Testing when present. Branded Chrome 137+ ignores
+    # --load-extension entirely (removed as an abuse vector), and Chrome for
+    # Testing is the build Google kept it working in — so it is the only way the
+    # dev-browser extension can ride along on this desktop.
     return f"""set -e
 U=$(ps -o user= -p "$(pgrep -x gnome-shell | head -n1)" 2>/dev/null | tr -d ' ')
 if [ -z "$U" ] || [ "$U" = root ]; then U=$(stat -c %U /tmp/.X11-unix/X* 2>/dev/null | grep -v '^root$' | head -n1); fi
 if [ -z "$U" ]; then U=$(getent passwd 1000 | cut -d: -f1); fi
 H=$(getent passwd "$U" | cut -d: -f6)
-setsid sudo -u "$U" -H env DISPLAY="$DISPLAY" XAUTHORITY="$XAUTHORITY" \\
-  google-chrome \\
+BIN={CHROME_FOR_TESTING}
+[ -x "$BIN" ] || BIN=$(command -v google-chrome || command -v chromium || true)
+[ -n "$BIN" ] || {{ echo "no chrome binary found" >&2; exit 3; }}
+EXT=""
+if [ -f {EXTENSION_DIR}/manifest.json ]; then EXT="--load-extension={EXTENSION_DIR}"; fi
+( setsid sudo -u "$U" -H env DISPLAY="$DISPLAY" XAUTHORITY="$XAUTHORITY" \\
+  "$BIN" \\
   --remote-debugging-port={CHROME_PORT} \\
   --remote-debugging-address=127.0.0.1 \\
   --user-data-dir="$H/{CHROME_PROFILE}" \\
+  $EXT \\
   --no-first-run \\
   --no-default-browser-check \\
   --disable-session-crashed-bubble \\
   --restore-last-session=false \\
   about:blank \\
-  >{CHROME_LOG} 2>&1 </dev/null &
+  >{CHROME_LOG} 2>&1 </dev/null & ) >/dev/null 2>&1 </dev/null
+exit 0
 """
 
 
 def _relay_start_script(mode: str) -> str:
-    """Shell that (re)starts the dev-browser relay detached, in `mode`."""
+    """Shell that (re)starts the dev-browser relay detached, in `mode`.
+
+    The double fork matters. The action server reads the command's stdout to
+    completion, so a background child that merely redirects its own output
+    still holds the pipe open through the process group and the exec never
+    returns — the relay would come up and the caller would hang until its
+    timeout. Detaching with `setsid` in a subshell, and closing every
+    descriptor, hands the pipe back immediately.
+    """
+    # Stopping the old relay by PID file, not `pkill -f start-relay`: that
+    # pattern also matches the very shell running it (the command line contains
+    # the string), so the restart killed itself and the port never opened.
     return f"""set -e
-pkill -f start-relay >/dev/null 2>&1 || true
+if [ -f {RELAY_PID} ]; then
+  kill -TERM "-$(cat {RELAY_PID})" 2>/dev/null || kill -TERM "$(cat {RELAY_PID})" 2>/dev/null || true
+  rm -f {RELAY_PID}
+  sleep 1
+fi
+fuser -k -TERM {RELAY_PORT}/tcp >/dev/null 2>&1 || true
 sleep 0.5
 cd {SKILL_DIR}
-DEV_BROWSER_MODE={shlex.quote(mode)} DEV_BROWSER_CHROME_PORT={CHROME_PORT} PATH=/usr/local/bin:$PATH \\
-  setsid nohup npm run start-relay >{RELAY_LOG} 2>&1 </dev/null &
+( DEV_BROWSER_MODE={shlex.quote(mode)} DEV_BROWSER_CHROME_PORT={CHROME_PORT} PATH=/usr/local/bin:$PATH \\
+  setsid npm run start-relay >{RELAY_LOG} 2>&1 </dev/null &
+  echo $! > {RELAY_PID} ) >/dev/null 2>&1 </dev/null
+exit 0
 """
 
 
