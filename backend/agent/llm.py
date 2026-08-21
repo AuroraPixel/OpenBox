@@ -15,6 +15,10 @@ log = create_logger("agent.llm")
 
 OUTPUT_TOKEN_MAX = 32000  # Fallback for unknown models
 
+#: Room left for the visible answer once a thinking budget is reserved out of
+#: the same allowance. Anthropic requires max_tokens > thinking.budget_tokens.
+THINKING_OUTPUT_RESERVE = 8000
+
 
 def _get_max_output_tokens(model_id: str) -> int:
     """Return the max_output_tokens for a model.
@@ -275,10 +279,17 @@ def _get_variant_kwargs(model_id: str, variant: str | None) -> dict:
             if budget:
                 return {"thinking": {"type": "enabled", "budget_tokens": budget}}
             return {}
-        # Map "max" → "xhigh" for models that support it
-        effort = variant
-        if variant == "max" and any(x in model_lower for x in ("gpt-5.4", "gpt-5.2")):
-            effort = "xhigh"
+        # A variant is chosen for one model and survives a switch to another —
+        # it rides on the message, not the model — so it has to be clamped to
+        # what THIS family accepts rather than forwarded verbatim. Only 5.4 and
+        # 5.2 know "xhigh"; plain GPT-5 rejects both "max" and "xhigh".
+        wide = any(x in model_lower for x in ("gpt-5.4", "gpt-5.2"))
+        effort = {"max": "xhigh" if wide else "high"}.get(variant, variant)
+        if not wide and effort == "xhigh":
+            effort = "high"
+        if effort not in ("minimal", "none", "low", "medium", "high", "xhigh"):
+            log.debug(f"dropping unusable reasoning effort {variant!r} for {model_id}")
+            return {}
         return {"reasoning_effort": effort}
 
     if provider == "anthropic":
@@ -325,6 +336,7 @@ async def _stream_responses_api(
     messages: list[dict],
     tools: dict[str, ToolInfo],
     variant: str | None = None,
+    tool_choice: str | None = None,
 ) -> AsyncIterator[dict]:
     """Stream LLM via OpenAI Responses API directly (for GPT-5.x reasoning).
 
@@ -415,7 +427,7 @@ async def _stream_responses_api(
                 })
         else:
             # Responses API image form differs from Chat Completions.
-            images = msg.get("_images") or []
+            images = [u for u in (msg.get("_images") or []) if isinstance(u, str)]
             if role == "user" and images:
                 parts: list[dict] = []
                 if isinstance(content, str) and content:
@@ -449,6 +461,13 @@ async def _stream_responses_api(
     }
     if api_tools:
         payload["tools"] = api_tools
+        # Structured output is enforced by forcing a tool call, not by asking
+        # nicely in the prompt. This path used to drop tool_choice entirely, so
+        # the same request that was guaranteed on Chat Completions degraded to
+        # a suggestion here — and when the model answered in prose instead, the
+        # caller got an empty result with no error to explain it.
+        if tool_choice:
+            payload["tool_choice"] = tool_choice
 
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -671,7 +690,9 @@ async def stream_llm(
     """
     # GPT-5.x models: use Responses API for reasoning content
     if _needs_responses_api(model_id):
-        async for event in _stream_responses_api(model_id, system, messages, tools, variant=variant):
+        async for event in _stream_responses_api(
+            model_id, system, messages, tools, variant=variant, tool_choice=tool_choice
+        ):
             yield event
         return
 
@@ -793,7 +814,11 @@ def _finalize_message(msg: dict) -> dict:
     if not any(k in msg for k in internal):
         return msg
     out = {k: v for k, v in msg.items() if k not in internal}
-    images = msg.get("_images") or []
+    # Only resolved data URIs are real images. An unresolved reference (a dict
+    # left by _image_ref_for_part when nothing called resolve_images) would
+    # otherwise be serialised as {"url": {...}} and rejected by the provider —
+    # dropping it keeps the turn alive as text.
+    images = [u for u in (msg.get("_images") or []) if isinstance(u, str)]
     if images:
         parts: list[dict] = []
         text = out.get("content")
@@ -909,6 +934,15 @@ async def _stream_litellm_direct(
         }
         if extra_body:
             call_kwargs["extra_body"] = extra_body
+        # Anthropic draws the thinking budget OUT of the output budget and
+        # requires max_tokens to be strictly greater. The generic 32k default
+        # happens to equal the "max" budget exactly, so the highest reasoning
+        # setting was rejected outright — the two numbers were picked
+        # independently and collided.
+        budget = ((direct_kwargs.get("thinking") or {}).get("budget_tokens")
+                  if isinstance(direct_kwargs.get("thinking"), dict) else None)
+        if budget and call_kwargs["max_tokens"] <= budget:
+            call_kwargs["max_tokens"] = budget + THINKING_OUTPUT_RESERVE
         # Only meaningful when there is something to choose from; sending it
         # with an empty tool list is rejected by several providers.
         if tool_choice and tool_schemas:
