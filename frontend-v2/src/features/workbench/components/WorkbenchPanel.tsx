@@ -75,7 +75,7 @@ export function WorkbenchPanel({ sessionId }: WorkbenchPanelProps) {
         "flex min-h-0 flex-col",
         overlay
           ? "fixed end-2.5 top-2.5 bottom-2.5 z-40 rounded-xl border border-hair bg-card shadow-pop"
-          : "relative flex-none bg-rail",
+          : "border-hair relative flex-none border-s bg-rail",
       )}
     >
       <div onMouseDown={startDrag} className="absolute top-0 bottom-0 -left-1.5 z-10 w-2 cursor-col-resize" />

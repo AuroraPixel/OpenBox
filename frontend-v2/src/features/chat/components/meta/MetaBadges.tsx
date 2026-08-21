@@ -7,7 +7,6 @@ import {
   CircleDollarSign,
   ClockArrowUp,
   ClockCheck,
-  Cpu,
   Database,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
@@ -16,22 +15,28 @@ import { cn } from "@/shared/lib/cn"
 import { formatCost, formatDuration, formatNumber } from "@/shared/lib/format"
 import { Tooltip } from "@/shared/ui/Tooltip"
 import type { TokenUsage } from "@/shared/types/api"
+import { useConfigQuery } from "../../api/config"
 import { useSessionQuery } from "../../api/message-actions"
+import { ModelLogo } from "../ModelLogo"
+import { modelLabel } from "../../lib/model"
 
 const BADGE =
   "ms-0.5 inline-flex items-center gap-1.5 rounded bg-n200/40 px-1.5 py-0.5 font-mono text-2xs leading-3.5 text-n600/70 select-none whitespace-nowrap"
 
-/** Cpu + model name; the full name lives in the tooltip. */
+/** Vendor mark + model name. The badge shows the name a human picked in the composer;
+ *  the routing id it resolved to stays in the tooltip, where it is useful for
+ *  debugging and harmless everywhere else. */
 export function ModelBadge({ sessionId }: { sessionId: string }) {
   const { t } = useTranslation("chat")
   const { data } = useSessionQuery(sessionId)
+  const { data: config } = useConfigQuery()
   const model = data?.model?.trim()
   if (!model) return null
   return (
     <Tooltip label={model}>
       <span aria-label={t("meta.model")} className={cn(BADGE, "max-w-48")}>
-        <Cpu className="size-3 shrink-0" strokeWidth={1.4} />
-        <span className="truncate">{model}</span>
+        <ModelLogo id={model} className="size-3 shrink-0" />
+        <span className="truncate">{modelLabel(model, config?.models)}</span>
       </span>
     </Tooltip>
   )

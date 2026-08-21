@@ -8,7 +8,6 @@
   "reviewGo": "Review →",
   "copy": "Copy",
   "copied": "Copied",
-  "regen": "Regenerate",
   "outputs_one": "{{count}} file produced",
   "outputs_other": "{{count}} files produced",
   "changedFiles_one": "Edited {{count}} file",
@@ -126,7 +125,11 @@
     "totalDuration": "Total time",
     "expandMessage": "Show full message",
     "collapseMessage": "Show less",
-    "errorTitle": "This turn hit an error"
+    "errorTitle": "This turn hit an error",
+    "regenerate": "Regenerate",
+    "regenerating": "Regenerating…",
+    "dismissTurn": "Delete this turn",
+    "dismissing": "Deleting…"
   },
   "toolDetail": {
     "request": "Request",
@@ -205,5 +208,12 @@
     "more_one": "{{count}} more",
     "more_other": "{{count}} more",
     "less": "Show less"
+  },
+  "context": {
+    "title": "Context window",
+    "used": "{{used}} of {{limit}} used ({{pct}}%)",
+    "left": "{{tokens}} left",
+    "compactSoon": "Filling up — history will be compacted soon",
+    "aria": "Context {{pct}}% full"
   }
 }

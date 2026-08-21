@@ -520,7 +520,7 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
             llm_messages = _to_llm_messages(msgs, user_id=user_id)
             # Fetch the image bytes only here, on the path that actually calls
             # a vision model — token counting and cron never need them.
-            llm_messages = await resolve_images(llm_messages)
+            llm_messages = await resolve_images(llm_messages, model_id)
 
             # Determine previous assistant agent for transition detection
             prev_assistant_agent = None
@@ -1142,7 +1142,7 @@ def _image_ref_for_part(p: dict, user_id: str) -> dict | None:
     }
 
 
-async def resolve_images(messages: list[dict]) -> list[dict]:
+async def resolve_images(messages: list[dict], model_id: str | None = None) -> list[dict]:
     """Turn image references into inline base64 data URIs.
 
     Deliberately NOT presigned URLs. Several providers (Vertex-backed Gemini
@@ -1155,11 +1155,31 @@ async def resolve_images(messages: list[dict]) -> list[dict]:
 
     An image that cannot be fetched is dropped rather than raised — losing a
     frame beats failing the whole turn.
+
+    When `model_id` names a text-only model the references are replaced with a
+    note and never fetched at all. A conversation outlives the model it started
+    on, so old screenshots keep arriving at whatever model is selected now;
+    sending them anyway costs a megabyte of base64 to earn a gateway error that
+    kills the turn.
     """
     import asyncio as _asyncio
     import base64
 
     import httpx
+
+    if model_id:
+        from agent.vision import describe_dropped, supports_vision
+        if not supports_vision(model_id):
+            for msg in messages:
+                dropped = len(msg.get("_images") or [])
+                if not dropped:
+                    continue
+                msg.pop("_images", None)
+                note = describe_dropped(dropped)
+                content = msg.get("content")
+                msg["content"] = f"{content} {note}".strip() if isinstance(content, str) else note
+            log.info(f"{model_id} cannot read images; image references replaced with a note")
+            return messages
 
     refs: dict[str, dict] = {}
     for msg in messages:

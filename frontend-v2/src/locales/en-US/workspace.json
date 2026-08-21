@@ -23,7 +23,6 @@
   "delBody": "Its chats will be deleted too. This can't be undone.",
   "delChatTitle": "Delete this chat?",
   "delChatBody": "The chat and its messages will be deleted. This can't be undone.",
-  "ctxTokens": "{{tokens}} tokens",
   "greeting": {
     "morning": "Good morning, {{name}}.",
     "afternoon": "Good afternoon, {{name}}.",

@@ -47,6 +47,10 @@ class ModelConfig(BaseModel):
     provider: str | None = None    # Defaults to first segment of id
     max_tokens: int = 200000
     context_limit: int | None = None  # Override context window size (tokens)
+    # Whether the model accepts image input. None = fall back to the family
+    # heuristic in agent.vision. Set it explicitly when a gateway exposes a
+    # text-only variant of an otherwise multimodal family.
+    vision: bool | None = None
 
 
 class AgentOverride(BaseModel):

@@ -211,7 +211,12 @@ export interface ModelInfo {
   id: string
   name: string
   provider?: string
+  /** Cap on a single response. */
   max_tokens?: number
+  /** Size of the context window, resolved by the backend. */
+  context_limit?: number
+  /** Whether the model accepts image input. */
+  vision?: boolean
 }
 export interface AgentInfo {
   name: string

@@ -1,8 +1,11 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
+import { Check } from "lucide-react"
 import { cn } from "@/shared/lib/cn"
 import { Menu } from "@/shared/ui/Menu"
 import type { ModelInfo } from "@/shared/types/api"
+import { modelLabel } from "../../lib/model"
+import { ModelLogo } from "../ModelLogo"
 
 interface Props {
   models: ModelInfo[]
@@ -14,7 +17,10 @@ interface Props {
 export function ModelPicker({ models, activeId, onPick }: Props) {
   const { t } = useTranslation("chat")
   const [open, setOpen] = useState(false)
-  const activeName = models.find((m) => m.id === activeId)?.name ?? activeId ?? ""
+  // A session can be pinned to a model no longer in the list — one retired
+  // since, or served by a provider that has been swapped out. It still has to
+  // read as a name rather than a routing id.
+  const activeName = activeId ? modelLabel(activeId, models) : ""
 
   return (
     <div className="relative ms-auto">
@@ -29,9 +35,15 @@ export function ModelPicker({ models, activeId, onPick }: Props) {
             }}
             className="hover:bg-hairsoft flex items-center gap-2.5 rounded-full px-3 py-2 text-start"
           >
-            <span className={cn("size-1.5 flex-none rounded-full", m.id === activeId ? "bg-ink" : "bg-n400")} />
+            <ModelLogo
+              id={m.id}
+              className={cn("size-4 flex-none", m.id === activeId ? "text-ink" : "text-n600")}
+            />
             <span className="text-ink min-w-0 flex-1 truncate text-sm">{m.name}</span>
-            {m.provider && <span className="text-n600 flex-none text-xs">{m.provider}</span>}
+            {/* A check, not the provider field: behind an OpenAI-compatible
+                gateway every model reports "openai", so that column said the
+                same wrong thing on every row. */}
+            {m.id === activeId && <Check className="text-ink size-3.5 flex-none" strokeWidth={2.4} />}
           </button>
         ))}
       </Menu>
@@ -41,20 +53,7 @@ export function ModelPicker({ models, activeId, onPick }: Props) {
         title={t("model.pick")}
         className="hover:bg-hairsoft flex h-8 items-center gap-2 rounded-full px-3"
       >
-        <svg
-          aria-hidden
-          width="15"
-          height="15"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          className="text-ink"
-        >
-          <circle cx="12" cy="12" r="7.5" />
-          <path d="M6 19 18 5" />
-        </svg>
+        <ModelLogo id={activeId ?? ""} className="text-ink size-4" />
         <span className="text-ink text-sm font-medium">{activeName}</span>
         <span className="text-n600 text-2xs">▾</span>
       </button>

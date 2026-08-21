@@ -25,7 +25,11 @@ export function formatNumber(n: number): string {
 }
 
 export function formatTokens(n: number): string {
-  if (n >= 1000) return `${new Intl.NumberFormat(locale(), { maximumFractionDigits: 1 }).format(n / 1000)}k`
+  const round = (v: number) => new Intl.NumberFormat(locale(), { maximumFractionDigits: 1 }).format(v)
+  // Context windows reach seven figures, and "1,000k" is a worse way to write
+  // "1M" — the thousands separator makes it read as a thousand of something.
+  if (n >= 1_000_000) return `${round(n / 1_000_000)}M`
+  if (n >= 1000) return `${round(n / 1000)}k`
   return String(n)
 }
 

@@ -107,6 +107,8 @@ export default function ChatRoute() {
         onStop={stop}
         sessionModel={session.data?.model}
         sessionKey={sessionId}
+        contextTokens={session.data?.token_usage?.context ?? 0}
+        contextLimit={session.data?.token_usage?.limit ?? 0}
       />
     </div>
   )

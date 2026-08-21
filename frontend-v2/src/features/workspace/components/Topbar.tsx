@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next"
 import { useLocation, useParams } from "react-router"
 import { PanelLeft, PanelRight, Upload } from "lucide-react"
 import { useCopy } from "@/shared/hooks/useCopy"
-import { formatTokens } from "@/shared/lib/format"
 import { toast } from "@/shared/ui/Toast"
 import { useWorkspaceUi } from "../stores/ui"
 import { useProjectsQuery } from "../api/projects"
@@ -38,7 +37,6 @@ export function Topbar({ panelOpen, onTogglePanel }: TopbarProps) {
   const subtitle = isSettings
     ? t("settings:subtitle", { ns: "settings" })
     : (project?.name ?? t("unsorted"))
-  const contextTokens = session?.token_usage?.context ?? 0
 
   const share = () => {
     copy(window.location.href)
@@ -62,11 +60,6 @@ export function Topbar({ panelOpen, onTogglePanel }: TopbarProps) {
         <span className="max-w-3/5 flex-none truncate text-lg font-medium">{title}</span>
         <span className="min-w-0 flex-none truncate text-sm text-n600">{subtitle}</span>
       </div>
-      {session && contextTokens > 0 && (
-        <span className="flex-none text-sm whitespace-nowrap text-n600">
-          {t("ctxTokens", { tokens: formatTokens(contextTokens) })}
-        </span>
-      )}
       {session && (
         <button
           type="button"

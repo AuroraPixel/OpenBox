@@ -23,7 +23,6 @@
   "delBody": "项目下的对话会一并删除，此操作无法撤销。",
   "delChatTitle": "删除这条对话？",
   "delChatBody": "对话及其消息记录会被删除，此操作无法撤销。",
-  "ctxTokens": "{{tokens}} tokens",
   "greeting": {
     "morning": "早上好，{{name}}。",
     "afternoon": "下午好，{{name}}。",

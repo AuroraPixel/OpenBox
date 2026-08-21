@@ -68,7 +68,10 @@ export function Sidebar() {
   if (collapsed) return null
 
   return (
-    <aside className="relative flex min-h-0 flex-none flex-col bg-rail" style={{ width }}>
+    <aside
+      className="relative flex min-h-0 flex-none flex-col border-e border-hair bg-rail"
+      style={{ width }}
+    >
       <div className="flex min-h-0 flex-1 flex-col ps-4.5 pe-3 pt-3.5 pb-2.5">
         <div className="flex items-center gap-2.5 pt-0.5 pb-4">
           <BrandMark className="min-w-0 flex-1" />

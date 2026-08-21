@@ -59,23 +59,44 @@ def get_model_context_limit(model_id: str) -> int:
         pass
 
     # 2. Model-family heuristic
-    model_lower = model_id.lower()
-    if "gpt-5" in model_lower:
-        return 1_000_000
-    if any(x in model_lower for x in ("gpt-4o", "o1", "o3")):
-        return 128_000
-    # Claude 4.6 (opus/sonnet)
-    if any(x in model_lower for x in ("opus-4-6", "opus-4.6", "sonnet-4-6", "sonnet-4.6")):
-        return 200_000
-    # Claude 4 / Claude 3.5
-    if any(x in model_lower for x in ("opus-4", "sonnet-4")):
-        return 200_000
-    if "claude" in model_lower:
-        return 200_000
-    if "gemini" in model_lower:
-        return 1_000_000
-    if "deepseek" in model_lower:
-        return 128_000
+    return _heuristic_context_limit(model_id)
+
+
+#: Ordered (substrings, limit) rules — first match wins, so the narrower id
+#: must come first: "gpt-5.4-mini" also contains "gpt-5.4", and matching the
+#: wrong one would hand a 400k model a 1M budget and overflow every long run.
+_CONTEXT_RULES: tuple[tuple[tuple[str, ...], int], ...] = (
+    # GPT-5 is quoted with a much larger window direct from OpenAI, but the
+    # gateways people actually route through — Codex-backed ones in
+    # particular — cap it at 256k, and a deployment here was measured at
+    # exactly that. Guessing high is the failure that hurts, so the default
+    # matches the smaller real-world number and config raises it.
+    (("gpt-5",), 256_000),
+    (("gpt-4o", "o1", "o3"), 128_000),
+    # Claude: the 4.5-era Haiku is the one that stayed at 200k.
+    (("haiku-4-5", "haiku-4.5", "haiku-3", "claude-3"), 200_000),
+    (("opus-5", "sonnet-5", "fable-5", "opus-4-8", "opus-4.8", "opus-4-7", "opus-4.7",
+      "opus-4-6", "opus-4.6", "sonnet-4-6", "sonnet-4.6"), 1_000_000),
+    (("claude",), 200_000),
+    # DeepSeek V4 raised the whole line to 1M; the retiring legacy ids did not.
+    (("deepseek-v4", "deepseek-v5"), 1_000_000),
+    (("deepseek",), 128_000),
+    (("gemini",), 1_000_000),
+)
+
+
+def _heuristic_context_limit(model_id: str) -> int:
+    """Best guess at a context window from the model id alone.
+
+    Only reached for models the config does not describe — a subagent override,
+    or a fresh install running off the example config. Guessing too high is the
+    dangerous direction: compaction never fires and the provider rejects the
+    request outright, so unknown models get the conservative 200k.
+    """
+    lowered = model_id.lower()
+    for names, limit in _CONTEXT_RULES:
+        if any(name in lowered for name in names):
+            return limit
     return 200_000
 
 

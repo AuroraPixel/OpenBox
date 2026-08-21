@@ -10,6 +10,8 @@ import { useMentionMenu } from "../hooks/useMentionMenu"
 import { useSendShortcut } from "../hooks/useSendShortcut"
 import { useModelChoice } from "../hooks/useModelChoice"
 import { useComposerDrop } from "../hooks/useComposerDrop"
+import { modelContextLimit } from "../lib/model"
+import { ContextRing } from "./composer/ContextRing"
 import { InputGroup } from "./composer/InputGroup"
 import { AttachmentRow } from "./composer/AttachmentRow"
 import { ComposerActions } from "./composer/ComposerActions"
@@ -34,6 +36,13 @@ interface Props {
   /** Changes when the user moves to another conversation, which resets the
    *  picker — an unsent choice belongs to the chat it was made in. */
   sessionKey?: string
+  /** Tokens the next request will carry, for the context ring. Absent on a
+   *  chat that does not exist yet, where the answer is simply zero. */
+  contextTokens?: number
+  /** The window the backend actually used on this session's last run. Covers
+   *  the case where the session is pinned to a model the config no longer
+   *  lists, which would otherwise leave the ring with nothing to measure. */
+  contextLimit?: number
   /** G2's mention/command menu mounts here — it renders inside the relative
    *  anchor that wraps the textarea, so it can position against the input. */
   mentionSlot?: ReactNode
@@ -45,7 +54,17 @@ const MAX_HEIGHT = 200 // matches max-h-50
 /** Design composer: a single focus-owning shell (InputGroup) holding the
  *  attachment strip, the chromeless textarea, and one action row whose sole
  *  round button morphs between send and stop. */
-export function Composer({ busy, onSubmit, onStop, autoFocus, mentionSlot, sessionModel, sessionKey }: Props) {
+export function Composer({
+  busy,
+  onSubmit,
+  onStop,
+  autoFocus,
+  mentionSlot,
+  sessionModel,
+  sessionKey,
+  contextTokens = 0,
+  contextLimit = 0,
+}: Props) {
   const { t } = useTranslation("chat")
   const { data: config } = useConfigQuery()
   const models = config?.models ?? []
@@ -178,6 +197,9 @@ export function Composer({ busy, onSubmit, onStop, autoFocus, mentionSlot, sessi
             />
 
             <ModelPicker models={models} activeId={activeId} onPick={pick} />
+            {/* Beside the picker on purpose: the window it measures belongs to
+                the model named next to it, and both change together. */}
+            <ContextRing used={contextTokens} limit={modelContextLimit(activeId, models, contextLimit)} />
             <ShortcutPicker shortcut={shortcut.shortcut} onChange={shortcut.setShortcut} />
 
             <button

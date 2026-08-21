@@ -8,7 +8,6 @@
   "reviewGo": "审阅 →",
   "copy": "复制",
   "copied": "已复制",
-  "regen": "重新生成",
   "outputs_one": "产出 {{count}} 个文件",
   "outputs_other": "产出 {{count}} 个文件",
   "changedFiles_one": "改了 {{count}} 个文件",
@@ -126,7 +125,11 @@
     "totalDuration": "总用时",
     "expandMessage": "展开全文",
     "collapseMessage": "收起",
-    "errorTitle": "这一轮出错了"
+    "errorTitle": "这一轮出错了",
+    "regenerate": "重新生成",
+    "regenerating": "生成中…",
+    "dismissTurn": "删除这一轮",
+    "dismissing": "删除中…"
   },
   "toolDetail": {
     "request": "请求",
@@ -205,5 +208,12 @@
     "more_one": "还有 {{count}} 张",
     "more_other": "还有 {{count}} 张",
     "less": "收起"
+  },
+  "context": {
+    "title": "上下文窗口",
+    "used": "已用 {{used}} / {{limit}}（{{pct}}%）",
+    "left": "剩余 {{tokens}}",
+    "compactSoon": "接近上限，稍后会自动压缩历史",
+    "aria": "上下文已用 {{pct}}%"
   }
 }

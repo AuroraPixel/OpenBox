@@ -15,9 +15,16 @@
   // is offered. Ids carry the provider prefix ("openai/") because that is what
   // selects the request format — an OpenAI-compatible gateway serves Claude and
   // DeepSeek too, and they still need the OpenAI wire format.
+  // max_tokens caps one response; context_limit is the whole window and drives
+  // both the composer's context ring and when compaction fires. Both are
+  // optional — omitted, they fall back to a family heuristic keyed off the id,
+  // which is deliberately conservative for models it does not recognise.
+  // Set "vision": false for a text-only model, so old screenshots in a
+  // conversation are replaced with a note instead of failing the whole turn.
   "models": [
-    // { "id": "openai/gpt-5.6-luna", "name": "GPT-5.6 Luna", "max_tokens": 128000 },
-    // { "id": "openai/claude-opus-5", "name": "Claude Opus 5", "max_tokens": 64000 }
+    // { "id": "openai/gpt-5.6-luna", "name": "GPT-5.6 Luna", "max_tokens": 128000, "context_limit": 1050000, "vision": true },
+    // { "id": "openai/claude-opus-5", "name": "Claude Opus 5", "max_tokens": 64000, "context_limit": 1000000, "vision": true },
+    // { "id": "openai/deepseek-v4-flash", "name": "DeepSeek V4 Flash", "max_tokens": 64000, "context_limit": 1000000, "vision": false }
   ],
 
   // Provider-specific config: api_key, base_url, extra options

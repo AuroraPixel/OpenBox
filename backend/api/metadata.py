@@ -29,6 +29,12 @@ async def get_config():
     from core.config import get_config
     config = get_config()
 
+    # The context window and vision support are resolved here rather than
+    # passed through raw, so the frontend always receives a real number and a
+    # real boolean — it has no business re-deriving either from a model id.
+    from agent.compaction import get_model_context_limit
+    from agent.vision import supports_vision
+
     # Build model list: use explicit models list if configured, else fall back to single model
     if config.models:
         models = []
@@ -38,6 +44,8 @@ async def get_config():
                 "name": m.name or m.id.split("/")[-1],
                 "provider": m.provider or (m.id.split("/")[0] if "/" in m.id else ""),
                 "max_tokens": m.max_tokens,
+                "context_limit": get_model_context_limit(m.id),
+                "vision": supports_vision(m.id),
             })
     else:
         models = [{
@@ -45,6 +53,8 @@ async def get_config():
             "name": config.model.split("/")[-1],
             "provider": config.model.split("/")[0] if "/" in config.model else "",
             "max_tokens": 200000,
+            "context_limit": get_model_context_limit(config.model),
+            "vision": supports_vision(config.model),
         }]
 
     return {
