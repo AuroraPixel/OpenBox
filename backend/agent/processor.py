@@ -40,6 +40,11 @@ from tool.tool import ToolContext
 
 log = create_logger("agent.processor")
 
+#: Longest tool-call id we persist. OpenAI's Responses API rejects ids over 64
+#: characters, and history is replayed to whichever provider is configured now,
+#: not the one that produced it.
+MAX_CALL_ID = 64
+
 
 class StepOutcome(str, Enum):
     """What the loop should do next."""
@@ -273,7 +278,14 @@ async def process_step(
 
             # Preserve the LLM's original call_id for accurate matching.
             # Kimi uses "functions.name:idx", OpenAI uses "call_xxxx".
-            llm_call_id = tc_event.get("call_id", "")
+            #
+            # Bounded, because this is persisted and later replayed — possibly
+            # to a different provider. Gemini packs an encrypted thought
+            # signature into the id (kilobytes of it), and OpenAI's Responses
+            # API rejects any id over 64 characters, so an unbounded id poisons
+            # the conversation for every future provider. The id only has to be
+            # unique within one assistant turn, so the head is enough.
+            llm_call_id = (tc_event.get("call_id", "") or "")[:MAX_CALL_ID]
 
             # Reuse the streaming part_id if we already created one during
             # LLM streaming, otherwise create a new part.

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib as _hashlib
 import json as _json
 from typing import Any, AsyncIterator
 
@@ -360,12 +361,27 @@ async def _stream_responses_api(
     input_messages = []
     if system:
         input_messages.append({"role": "system", "content": "\n\n".join(system)})
+    #: The Responses API caps ids at 64 characters. History recorded under
+    #: another provider can carry far longer ones — Gemini packs an encrypted
+    #: thought signature into the call id, which reaches several KB — and the
+    #: rejection reads as "Invalid 'input[N].id': string too long", giving no
+    #: hint that the cause is a conversation that changed providers.
+    _FC_ID_MAX = 64
+
     def _ensure_fc_id(raw_id: str) -> str:
-        """Ensure function call ID starts with 'fc_' (Responses API requirement)."""
-        if raw_id.startswith("fc_"):
-            return raw_id
-        # Convert synthetic IDs (e.g., "call_part_XXXX") to fc_ prefix
-        return f"fc_{raw_id.replace('call_', '')}"
+        """A stable, Responses-API-legal id for a function call.
+
+        Must be a pure function of `raw_id`: the same call reaches this twice —
+        once as the assistant's function_call and once as its
+        function_call_output — and the API pairs them by id. Hashing an
+        over-long id keeps that pairing intact where truncation would collide
+        (Gemini's long ids share a common prefix).
+        """
+        fc_id = raw_id if raw_id.startswith("fc_") else f"fc_{raw_id.replace('call_', '')}"
+        if len(fc_id) <= _FC_ID_MAX:
+            return fc_id
+        digest = _hashlib.sha256(raw_id.encode()).hexdigest()[:32]
+        return f"fc_{digest}"
 
     for msg in messages:
         role = msg.get("role", "")
