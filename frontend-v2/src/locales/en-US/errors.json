@@ -1,0 +1,14 @@
+{
+  "fallback": "That didn't work — please try again.",
+  "network": "Network request failed. Check your connection and retry.",
+  "HTTP_401": "Your session expired. Please sign in again.",
+  "HTTP_403": "You don't have permission to do that.",
+  "HTTP_404": "We couldn't find what you asked for.",
+  "HTTP_409": "That conflicted with another change. Refresh and retry.",
+  "HTTP_422": "The request was malformed.",
+  "HTTP_500": "The server hit an error. Please try again shortly.",
+  "SANDBOX_NOT_READY": "The sandbox isn't ready yet — create one first.",
+  "AUTH_INVALID_CREDENTIALS": "Wrong account or password.",
+  "AUTH_USER_EXISTS": "That account already exists.",
+  "SESSION_BUSY": "The session is still running — hold on."
+}

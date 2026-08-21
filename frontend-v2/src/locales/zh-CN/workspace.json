@@ -1,0 +1,68 @@
+{
+  "newProject": "新建项目",
+  "collapse": "收起侧栏",
+  "expand": "展开侧栏",
+  "newChat": "新对话",
+  "search": "搜索",
+  "projectName": "项目名称",
+  "rename": "重命名项目",
+  "newChatIn": "新建对话",
+  "duplicate": "复制项目",
+  "archive": "归档",
+  "deleteProject": "删除项目…",
+  "noChats": "还没有对话",
+  "unsorted": "未归类",
+  "untitledChat": "未命名对话",
+  "pin": "置顶",
+  "settings": "设置",
+  "share": "分享",
+  "shareCopied": "链接已复制",
+  "openPanel": "打开工作面板",
+  "backToChat": "返回对话",
+  "delTitle": "删除「{{name}}」？",
+  "delBody": "项目下的对话会一并删除，此操作无法撤销。",
+  "delChatTitle": "删除这条对话？",
+  "delChatBody": "对话及其消息记录会被删除，此操作无法撤销。",
+  "ctxTokens": "{{tokens}} tokens",
+  "greeting": {
+    "morning": "早上好，{{name}}。",
+    "afternoon": "下午好，{{name}}。",
+    "evening": "晚上好，{{name}}。"
+  },
+  "emptyHint": "这条对话会存在「{{project}}」下。直接说你想弄清楚什么。",
+  "suggestions": [
+    {
+      "title": "分析这个项目的代码结构",
+      "hint": "读目录 · 找入口 · 画依赖"
+    },
+    {
+      "title": "帮我重构一个复杂函数",
+      "hint": "贴代码即可，给可运行 diff"
+    },
+    {
+      "title": "写一个抓取网页数据的脚本",
+      "hint": "带重试 · 落地为 CSV"
+    }
+  ],
+  "sandbox": {
+    "title": "需要一个沙箱",
+    "body": "对话中的文件与命令都在隔离沙箱里执行。现在创建一个？",
+    "create": "创建沙箱",
+    "creating": "正在创建沙箱…",
+    "failed": "沙箱创建失败"
+  },
+  "panel": {
+    "newTab": "新标签",
+    "closePanel": "收起面板",
+    "menuTitle": "新标签",
+    "review": "审阅",
+    "terminal": "终端",
+    "browser": "浏览器",
+    "files": "文件",
+    "pending_one": "{{count}} 处待审",
+    "pending_other": "{{count}} 处待审",
+    "process_one": "{{count}} 个进程",
+    "process_other": "{{count}} 个进程"
+  },
+  "userLine": "{{role}} · {{count}} 条对话"
+}

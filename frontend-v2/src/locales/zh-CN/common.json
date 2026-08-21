@@ -1,0 +1,53 @@
+{
+  "action": {
+    "cancel": "取消",
+    "delete": "删除",
+    "copy": "复制",
+    "copied": "已复制",
+    "close": "关闭",
+    "send": "发送",
+    "save": "保存",
+    "retry": "重试",
+    "confirm": "确认",
+    "download": "下载",
+    "search": "搜索",
+    "more": "更多",
+    "back": "后退",
+    "reload": "刷新",
+    "maximize": "最大化",
+    "share": "分享",
+    "manage": "管理",
+    "view": "查看",
+    "stop": "停止",
+    "approve": "通过",
+    "reject": "退回",
+    "signOut": "登出",
+    "create": "创建"
+  },
+  "state": {
+    "loading": "加载中…",
+    "empty": "暂无内容",
+    "running": "运行中",
+    "done": "已完成",
+    "error": "出错了",
+    "connecting": "连接中…",
+    "offline": "连接已断开，正在重连…"
+  },
+  "unit": {
+    "tokens": "tokens",
+    "files_one": "{{count}} 个文件",
+    "files_other": "{{count}} 个文件",
+    "lines_one": "{{count}} 行",
+    "lines_other": "{{count}} 行",
+    "matches_one": "{{count}} 个匹配",
+    "matches_other": "{{count}} 个匹配"
+  },
+  "brand": {
+    "tagline": "agent 工作台"
+  },
+  "time": {
+    "todayTime": "今天 {{time}}",
+    "thisYearDateTime": "{{date}} {{time}}",
+    "fullDateTime": "{{date}} {{time}}"
+  }
+}

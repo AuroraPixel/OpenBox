@@ -1,0 +1,80 @@
+{
+  "tabs": {
+    "new": "新标签",
+    "review": "审阅",
+    "terminal": "终端",
+    "browser": "浏览器",
+    "files": "文件",
+    "desktop": "云桌面"
+  },
+  "panel": {
+    "collapse": "收起面板"
+  },
+  "menu": {
+    "review": "审阅",
+    "terminal": "终端",
+    "browser": "浏览器",
+    "files": "文件",
+    "pending_one": "{{count}} 处待审",
+    "pending_other": "{{count}} 处待审",
+    "clean": "无改动",
+    "online": "沙箱在线",
+    "desktop": "云桌面"
+  },
+  "sandbox": {
+    "none": "没有运行中的沙箱",
+    "create": "创建沙箱"
+  },
+  "review": {
+    "lastChanges": "本轮改动",
+    "empty": "还没有改动",
+    "emptyHint": "agent 修改文件后，diff 会出现在这里。",
+    "skippedNew": "新文件",
+    "skippedDeleted": "整个文件删除",
+    "unchanged_one": "{{count}} 行未修改",
+    "unchanged_other": "{{count}} 行未修改",
+    "openInFiles": "在文件里打开"
+  },
+  "terminal": {
+    "empty": "没有运行中的沙箱",
+    "emptyHint": "创建沙箱后即可打开终端。",
+    "connecting": "正在连接终端…",
+    "disconnected": "终端连接已断开"
+  },
+  "browser": {
+    "placeholder": "输入网址后回车",
+    "empty": "网页画面",
+    "loading": "正在打开…",
+    "failed": "页面加载失败"
+  },
+  "files": {
+    "filter": "筛选文件…",
+    "fileList": "文件列表",
+    "copyPath": "复制路径",
+    "pathCopied": "路径已复制",
+    "viewSource": "查看源代码",
+    "empty": "沙箱中还没有文件",
+    "loadFailed": "读取失败",
+    "binary": "二进制文件，无法预览",
+    "tooLarge": "文件过大，仅显示前 {{limit}} 行",
+    "pickFile": "从右侧选择文件查看",
+    "notSupported": "暂不支持预览"
+  },
+  "desktop": {
+    "loading": "正在连接云桌面…",
+    "connected": "已连接",
+    "closed": "连接已断开",
+    "error": "无法连接云桌面",
+    "unavailable": "云桌面暂不可用",
+    "sdkFailed": "云桌面组件加载失败",
+    "reconnect": "重新连接",
+    "allowControl": "允许操控",
+    "readonly": "只读观看中 · 勾选“允许操控”可接管",
+    "controlOn": "已接管操控",
+    "frameTitle": "云桌面画面",
+    "clipboard": "剪贴板同步",
+    "upload": "上传文件到云桌面",
+    "fullscreen": "全屏观看",
+    "exitFullscreen": "退出全屏"
+  }
+}

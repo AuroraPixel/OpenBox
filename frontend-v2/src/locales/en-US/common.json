@@ -1,0 +1,53 @@
+{
+  "action": {
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "copy": "Copy",
+    "copied": "Copied",
+    "close": "Close",
+    "send": "Send",
+    "save": "Save",
+    "retry": "Retry",
+    "confirm": "Confirm",
+    "download": "Download",
+    "search": "Search",
+    "more": "More",
+    "back": "Back",
+    "reload": "Reload",
+    "maximize": "Maximize",
+    "share": "Share",
+    "manage": "Manage",
+    "view": "View",
+    "stop": "Stop",
+    "approve": "Approve",
+    "reject": "Reject",
+    "signOut": "Sign out",
+    "create": "Create"
+  },
+  "state": {
+    "loading": "Loading…",
+    "empty": "Nothing here yet",
+    "running": "Running",
+    "done": "Done",
+    "error": "Something went wrong",
+    "connecting": "Connecting…",
+    "offline": "Connection lost — reconnecting…"
+  },
+  "unit": {
+    "tokens": "tokens",
+    "files_one": "{{count}} file",
+    "files_other": "{{count}} files",
+    "lines_one": "{{count}} line",
+    "lines_other": "{{count}} lines",
+    "matches_one": "{{count}} match",
+    "matches_other": "{{count}} matches"
+  },
+  "brand": {
+    "tagline": "agent workspace"
+  },
+  "time": {
+    "todayTime": "Today {{time}}",
+    "thisYearDateTime": "{{date}} {{time}}",
+    "fullDateTime": "{{date}} {{time}}"
+  }
+}
