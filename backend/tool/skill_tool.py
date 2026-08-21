@@ -196,6 +196,10 @@ async def _browser_readiness(ctx: ToolContext) -> str:
     ]
     if effective == "local":
         lines.append("  This is the cloud desktop's Chrome — it does NOT have the user's logins.")
+        lines.append(
+            "  It runs on this desktop, so if a native dialog blocks a script you can "
+            "dismiss it with the `computer` tool and resume (see the skill's handoff section)."
+        )
         if preference == "remote":
             lines.append(
                 "  The user asked for their own browser, but the extension is not connected, "
@@ -203,6 +207,10 @@ async def _browser_readiness(ctx: ToolContext) -> str:
             )
     elif effective == "extension":
         lines.append("  This is the user's OWN Chrome, with their real sessions.")
+        lines.append(
+            "  It runs on the user's machine, so `computer` cannot see or touch it. "
+            "If a native dialog blocks a script, tell the user what to dismiss."
+        )
     lines.append("</browser_mode>")
     return "\n".join(lines)
 

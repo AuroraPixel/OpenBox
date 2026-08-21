@@ -195,6 +195,43 @@ const element = await client.selectSnapshotRef("hackernews", "e2");
 await element.click();
 ```
 
+## When the browser stops responding: hand off to `computer`
+
+Some things that block a page are drawn by the **browser**, not the page — a
+native dialog, an OS file picker, a print sheet, a crash bubble. No script can
+reach them: `page.evaluate()` and `page.goto()` just hang until they time out,
+and retrying the script does nothing. The most common one is a site trying to
+open its own app ("Open xdg-open?"). Policy blocks the schemes we know about,
+but an unknown one will still stop you.
+
+The `computer` tool drives the real mouse and keyboard on the desktop, so it
+**can** click what CDP cannot. Use it as an escape hatch, then come back:
+
+1. **Recognise the symptom.** Two script runs in a row time out, or a call that
+   should be instant (`page.title()`, a small `evaluate`) hangs. Do not keep
+   retrying the script — the dialog is not going anywhere.
+2. **Look at the screen.** `computer` with `action: "screenshot"`. The dialog
+   will be plainly visible on top of the browser window.
+3. **Dismiss it.** Click its safe button — `Cancel`, `Close`, `Not now` —
+   with `left_click` at the coordinates you saw. `key` with `Escape` often
+   works too, and is worth trying first since it needs no aiming.
+4. **Confirm it is gone** with another screenshot before continuing.
+5. **Go back to scripts.** Page state survived; `client.page("name")` returns
+   the same page and you carry on where you stopped.
+
+Stay in dev-browser for everything the page itself can do. `computer` is for
+the moment the browser blocks you, not a substitute for scripting — clicking
+page elements by coordinate is slower and far less reliable than using refs
+from `getAISnapshot()`.
+
+**This only works in `local` mode.** There the browser runs on this desktop, so
+the screenshot shows it. In `extension` mode the browser is on the *user's own*
+machine and nothing here can see or touch it — if it stalls behind a native
+dialog, tell the user what to dismiss instead of trying to do it yourself.
+
+If a scheme blocks you repeatedly, say so in your answer: it is worth adding to
+the blocklist permanently rather than dismissing by hand every run.
+
 ## Error Recovery
 
 Page state persists after failures. Debug with:

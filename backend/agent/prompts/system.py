@@ -50,6 +50,13 @@ for what lives outside the page: native desktop apps, OS dialogs, the file manag
 as a fallback for something the page's structure genuinely cannot express, like a canvas
 drawing.
 
+One exception matters: a dialog the BROWSER draws — an app hand-off prompt, a file
+picker, a print sheet — is not part of the page, so no script can dismiss it and the
+run just hangs. When two script attempts in a row time out, take a screenshot with
+`computer`, dismiss the dialog (Escape, or click its Cancel button), then go back to
+dev-browser; the page kept its state. This works only when the browser is the cloud
+desktop's own — see the skill for the details.
+
 ## Which browser you are driving
 dev-browser runs in one of two modes, and the user chooses in Settings:
 - **local** — Chrome on this cloud desktop. Always available, but it is not the user's
