@@ -1058,6 +1058,49 @@ E2E stub 掉票据接口（真流需要云凭证）：断言菜单行存在、�
 - **上传文件**：隐藏 `<input type=file>` → `session.uploadFile(file, true)`，`showDialog=true` 让远端桌面弹自己的进度 UI，本端无需再造。
 - 重连语义：连接建立时从 `togglesRef` 应用当前开关状态（React 编译器规则禁止 render 期写 ref，镜像放在 effect 里）。
 
+### D.4.9 附件走 OSS 直传（2026-08-21）
+
+原链路的带宽问题：附件以 base64 分块经后端 `/execute` 灌进沙箱 —— 每个字节都挤 SSH 隧道，大文件不可用。新链路**字节永远不过后端**：
+
+```
+浏览器 ──presigned PUT──▶ OSS(openbox-assets-hz01, cn-hangzhou)
+                             │
+无影桌面 ◀──obx-file get──────┘   （阿里内网，快；隧道零流量）
+```
+
+**后端**：
+- `file_assets` 表（Alembic `e5b7c9d1f3a6`）：上传台账 —— user/session、原名、OSS key、mime、size、pending→ready。字节不过后端，但**记录必须在库里**。
+- `core/oss.py`：手写 V1 预签名（HMAC-SHA1 query 签名，bossip 同款 ~40 行，不引 SDK）。**关键坑（bossip 实测传承）**：string-to-sign 的 Content-Type 行必须与客户端实发严格一致 —— PUT 按申报 mime 签，浏览器必须原样发这个头；GET/HEAD 签空行。`core/aliyun.py` 抽出共享凭证链（env → aliyun CLI profile），desktop.py 同步复用。
+- `api/assets.py`：`POST /api/assets`（建 pending 记录 + presigned PUT + 必发 headers）→ 浏览器直传 → `POST /{id}/complete`（HEAD 验对象真的落了，转 ready）→ `GET /{id}/url`（预览用新鲜 GET，可带 download disposition）。未配 OSS 时 503，前端自动回退旧链路。
+- **`obx-file`** —— 用户要的"系统级 grep 式"终端工具：`sandbox/assets.py` 在沙箱装入 `/usr/local/bin`（sudo -n，退化 ~/.local/bin），`obx-file get <url> <dest>` / `obx-file put <src> <url>`（put 走空 CT 签名 + `-H 'Content-Type:'`），agent 可在终端手动使用。
+- Prompt 链路：`PromptBody.attachments`（asset ids）→ 后台任务在 **run_loop 之前** `deliver()` 拉进 `/workspace/uploads/`（顺序保证：消息文本引用的路径 agent 一定能读到；单文件失败仅告警不炸整轮）→ 同时给用户消息挂 `FilePart{path, mime_type, asset_id, size}`。
+
+**前端**：
+- `useAttachments` 重写：OSS 优先（XHR 直传带真实进度百分比），`ApiError 503` 自动回退旧沙箱上传；图片附件在 composer 条里显示 objectURL 缩略图。
+- 发送管线全程带 `attachments`：Composer → 两条路由 → useSendChat/useStartChat → prompt body。
+- 聊天卡片 `AttachmentCard`：图片 → presigned GET 缩略图（`useAssetUrl`，staleTime 40min < 1h 过期）；其他 → 图标+名+大小卡；点击换新鲜下载 URL 打开。消息模型优先渲染 file parts，老消息回退 `[attachments]` 文本尾巴；顺带修掉「纯附件无文本消息不渲染」。
+
+**桶开通**（aliyun CLI）：`aliyun oss mb` 建 `openbox-assets-hz01` + CORS（PUT/GET/HEAD、AllowedHeader *、expose ETag）。配置 `OSS_BUCKET/OSS_REGION/OSS_ENDPOINT`。
+
+**实测端到端**：真 PNG 经 UI 直传 OSS（网络面板确认 PUT 打 `openbox-assets-hz01.oss-cn-hangzhou.aliyuncs.com`）→ 聊天卡片渲染 OSS 预览 → 桌面 `/workspace/uploads/e2e-pic.png` 2721 字节 magic 头正确。E2E `attachments.spec.ts` 内置生成 PNG 打真实栈；注意 send 门在上传完成（%→大小）后才开。
+
+### D.4.10 多模态视觉 + 停止按钮（2026-08-21）
+
+**多模态：模型在后端,必须让它看到像素。** 两条通路,都经 OSS,不挤隧道：
+
+- **用户上传的图片**：`_to_llm_messages` 给用户消息的图片 FilePart 生成新鲜 presigned GET（key 确定性 `assets/{user}/{asset}/{name}`，零 DB 查询；URL 会过期所以**每次 LLM 调用重签**）。URL 挂在消息的 `_images` 带外字段 —— reminder/缓存/token 计数各 pass 继续处理纯字符串，`_finalize_message` 在 litellm 调用前的最后一刻转成 OpenAI 式 content 数组（Responses API 路径转 `input_image`）。**实测**：纯橙色 PNG 上传后问颜色，gemini 答「橙色」。
+- **sandbox 产出的图片**：新工具 **`view_image`** —— 沙箱里 `file --mime-type` 嗅探 + 10MB 上限 → `obx-file put`（带 mime 的签名直传 OSS，obx-file 升级支持第三参 content-type）→ 落 `file_assets` 台账 → assistant 消息挂 FilePart（前端渲染预览卡）→ 消息装配时在 tool result 后追加 `_synthetic` user 消息携带图片（tool 角色消息不是处处能带图，user 消息全 API 合法）。**坑**：agent 工具是显式白名单（`AGENTS[...].tools`），注册进 registry 不等于模型能看到 —— 四个 agent 的白名单都要加。**实测**：agent 调 view_image 看沙箱里的橙色图，下一轮答「橙色」，聊天里出现图片卡。
+
+**停止按钮不生效 —— 根因与 opencode 的差距。** opencode 的 abort 是 AbortSignal **直接取消在途请求**；我们是 `async for event: if abort.is_set(): break` —— 只在 **chunk 边界**检查。模型静默攒大工具调用的 10–30 秒里没有 chunk,break 永远走不到,停止形同虚设。三处修复：
+
+| 修复 | 内容 |
+|---|---|
+| `_iter_until_abort` | 每次 `__anext__` 与 `abort.wait()` 赛跑；abort 到来即 cancel + `stream.aclose()`（撕掉 provider HTTP 流，opencode 语义） |
+| 工具执行赛跑 | `hooks.wrap_execute` 包 task 与 abort 并发等待；长 bash 不再扛住停止按钮，弃单由 loop 的 ABORTED_TOOL_ERROR 清理收尾 |
+| **per-run signal** | 原来 per-session 复用 Event：旧 run 已 set 的事件会误杀新 run（prompt_async 的 sleep(0.3) 只是缓解）。改为 opencode 式**每 run 一个新 signal**（`register_run` 覆盖槽位，`clear_abort(sid, signal)` 只清自己的），`trigger_abort` 打到最新 run；并修掉「loop 注册前按停被吞」的竞态 |
+
+**实测**：流式输出中途按停,后续 **0 字符增长**、按钮即时回空闲(修复前 litellm 流会跑完)。E2E `stop.spec.ts`：发出后固定 2s 按停(几乎必然处于生成期,常为静默期 —— 正是回归场景)；等内容流出再点会赶上快答案跑完、按钮消失的时序。
+
 ### D.5 E2E 约定
 
 - 后端登录限流 5 次/分钟/IP → E2E 采用 **setup project + storageState**：一次真实表单登录（本身即登录用例），其余 spec 复用 refresh cookie 恢复会话；`workers: 1` 串行。

@@ -195,5 +195,15 @@
     "loading": "正在读取改动…",
     "empty": "没有可预览的行改动",
     "openReview": "在侧栏审阅"
+  },
+  "attachOpen": "打开附件",
+  "gallery": {
+    "open": "打开 {{name}}",
+    "download": "下载",
+    "close": "关闭",
+    "failed": "加载失败",
+    "more_one": "还有 {{count}} 张",
+    "more_other": "还有 {{count}} 张",
+    "less": "收起"
   }
 }

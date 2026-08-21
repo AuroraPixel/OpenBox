@@ -116,6 +116,8 @@ export interface FilePart {
   path: string
   mime_type?: string
   url?: string
+  asset_id?: string
+  size?: number
 }
 export interface AgentSwitchPart {
   type: "agent"

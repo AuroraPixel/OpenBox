@@ -18,6 +18,8 @@ import { MentionMenu } from "./composer/MentionMenu"
 
 export interface ComposerSubmit {
   model?: string
+  /** OSS asset ids of the message's attachments. */
+  attachments?: string[]
 }
 
 interface Props {
@@ -88,7 +90,7 @@ export function Composer({ busy, onSubmit, onStop, autoFocus, mentionSlot }: Pro
 
   const submit = () => {
     if (!canSend) return
-    onSubmit(attachments.decorate(text.trim()), { model: activeId })
+    onSubmit(attachments.decorate(text.trim()), { model: activeId, attachments: attachments.assetIds() })
     setText("")
     attachments.clear()
   }

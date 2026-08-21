@@ -99,7 +99,7 @@ export default function ChatRoute() {
       ) : (
         <ChatFlow turns={turns} sessionId={sessionId} busy={busy} footer={footer} />
       )}
-      <Composer busy={busy} onSubmit={(text, { model }) => send(text, { model })} onStop={stop} />
+      <Composer busy={busy} onSubmit={(text, opts) => send(text, opts)} onStop={stop} />
     </div>
   )
 }

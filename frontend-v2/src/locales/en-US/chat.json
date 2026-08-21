@@ -195,5 +195,15 @@
     "loading": "Loading changes…",
     "empty": "No line-level changes to preview",
     "openReview": "Review in the side panel"
+  },
+  "attachOpen": "Open attachment",
+  "gallery": {
+    "open": "Open {{name}}",
+    "download": "Download",
+    "close": "Close",
+    "failed": "Failed to load",
+    "more_one": "{{count}} more",
+    "more_other": "{{count}} more",
+    "less": "Show less"
   }
 }

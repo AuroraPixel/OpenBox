@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test"
+import { waitForIdleAgent } from "./helpers/agent"
 
 // End-to-end proof of the change card: the agent edits a file, the backend
 // records a patch part with its snapshot range, the card fetches that step's
@@ -6,6 +7,7 @@ import { expect, test } from "@playwright/test"
 test("an edit produces a change card that previews the diff and opens review", async ({ page }) => {
   test.setTimeout(180_000)
   await page.goto("/app")
+  await waitForIdleAgent(page)
 
   const composer = page.getByPlaceholder(/输入消息|Message,/)
   await composer.fill(

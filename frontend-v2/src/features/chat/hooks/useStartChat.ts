@@ -10,6 +10,7 @@ export interface StartOpts {
   model?: string
   agent?: string
   projectId?: string
+  attachments?: string[]
 }
 
 /**
@@ -51,6 +52,7 @@ export function useStartChat(
           text: trimmed,
           model: opts?.model,
           agent: opts?.agent,
+          attachments: opts?.attachments?.length ? opts.attachments : undefined,
           client_message_id: clientMessageId,
         })
       } catch (err) {

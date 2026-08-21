@@ -8,6 +8,7 @@ import { useStreamStore } from "../stores/stream"
 export interface SendOpts {
   model?: string
   agent?: string
+  attachments?: string[]
 }
 
 /** Send a prompt in an existing session: optimistic echo + busy status + POST. */
@@ -24,7 +25,7 @@ export function useSendChat(sessionId: string): (text: string, opts?: SendOpts) 
       const store = useStreamStore.getState()
       store.addMessage(sessionId, optimisticUserMessage(sessionId, trimmed, clientMessageId))
       store.setStatus(sessionId, "busy")
-      const vars: SendMessageVars = { text: trimmed, model: opts?.model, agent: opts?.agent, clientMessageId }
+      const vars: SendMessageVars = { text: trimmed, model: opts?.model, agent: opts?.agent, attachments: opts?.attachments, clientMessageId }
       mutate(vars, {
         onError: (err) => {
           useStreamStore.getState().setStatus(sessionId, "idle")

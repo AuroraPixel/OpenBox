@@ -40,7 +40,11 @@ export function AttachmentRow({ items, onRemove }: Props) {
             className="group/att relative flex h-14 min-w-45 max-w-60 items-center gap-2.5 rounded-xl border border-hair bg-n200/40 px-2.5"
             title={`${item.name} · ${formatBytes(item.size)}`}
           >
-            <Icon className={cn("size-4 flex-none", failed ? "text-dangerink" : "text-n600")} />
+            {item.preview ? (
+              <img src={item.preview} alt="" className="size-9 flex-none rounded-lg object-cover" />
+            ) : (
+              <Icon className={cn("size-4 flex-none", failed ? "text-dangerink" : "text-n600")} />
+            )}
             <div className="flex min-w-0 flex-1 flex-col pe-4">
               <span
                 className={cn(
@@ -52,7 +56,11 @@ export function AttachmentRow({ items, onRemove }: Props) {
                 {item.name}
               </span>
               <span className={cn("truncate text-2xs", failed ? "text-danger" : "text-n600")}>
-                {failed ? t("attachFailed") : formatBytes(item.size)}
+                {failed
+                  ? t("attachFailed")
+                  : uploading
+                    ? `${Math.round(item.progress * 100)}%`
+                    : formatBytes(item.size)}
               </span>
             </div>
             <button

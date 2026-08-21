@@ -15,7 +15,7 @@ export default function EmptyChatRoute() {
       <Composer
         busy={false}
         autoFocus
-        onSubmit={(text, { model }) => void start(text, { model, projectId })}
+        onSubmit={(text, opts) => void start(text, { ...opts, projectId })}
       />
     </div>
   )

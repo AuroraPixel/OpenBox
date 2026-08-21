@@ -22,6 +22,7 @@ export interface SendMessageVars {
   model?: string
   agent?: string
   variant?: string
+  attachments?: string[]
   clientMessageId: string
 }
 
@@ -33,6 +34,7 @@ export function useSendMessage(sessionId: string) {
         agent: vars.agent,
         model: vars.model,
         variant: vars.variant,
+        attachments: vars.attachments?.length ? vars.attachments : undefined,
         client_message_id: vars.clientMessageId,
       }),
   })

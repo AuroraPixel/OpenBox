@@ -28,9 +28,11 @@ test("files panel scopes to the session's project directory", async ({ page }) =
   // Header shows the directory name, not the container's random id.
   await expect(panel.getByText(/›/)).not.toContainText(/^[a-z]{3}-[a-z0-9]{10,}/)
 
-  // Open the first real file — the viewer must load its content.
-  const fileRow = panel.locator("button:has(span.font-mono)").first()
-  await fileRow.click()
+  // Open a known text file. Deliberately not "the first file": the project
+  // directory also holds binaries the agent produced, and the viewer renders
+  // text — the test would then assert on whatever landed alphabetically first
+  // that day.
+  await panel.getByRole("button", { name: /hello\.txt/ }).click()
   const viewer = page.getByTestId("file-viewer-content")
   await expect(viewer).toBeVisible({ timeout: 10_000 })
   await expect(viewer).not.toBeEmpty()

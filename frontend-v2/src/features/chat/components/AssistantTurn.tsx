@@ -8,6 +8,7 @@ import type { MessagePart } from "@/shared/types/api"
 import { buildTurnView, type AssistantTurnMeta } from "../lib/turn-view"
 import { AssistantMeta } from "./meta/AssistantMeta"
 import { InlineErrorCard } from "./meta/InlineErrorCard"
+import { AttachmentGallery } from "./AttachmentGallery"
 import { FileChip, PatchChip } from "./PatchChip"
 import { PlanPartCard } from "./PlanPartCard"
 import { ProcessTrace } from "./ProcessTrace"
@@ -24,6 +25,11 @@ interface Props {
   meta: AssistantTurnMeta
   /** This is the live turn. */
   streaming: boolean
+}
+
+/** Images with an OSS asset render as a gallery; anything else stays a chip. */
+function isGalleryImage(part: { asset_id?: string; mime_type?: string }): boolean {
+  return Boolean(part.asset_id) && Boolean(part.mime_type?.startsWith("image/"))
 }
 
 export function AssistantTurn({ parts, sessionId, meta, streaming }: Props) {
@@ -76,7 +82,8 @@ export function AssistantTurn({ parts, sessionId, meta, streaming }: Props) {
           {view.patches.map((p) => (
             <PatchChip key={p.id} part={p} sessionId={sessionId} />
           ))}
-          {view.files.map((p) => (
+          <AttachmentGallery parts={view.files.filter(isGalleryImage)} />
+          {view.files.filter((p) => !isGalleryImage(p)).map((p) => (
             <FileChip key={p.id} part={p} />
           ))}
           {view.plans.map((p) => (
