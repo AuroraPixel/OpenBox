@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib as _hashlib
 import json as _json
+import re as _re
 from typing import Any, AsyncIterator
 
 from agent.agent import AgentDef
@@ -12,6 +14,10 @@ from core.log import create_logger
 log = create_logger("agent.llm")
 
 OUTPUT_TOKEN_MAX = 32000  # Fallback for unknown models
+
+#: Room left for the visible answer once a thinking budget is reserved out of
+#: the same allowance. Anthropic requires max_tokens > thinking.budget_tokens.
+THINKING_OUTPUT_RESERVE = 8000
 
 
 def _get_max_output_tokens(model_id: str) -> int:
@@ -211,6 +217,12 @@ def _get_default_thinking_kwargs(model_id: str) -> dict:
     model_lower = model_id.lower()
 
     if provider == "openai":
+        # Gemini via proxy: the proxy accepts the Anthropic-style thinking
+        # param and maps it to thinkingConfig with includeThoughts, so thought
+        # summaries stream back as reasoning_content. reasoning_effort alone
+        # does NOT bring thoughts back (verified against the live proxy).
+        if "gemini" in model_lower:
+            return {"thinking": {"type": "enabled", "budget_tokens": 16000}}
         # Claude 4.6 via proxy: enable reasoning
         if any(x in model_lower for x in ("opus-4-6", "opus-4.6", "sonnet-4-6", "sonnet-4.6")):
             return {"reasoning_effort": "medium"}
@@ -261,10 +273,23 @@ def _get_variant_kwargs(model_id: str, variant: str | None) -> dict:
     model_lower = model_id.lower()
 
     if provider == "openai":
-        # Map "max" → "xhigh" for models that support it
-        effort = variant
-        if variant == "max" and any(x in model_lower for x in ("gpt-5.4", "gpt-5.2")):
-            effort = "xhigh"
+        # Gemini via proxy: thinking budget, same shape as the default kwargs.
+        if "gemini" in model_lower:
+            budget = {"low": 4096, "medium": 16000, "high": 24576}.get(variant)
+            if budget:
+                return {"thinking": {"type": "enabled", "budget_tokens": budget}}
+            return {}
+        # A variant is chosen for one model and survives a switch to another —
+        # it rides on the message, not the model — so it has to be clamped to
+        # what THIS family accepts rather than forwarded verbatim. Only 5.4 and
+        # 5.2 know "xhigh"; plain GPT-5 rejects both "max" and "xhigh".
+        wide = any(x in model_lower for x in ("gpt-5.4", "gpt-5.2"))
+        effort = {"max": "xhigh" if wide else "high"}.get(variant, variant)
+        if not wide and effort == "xhigh":
+            effort = "high"
+        if effort not in ("minimal", "none", "low", "medium", "high", "xhigh"):
+            log.debug(f"dropping unusable reasoning effort {variant!r} for {model_id}")
+            return {}
         return {"reasoning_effort": effort}
 
     if provider == "anthropic":
@@ -311,6 +336,7 @@ async def _stream_responses_api(
     messages: list[dict],
     tools: dict[str, ToolInfo],
     variant: str | None = None,
+    tool_choice: str | None = None,
 ) -> AsyncIterator[dict]:
     """Stream LLM via OpenAI Responses API directly (for GPT-5.x reasoning).
 
@@ -330,7 +356,13 @@ async def _stream_responses_api(
         return
 
     # Build the Responses API URL with required api-version
-    url = f"{api_base.rstrip('/')}/v1/responses?api-version=2025-03-01-preview"
+    # base_url is conventionally written with the /v1 suffix already (that is
+    # what every OpenAI-compatible provider documents), so appending another
+    # one produced /v1/v1/responses and a 404 that reads like a missing model.
+    root = api_base.rstrip("/")
+    if not root.endswith("/v1"):
+        root = f"{root}/v1"
+    url = f"{root}/responses?api-version=2025-03-01-preview"
 
     # Determine reasoning effort
     variant_kwargs = _get_variant_kwargs(model_id, variant)
@@ -342,12 +374,34 @@ async def _stream_responses_api(
     input_messages = []
     if system:
         input_messages.append({"role": "system", "content": "\n\n".join(system)})
+    #: The Responses API caps ids at 64 characters. History recorded under
+    #: another provider can carry far longer ones — Gemini packs an encrypted
+    #: thought signature into the call id, which reaches several KB — and the
+    #: rejection reads as "Invalid 'input[N].id': string too long", giving no
+    #: hint that the cause is a conversation that changed providers.
+    _FC_ID_MAX = 64
+    _FC_ID_SAFE = _re.compile(r"[A-Za-z0-9_-]+")
+
     def _ensure_fc_id(raw_id: str) -> str:
-        """Ensure function call ID starts with 'fc_' (Responses API requirement)."""
-        if raw_id.startswith("fc_"):
-            return raw_id
-        # Convert synthetic IDs (e.g., "call_part_XXXX") to fc_ prefix
-        return f"fc_{raw_id.replace('call_', '')}"
+        """A stable, Responses-API-legal id for a function call.
+
+        The API constrains ids two ways — at most 64 characters, and only
+        letters, digits, underscore and dash. Gemini's embedded signature
+        violates both: it is kilobytes long AND base64, so it carries `+` and
+        `/`. Shortening alone left the illegal characters behind and the same
+        turn failed again with a different message.
+
+        Must be a pure function of `raw_id`: the same call reaches this twice —
+        once as the assistant's function_call and once as its
+        function_call_output — and the API pairs them by id. Hashing keeps that
+        pairing intact where truncation would collide, since Gemini's ids share
+        a long common prefix.
+        """
+        fc_id = raw_id if raw_id.startswith("fc_") else f"fc_{raw_id.replace('call_', '')}"
+        if len(fc_id) <= _FC_ID_MAX and _FC_ID_SAFE.fullmatch(fc_id):
+            return fc_id
+        digest = _hashlib.sha256(raw_id.encode()).hexdigest()[:32]
+        return f"fc_{digest}"
 
     for msg in messages:
         role = msg.get("role", "")
@@ -372,7 +426,16 @@ async def _stream_responses_api(
                     "arguments": tc.get("function", {}).get("arguments", "{}"),
                 })
         else:
-            input_messages.append({"role": role, "content": content})
+            # Responses API image form differs from Chat Completions.
+            images = [u for u in (msg.get("_images") or []) if isinstance(u, str)]
+            if role == "user" and images:
+                parts: list[dict] = []
+                if isinstance(content, str) and content:
+                    parts.append({"type": "input_text", "text": content})
+                parts.extend({"type": "input_image", "image_url": u} for u in images)
+                input_messages.append({"role": role, "content": parts})
+            else:
+                input_messages.append({"role": role, "content": content})
 
     # Build tool definitions for Responses API
     api_tools = []
@@ -398,6 +461,13 @@ async def _stream_responses_api(
     }
     if api_tools:
         payload["tools"] = api_tools
+        # Structured output is enforced by forcing a tool call, not by asking
+        # nicely in the prompt. This path used to drop tool_choice entirely, so
+        # the same request that was guaranteed on Chat Completions degraded to
+        # a suggestion here — and when the model answered in prose instead, the
+        # caller got an empty result with no error to explain it.
+        if tool_choice:
+            payload["tool_choice"] = tool_choice
 
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -620,7 +690,9 @@ async def stream_llm(
     """
     # GPT-5.x models: use Responses API for reasoning content
     if _needs_responses_api(model_id):
-        async for event in _stream_responses_api(model_id, system, messages, tools, variant=variant):
+        async for event in _stream_responses_api(
+            model_id, system, messages, tools, variant=variant, tool_choice=tool_choice
+        ):
             yield event
         return
 
@@ -736,6 +808,27 @@ def _extract_chunk_usage_from_obj(usage: Any, target: dict) -> None:
         target["cache"] = _extract_cache_tokens(usage) if not isinstance(usage, dict) else (usage.get("cache_read_input_tokens", 0) or 0) + (usage.get("cache_creation_input_tokens", 0) or 0)
 
 
+def _finalize_message(msg: dict) -> dict:
+    """Strip loop-internal keys; expand `_images` into multimodal content."""
+    internal = {"_images", "_synthetic", "_ignored", "_transient_images"}
+    if not any(k in msg for k in internal):
+        return msg
+    out = {k: v for k, v in msg.items() if k not in internal}
+    # Only resolved data URIs are real images. An unresolved reference (a dict
+    # left by _image_ref_for_part when nothing called resolve_images) would
+    # otherwise be serialised as {"url": {...}} and rejected by the provider —
+    # dropping it keeps the turn alive as text.
+    images = [u for u in (msg.get("_images") or []) if isinstance(u, str)]
+    if images:
+        parts: list[dict] = []
+        text = out.get("content")
+        if isinstance(text, str) and text:
+            parts.append({"type": "text", "text": text})
+        parts.extend({"type": "image_url", "image_url": {"url": u}} for u in images)
+        out["content"] = parts
+    return out
+
+
 async def _stream_litellm_direct(
     model_id: str,
     system: list[str],
@@ -769,6 +862,11 @@ async def _stream_litellm_direct(
         if system:
             llm_messages.append({"role": "system", "content": "\n\n".join(system)})
         llm_messages.extend(messages)
+
+        # Multimodal: messages carry image URLs out-of-band (_images) so every
+        # earlier pass works on plain strings. Convert to OpenAI-style content
+        # arrays here, at the last moment, and drop loop-internal keys.
+        llm_messages = [_finalize_message(m) for m in llm_messages]
 
         # Some providers (OpenAI-compatible proxies) reject conversations ending
         # with an assistant message ("assistant prefill not supported").
@@ -836,6 +934,15 @@ async def _stream_litellm_direct(
         }
         if extra_body:
             call_kwargs["extra_body"] = extra_body
+        # Anthropic draws the thinking budget OUT of the output budget and
+        # requires max_tokens to be strictly greater. The generic 32k default
+        # happens to equal the "max" budget exactly, so the highest reasoning
+        # setting was rejected outright — the two numbers were picked
+        # independently and collided.
+        budget = ((direct_kwargs.get("thinking") or {}).get("budget_tokens")
+                  if isinstance(direct_kwargs.get("thinking"), dict) else None)
+        if budget and call_kwargs["max_tokens"] <= budget:
+            call_kwargs["max_tokens"] = budget + THINKING_OUTPUT_RESERVE
         # Only meaningful when there is something to choose from; sending it
         # with an empty tool list is rejected by several providers.
         if tool_choice and tool_schemas:

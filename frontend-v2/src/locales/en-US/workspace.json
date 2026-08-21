@@ -1,0 +1,68 @@
+{
+  "newProject": "New project",
+  "collapse": "Collapse sidebar",
+  "expand": "Expand sidebar",
+  "newChat": "New chat",
+  "search": "Search",
+  "projectName": "Project name",
+  "rename": "Rename project",
+  "newChatIn": "New chat here",
+  "duplicate": "Duplicate project",
+  "archive": "Archive",
+  "deleteProject": "Delete project…",
+  "noChats": "No chats yet",
+  "unsorted": "Unsorted",
+  "untitledChat": "Untitled chat",
+  "pin": "Pin",
+  "settings": "Settings",
+  "share": "Share",
+  "shareCopied": "Link copied",
+  "openPanel": "Open workspace panel",
+  "backToChat": "Back to chat",
+  "delTitle": "Delete \"{{name}}\"?",
+  "delBody": "Its chats will be deleted too. This can't be undone.",
+  "delChatTitle": "Delete this chat?",
+  "delChatBody": "The chat and its messages will be deleted. This can't be undone.",
+  "ctxTokens": "{{tokens}} tokens",
+  "greeting": {
+    "morning": "Good morning, {{name}}.",
+    "afternoon": "Good afternoon, {{name}}.",
+    "evening": "Good evening, {{name}}."
+  },
+  "emptyHint": "This chat will live under \"{{project}}\". Just say what you want to figure out.",
+  "suggestions": [
+    {
+      "title": "Analyze this project's code structure",
+      "hint": "read dirs · find entries · map deps"
+    },
+    {
+      "title": "Refactor a gnarly function for me",
+      "hint": "paste code, get a runnable diff"
+    },
+    {
+      "title": "Write a script that scrapes a page",
+      "hint": "with retries · lands as CSV"
+    }
+  ],
+  "sandbox": {
+    "title": "A sandbox is needed",
+    "body": "Files and commands in a chat run inside an isolated sandbox. Create one now?",
+    "create": "Create sandbox",
+    "creating": "Creating sandbox…",
+    "failed": "Sandbox creation failed"
+  },
+  "panel": {
+    "newTab": "New tab",
+    "closePanel": "Collapse panel",
+    "menuTitle": "New tab",
+    "review": "Review",
+    "terminal": "Terminal",
+    "browser": "Browser",
+    "files": "Files",
+    "pending_one": "{{count}} pending",
+    "pending_other": "{{count}} pending",
+    "process_one": "{{count}} process",
+    "process_other": "{{count}} processes"
+  },
+  "userLine": "{{role}} · {{count}} chats"
+}

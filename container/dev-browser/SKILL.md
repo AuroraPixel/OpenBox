@@ -13,19 +13,46 @@ Browser automation that controls the user's real Chrome browser through the Open
 - **Unknown page layouts**: Use `getAISnapshot()` to discover elements and `selectSnapshotRef()` to interact with them
 - **Visual feedback**: Take screenshots to see what the user sees
 
+## Two browsers, and why it matters
+
+This skill drives one of two browsers. They are not interchangeable:
+
+| Mode | Which browser | Has the user's logins |
+|---|---|---|
+| `local` | Chrome on this cloud desktop | **No** |
+| `extension` | The user's OWN Chrome, via the Dev Browser extension | **Yes** |
+
+`auto` (the default) prefers the user's own browser and **falls back to the cloud
+desktop's Chrome whenever the extension is not connected**, so automation keeps working
+when the user closes their browser.
+
+Local mode talks to Chrome's native CDP endpoint directly — no extension, no bridging,
+fewer hops. Prefer it for anything that does not need the user's identity.
+
+**Check which one you got before doing anything identity-dependent:**
+
+```bash
+curl -s http://localhost:9222/ | head -c 300
+```
+
+`mode` is the effective mode, `configuredMode` is what was requested. If a task needs a
+site the user is logged into and `mode` is `local`, stop and ask the user — either they
+connect their own browser, or they accept logging in on the cloud one.
+
 ## Setup
 
-This skill connects to the user's Chrome browser via the Dev Browser Chrome Extension. The relay server runs inside this sandbox and the user's extension connects through the OpenBox backend.
-
-**Start the relay server:**
+**Start the relay server** (mode comes from the user's setting; override with
+`DEV_BROWSER_MODE=local|extension|auto`):
 
 ```bash
 cd /opt/openbox/skills/dev-browser && npm run start-relay &
 ```
 
-Wait for `Waiting for extension to connect...` followed by `Extension connected` in the console before running scripts.
+Wait until the relay logs the mode it resolved to. In `local` mode it also needs Chrome
+running with remote debugging on port 9333 — the backend starts that for you; if
+`chromeAvailable` is `false` in the server info, say so rather than retrying blindly.
 
-**If the extension hasn't connected yet**, tell the user to:
+**If you need the user's own browser and the extension is not connected**, tell them to:
 1. Open the Browser tab in the OpenBox frontend
 2. Click "Enable Dev Browser" and follow the setup instructions
 3. Configure and activate the Chrome extension
@@ -61,6 +88,31 @@ EOF
 3. **Descriptive page names**: Use `"checkout"`, `"login"`, not `"main"`
 4. **Disconnect to exit**: `await client.disconnect()` - pages persist on server
 5. **Plain JS in evaluate**: `page.evaluate()` runs in browser - no TypeScript syntax
+
+### Always `connect()` — never launch your own browser
+
+```ts
+const client = await connect();          // ✅ the visible browser on the desktop
+const page = await client.page("work");
+```
+
+```ts
+import { chromium } from "playwright";
+const browser = await chromium.launch(); // ❌ silently headless, and invisible
+```
+
+`chromium.launch()` defaults to **headless**, so a browser started that way:
+
+- cannot be seen by the user, who often wants to watch what you are doing
+- cannot be reached by the `computer` tool, so a native dialog stops the run
+  with no way out (see the handoff section below)
+- has none of the profile, policy, or extension setup this browser has
+- is a *second* browser, so its pages are invisible to `client.page()`
+
+The browser `connect()` gives you is already running, visible, and configured.
+Use it. Only launch a separate headless browser when the user explicitly asks
+for headless — and say so in your answer when you do, because it means they
+cannot watch and you cannot recover from a native dialog.
 
 ## Workflow Loop
 
@@ -167,6 +219,43 @@ console.log(snapshot); // Find the ref you need
 const element = await client.selectSnapshotRef("hackernews", "e2");
 await element.click();
 ```
+
+## When the browser stops responding: hand off to `computer`
+
+Some things that block a page are drawn by the **browser**, not the page — a
+native dialog, an OS file picker, a print sheet, a crash bubble. No script can
+reach them: `page.evaluate()` and `page.goto()` just hang until they time out,
+and retrying the script does nothing. The most common one is a site trying to
+open its own app ("Open xdg-open?"). Policy blocks the schemes we know about,
+but an unknown one will still stop you.
+
+The `computer` tool drives the real mouse and keyboard on the desktop, so it
+**can** click what CDP cannot. Use it as an escape hatch, then come back:
+
+1. **Recognise the symptom.** Two script runs in a row time out, or a call that
+   should be instant (`page.title()`, a small `evaluate`) hangs. Do not keep
+   retrying the script — the dialog is not going anywhere.
+2. **Look at the screen.** `computer` with `action: "screenshot"`. The dialog
+   will be plainly visible on top of the browser window.
+3. **Dismiss it.** Click its safe button — `Cancel`, `Close`, `Not now` —
+   with `left_click` at the coordinates you saw. `key` with `Escape` often
+   works too, and is worth trying first since it needs no aiming.
+4. **Confirm it is gone** with another screenshot before continuing.
+5. **Go back to scripts.** Page state survived; `client.page("name")` returns
+   the same page and you carry on where you stopped.
+
+Stay in dev-browser for everything the page itself can do. `computer` is for
+the moment the browser blocks you, not a substitute for scripting — clicking
+page elements by coordinate is slower and far less reliable than using refs
+from `getAISnapshot()`.
+
+**This only works in `local` mode.** There the browser runs on this desktop, so
+the screenshot shows it. In `extension` mode the browser is on the *user's own*
+machine and nothing here can see or touch it — if it stalls behind a native
+dialog, tell the user what to dismiss instead of trying to do it yourself.
+
+If a scheme blocks you repeatedly, say so in your answer: it is worth adding to
+the blocklist permanently rather than dismissing by hand every run.
 
 ## Error Recovery
 

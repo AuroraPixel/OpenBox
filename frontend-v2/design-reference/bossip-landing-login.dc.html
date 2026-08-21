@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="ds/styles.css">
+<style>
+  :root {
+    --color-bg: #f8f8f6;
+    --color-text: #3e3929;
+    --color-neutral-200: #f2f0ea;
+    --color-neutral-300: #eceae2;
+    --color-neutral-400: #dcdad3;
+    --color-neutral-500: #b7b5ae;
+    --color-neutral-600: #8b8a84;
+    --color-neutral-700: #75746e;
+    --color-neutral-800: #55534d;
+    --color-accent-600: #5c5749;
+    --color-accent-700: #3e3929;
+    --rail: #f7f7f5;
+    --card: #ffffff;
+    --hair: #eeece9;
+    --hair-soft: #f4f2ec;
+  }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--color-bg); -webkit-font-smoothing: antialiased; letter-spacing: -0.005em; }
+  .btn { font-family: var(--font-body); font-weight: 500; letter-spacing: 0; }
+  h1, h2, h3 { font-family: var(--font-body); font-weight: 500; letter-spacing: -0.024em; margin: 0; }
+  strong, b { font-weight: 500; }
+  svg, svg * { stroke-width: 2; }
+  @keyframes shine { 0% { background-position: 220% 50%; } 100% { background-position: -120% 50%; } }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  @keyframes blink { 0%, 45% { opacity: 1; } 55%, 100% { opacity: 0; } }
+  @keyframes pulseDot { 0%, 100% { opacity: 0.35; transform: scale(0.82); } 50% { opacity: 1; transform: scale(1); } }
+  @keyframes spinArc { to { transform: rotate(360deg); } }
+  @keyframes runX { 0% { transform: translateX(-30vw); opacity: 0; } 8% { opacity: 1; } 88% { opacity: 1; } 100% { transform: translateX(115vw); opacity: 0; } }
+  @keyframes runY { 0% { transform: translateY(-40vh); opacity: 0; } 10% { opacity: 1; } 86% { opacity: 1; } 100% { transform: translateY(120vh); opacity: 0; } }
+  @keyframes cellGlow { 0%, 100% { opacity: 0; } 12% { opacity: 1; } 46% { opacity: 0.15; } 60% { opacity: 0.7; } 82% { opacity: 0; } }
+  @keyframes gridDrift { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(-44px, -44px, 0); } }
+  a { color: var(--color-accent-700); text-decoration: none; }
+  a:hover { color: var(--color-accent-600); }
+  .scr::-webkit-scrollbar { width: 9px; }
+  .scr::-webkit-scrollbar-thumb { background: var(--color-neutral-400); border-radius: 999px; }
+  .scr::-webkit-scrollbar-track { background: transparent; }
+</style>
+</helmet>
+
+<div class="scr" style="min-height: 100vh; box-sizing: border-box; display: flex; flex-direction: column; font-family: var(--font-body); color: var(--color-text); background: var(--color-bg); font-size: 15px; line-height: 1.7; overflow-x: hidden">
+
+  <sc-if value="{{ isLanding }}" hint-placeholder-val="{{ true }}">
+  <div style="flex: none; position: sticky; top: 0; z-index: 20; background: rgba(248,248,246,0.86); backdrop-filter: blur(10px); border-bottom: 1px solid var(--hair)">
+    <div style="max-width: 1080px; margin: 0 auto; padding: 0 28px; height: 62px; display: flex; align-items: center; gap: 12px">
+      <div onClick="{{ goLanding }}" style="flex: none; display: flex; align-items: center; gap: 9px; cursor: default">
+        <div style="flex: none; position: relative; width: 26px; height: 26px; border-radius: 8px; background: var(--color-text); display: flex; align-items: center; justify-content: center">
+          <span style="font-size: 14px; font-weight: 700; line-height: 1; color: var(--color-bg); margin-top: 1px">b</span>
+          <span style="position: absolute; top: -1px; right: -1px; width: 6px; height: 6px; border-radius: 999px; background: var(--color-neutral-400); box-shadow: 0 0 0 2px var(--color-bg)"></span>
+        </div>
+        <span style="font-size: 17px; font-weight: 700; letter-spacing: -0.028em; background-image: linear-gradient(100deg, var(--color-text) 0%, var(--color-text) 34%, #b9b2a1 46%, #ffffff 52%, #b9b2a1 58%, var(--color-text) 70%, var(--color-text) 100%); background-size: 260% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shine 4.5s linear infinite">bossip</span>
+      </div>
+
+      <div style="flex: 1; min-width: 0; display: flex; justify-content: center; gap: 26px">
+        <sc-for list="{{ navLinks }}" as="n" hint-placeholder-count="3">
+          <span style="{{ n.style }}">{{ n.label }}</span>
+        </sc-for>
+      </div>
+
+      <div style="flex: none; display: flex; align-items: center; gap: 4px; padding: 3px; border: 1px solid var(--hair); border-radius: 999px">
+        <sc-for list="{{ langs }}" as="g" hint-placeholder-count="2">
+          <span style="{{ g.style }}" onClick="{{ g.onPick }}">{{ g.label }}</span>
+        </sc-for>
+      </div>
+
+      <span onClick="{{ goLogin }}" style="flex: none; font-size: 13.5px; color: var(--color-neutral-700); cursor: default; padding: 0 6px">{{ t.signIn }}</span>
+      <button class="btn" onClick="{{ goLogin }}" style="flex: none; height: 34px; padding: 0 16px; border: none; border-radius: 999px; background: var(--color-text); color: var(--color-bg); font-size: 13.5px; cursor: default">{{ t.start }}</button>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ isLanding }}" hint-placeholder-val="{{ true }}">
+    <div style="flex: 1; min-width: 0">
+
+      <div style="max-width: 1080px; margin: 0 auto; padding: 92px 28px 0; display: flex; flex-direction: column; align-items: center; text-align: center">
+        <span style="display: inline-flex; align-items: center; gap: 8px; height: 28px; padding: 0 13px; border: 1px solid var(--hair); border-radius: 999px; background: var(--card); font-size: 12.5px; color: var(--color-neutral-700)">{{ t.badge }}</span>
+        <h1 style="margin-top: 26px; max-width: 780px; font-size: 54px; line-height: 1.14; text-wrap: pretty">{{ t.heroTitle }}</h1>
+        <p style="margin: 20px 0 0; max-width: 600px; font-size: 17px; line-height: 1.75; color: var(--color-neutral-700); text-wrap: pretty">{{ t.heroBody }}</p>
+        <div style="margin-top: 30px; display: flex; align-items: center; gap: 12px">
+          <button class="btn" onClick="{{ goLogin }}" style="height: 42px; padding: 0 22px; border: none; border-radius: 999px; background: var(--color-text); color: var(--color-bg); font-size: 14.5px; cursor: default">{{ t.ctaPrimary }}</button>
+          <button class="btn" style="height: 42px; padding: 0 20px; border: 1px solid var(--hair); border-radius: 999px; background: var(--card); color: var(--color-text); font-size: 14.5px; cursor: default" style-hover="background: var(--hair-soft)">{{ t.ctaSecondary }}</button>
+        </div>
+        <span style="margin-top: 14px; font-size: 12.5px; color: var(--color-neutral-600)">{{ t.ctaNote }}</span>
+      </div>
+
+      <div style="max-width: 1080px; margin: 54px auto 0; padding: 0 28px">
+        <div style="border: 1px solid var(--hair); border-radius: 20px; background: var(--card); overflow: hidden; box-shadow: 0 1px 2px rgba(62,57,41,0.03), 0 20px 50px -30px rgba(62,57,41,0.18)">
+          <div style="height: 38px; display: flex; align-items: center; gap: 8px; padding: 0 14px; border-bottom: 1px solid var(--hair); background: var(--rail)">
+            <span style="width: 9px; height: 9px; border-radius: 999px; background: var(--color-neutral-300)"></span>
+            <span style="width: 9px; height: 9px; border-radius: 999px; background: var(--color-neutral-300)"></span>
+            <span style="width: 9px; height: 9px; border-radius: 999px; background: var(--color-neutral-300)"></span>
+            <span style="margin-left: 8px; font-size: 11.5px; color: var(--color-neutral-600)">{{ t.mockLabel }}</span>
+          </div>
+          <div style="display: flex; height: 348px">
+            <div style="flex: none; width: 208px; border-right: 1px solid var(--hair); background: var(--rail); padding: 14px 12px; display: flex; flex-direction: column; gap: 8px">
+              <div style="height: 30px; border-radius: 999px; background: var(--color-text); display: flex; align-items: center; justify-content: center; color: var(--color-bg); font-size: 12px">{{ t.mockNew }}</div>
+              <sc-for list="{{ mockProjects }}" as="m" hint-placeholder-count="4">
+                <div style="{{ m.style }}">
+                  <span style="font-size: 9px; color: var(--color-neutral-500)">{{ m.caret }}</span>
+                  <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ m.label }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 18px 22px; gap: 13px">
+              <sc-if value="{{ showAsk }}" hint-placeholder-val="{{ true }}">
+                <div style="align-self: flex-end; max-width: 74%; padding: 9px 14px; border-radius: 16px 16px 5px 16px; background: var(--color-neutral-200); font-size: 12.5px; line-height: 1.65; animation: fadeUp 0.34s ease both">{{ askText }}<span style="{{ askCaretStyle }}"></span></div>
+              </sc-if>
+
+              <sc-if value="{{ showThink }}" hint-placeholder-val="{{ true }}">
+                <div style="display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--color-neutral-600); animation: fadeUp 0.34s ease both">
+                  <span style="{{ thinkDotStyle }}"></span>
+                  <span>{{ thinkLabel }}</span>
+                </div>
+              </sc-if>
+
+              <div style="display: flex; flex-direction: column; gap: 7px">
+                <sc-for list="{{ mockSteps }}" as="s" hint-placeholder-count="3">
+                  <div style="display: flex; align-items: center; gap: 9px; height: 28px; padding: 0 12px; border: 1px solid var(--hair); border-radius: 10px; font-size: 11.5px; color: var(--color-neutral-700); animation: fadeUp 0.32s ease both">
+                    <span style="{{ s.glyphStyle }}">{{ s.glyph }}</span>
+                    <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ s.label }}</span>
+                    <span style="{{ s.msStyle }}">{{ s.ms }}</span>
+                  </div>
+                </sc-for>
+              </div>
+
+              <sc-if value="{{ showAnswer }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size: 12.5px; line-height: 1.85; color: var(--color-text); max-width: 96%">{{ answerText }}<span style="{{ answerCaretStyle }}"></span></div>
+              </sc-if>
+
+              <sc-if value="{{ showDiff }}" hint-placeholder-val="{{ false }}">
+                <div style="display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid var(--hair); border-radius: 12px; background: var(--rail); animation: fadeUp 0.34s ease both">
+                  <span style="font-family: ui-monospace, SFMono-Regular, monospace; font-size: 11px; color: var(--color-neutral-500)">±</span>
+                  <span style="flex: 1; min-width: 0; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ t.mockDiff }}</span>
+                  <span style="flex: none; font-size: 11px; color: var(--color-neutral-600)">+42 −11</span>
+                  <span style="flex: none; font-size: 11px; color: var(--color-accent-700)">{{ t.mockReview }}</span>
+                </div>
+              </sc-if>
+
+              <div style="margin-top: auto; height: 38px; border: 1px solid var(--hair); border-radius: 999px; display: flex; align-items: center; padding: 0 14px; font-size: 12px; color: var(--color-neutral-500)">{{ t.mockInput }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="max-width: 1080px; margin: 96px auto 0; padding: 0 28px">
+        <span style="font-size: 12.5px; color: var(--color-neutral-600)">{{ t.featEyebrow }}</span>
+        <div style="margin-top: 18px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px">
+          <sc-for list="{{ features }}" as="f" hint-placeholder-count="3">
+            <div style="border: 1px solid var(--hair); border-radius: 18px; background: var(--card); padding: 22px 22px 24px; display: flex; flex-direction: column; gap: 10px">
+              <span style="font-family: ui-monospace, SFMono-Regular, monospace; font-size: 13px; color: var(--color-neutral-500)">{{ f.glyph }}</span>
+              <h3 style="font-size: 17px">{{ f.title }}</h3>
+              <p style="margin: 0; font-size: 13.5px; line-height: 1.72; color: var(--color-neutral-700); text-wrap: pretty">{{ f.body }}</p>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="max-width: 1080px; margin: 88px auto 0; padding: 0 28px">
+        <div style="border-top: 1px solid var(--hair); padding-top: 34px; display: flex; gap: 44px; align-items: flex-start">
+          <div style="flex: none; width: 260px; display: flex; flex-direction: column; gap: 10px">
+            <span style="font-size: 12.5px; color: var(--color-neutral-600)">{{ t.flowEyebrow }}</span>
+            <h2 style="font-size: 27px; line-height: 1.3; text-wrap: pretty">{{ t.flowTitle }}</h2>
+          </div>
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+            <sc-for list="{{ steps }}" as="s" hint-placeholder-count="3">
+              <div style="{{ s.rowStyle }}">
+                <span style="flex: none; width: 24px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12.5px; color: var(--color-neutral-500)">{{ s.num }}</span>
+                <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+                  <span style="font-size: 15.5px">{{ s.title }}</span>
+                  <p style="margin: 5px 0 0; font-size: 13.5px; line-height: 1.7; color: var(--color-neutral-700); text-wrap: pretty">{{ s.body }}</p>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+      <div style="max-width: 1080px; margin: 92px auto 0; padding: 0 28px">
+        <div style="border: 1px solid var(--hair); border-radius: 22px; background: var(--card); padding: 44px 40px; display: flex; align-items: center; gap: 30px">
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px">
+            <h2 style="font-size: 28px; line-height: 1.3">{{ t.endTitle }}</h2>
+            <p style="margin: 0; font-size: 14.5px; line-height: 1.7; color: var(--color-neutral-700); max-width: 460px; text-wrap: pretty">{{ t.endBody }}</p>
+          </div>
+          <button class="btn" onClick="{{ goLogin }}" style="flex: none; height: 44px; padding: 0 24px; border: none; border-radius: 999px; background: var(--color-text); color: var(--color-bg); font-size: 14.5px; cursor: default">{{ t.ctaPrimary }}</button>
+        </div>
+      </div>
+
+      <div style="max-width: 1080px; margin: 60px auto 0; padding: 0 28px 46px">
+        <div style="border-top: 1px solid var(--hair); padding-top: 22px; display: flex; align-items: center; gap: 22px">
+          <span style="font-size: 12.5px; color: var(--color-neutral-600)">{{ t.footer }}</span>
+          <div style="margin-left: auto; display: flex; gap: 20px">
+            <sc-for list="{{ footLinks }}" as="l" hint-placeholder-count="3">
+              <span style="font-size: 12.5px; color: var(--color-neutral-600); cursor: default">{{ l.label }}</span>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isLogin }}" hint-placeholder-val="{{ false }}">
+    <div style="flex: 1; min-height: 100vh; position: relative; overflow: hidden; background: var(--color-bg); display: flex; flex-direction: column">
+
+      <div style="position: absolute; inset: -60px; background-image: linear-gradient(rgba(62,57,41,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(62,57,41,0.07) 1px, transparent 1px); background-size: 44px 44px; animation: gridDrift 9s linear infinite"></div>
+      <div style="position: absolute; inset: -60px; background-image: linear-gradient(rgba(62,57,41,0.09) 1px, transparent 1px), linear-gradient(90deg, rgba(62,57,41,0.09) 1px, transparent 1px); background-size: 220px 220px; animation: gridDrift 18s linear infinite"></div>
+
+      <div style="position: absolute; left: 0; right: 0; top: 176px; height: 1px; background: linear-gradient(90deg, transparent, rgba(62,57,41,0.5), transparent); width: 26vw; animation: runX 4.5s linear infinite"></div>
+      <div style="position: absolute; left: 0; right: 0; top: 396px; height: 1px; background: linear-gradient(90deg, transparent, rgba(62,57,41,0.38), transparent); width: 18vw; animation: runX 6s linear infinite 1.4s"></div>
+      <div style="position: absolute; left: 0; right: 0; bottom: 220px; height: 1px; background: linear-gradient(90deg, transparent, rgba(62,57,41,0.3), transparent); width: 22vw; animation: runX 7.5s linear infinite 3.2s"></div>
+      <div style="position: absolute; top: 0; bottom: 0; left: 21%; width: 1px; background: linear-gradient(180deg, transparent, rgba(62,57,41,0.4), transparent); height: 30vh; animation: runY 6.5s linear infinite 0.6s"></div>
+      <div style="position: absolute; top: 0; bottom: 0; right: 18%; width: 1px; background: linear-gradient(180deg, transparent, rgba(62,57,41,0.3), transparent); height: 24vh; animation: runY 8s linear infinite 2.4s"></div>
+
+      <div style="position: absolute; left: 13%; top: 220px; width: 44px; height: 44px; border: 1px solid rgba(62,57,41,0.34); animation: cellGlow 5.5s ease-in-out infinite"></div>
+      <div style="position: absolute; left: 27%; bottom: 168px; width: 44px; height: 44px; border: 1px solid rgba(62,57,41,0.26); animation: cellGlow 7s ease-in-out infinite 1.6s"></div>
+      <div style="position: absolute; right: 15%; top: 300px; width: 88px; height: 44px; border: 1px solid rgba(62,57,41,0.24); animation: cellGlow 8s ease-in-out infinite 3s"></div>
+      <div style="position: absolute; right: 24%; bottom: 260px; width: 44px; height: 44px; border: 1px solid rgba(62,57,41,0.3); animation: cellGlow 6.5s ease-in-out infinite 4.2s"></div>
+
+      <div style="position: absolute; inset: 0; background: radial-gradient(ellipse 76% 64% at 50% 46%, rgba(248,248,246,0) 0%, rgba(248,248,246,0.44) 56%, rgba(248,248,246,0.9) 100%)"></div>
+
+      <div style="position: relative; z-index: 2; flex: none; height: 62px; padding: 0 30px; display: flex; align-items: center; gap: 12px">
+        <div onClick="{{ goLanding }}" style="flex: none; display: flex; align-items: center; gap: 9px; cursor: default">
+          <div style="flex: none; position: relative; width: 26px; height: 26px; border-radius: 8px; background: var(--color-text); display: flex; align-items: center; justify-content: center">
+            <span style="font-size: 14px; font-weight: 700; line-height: 1; color: var(--color-bg); margin-top: 1px">b</span>
+          </div>
+          <span style="font-size: 17px; font-weight: 700; letter-spacing: -0.028em; background-image: linear-gradient(100deg, var(--color-text) 0%, var(--color-text) 34%, #b9b2a1 46%, #ffffff 52%, #b9b2a1 58%, var(--color-text) 70%, var(--color-text) 100%); background-size: 260% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shine 4.5s linear infinite">bossip</span>
+        </div>
+        <div style="flex: 1"></div>
+        <div style="flex: none; display: flex; align-items: center; gap: 4px; padding: 3px; border: 1px solid var(--hair); border-radius: 999px">
+          <sc-for list="{{ langs }}" as="g" hint-placeholder-count="2">
+            <span style="{{ g.style }}" onClick="{{ g.onPick }}">{{ g.label }}</span>
+          </sc-for>
+        </div>
+        <span onClick="{{ goLanding }}" style="flex: none; font-size: 12.5px; color: var(--color-neutral-700); cursor: default; padding: 0 4px">{{ t.backHome }}</span>
+      </div>
+
+      <div style="position: relative; z-index: 2; flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px 28px 72px">
+        <div style="width: 100%; max-width: 392px; display: flex; flex-direction: column; padding: 34px 32px 30px; border: 1px solid var(--hair); border-radius: 22px; background: rgba(255,255,255,0.84); backdrop-filter: blur(14px); box-shadow: 0 1px 2px rgba(62,57,41,0.03), 0 30px 70px -42px rgba(62,57,41,0.26); animation: fadeUp 0.5s ease both">
+          <h1 style="font-size: 25px; line-height: 1.3">{{ t.loginTitle }}</h1>
+          <p style="margin: 8px 0 0; font-size: 13.5px; line-height: 1.7; color: var(--color-neutral-700); text-wrap: pretty">{{ t.loginBody }}</p>
+
+          <div style="margin-top: 24px; display: flex; flex-direction: column; gap: 7px">
+            <span style="font-size: 12px; color: var(--color-neutral-700)">{{ t.accountLabel }}</span>
+            <input value="{{ account }}" onChange="{{ onAccount }}" placeholder="{{ t.accountPlaceholder }}" style="height: 42px; box-sizing: border-box; padding: 0 15px; border: 1px solid var(--hair); border-radius: 12px; background: var(--card); font-family: var(--font-body); font-size: 13.5px; color: var(--color-text); outline: none" style-focus="border-color: var(--color-neutral-400)" />
+          </div>
+
+          <div style="margin-top: 14px; display: flex; flex-direction: column; gap: 7px">
+            <span style="font-size: 12px; color: var(--color-neutral-700)">{{ t.pwLabel }}</span>
+            <div style="position: relative; display: flex; align-items: center">
+              <input value="{{ pw }}" onChange="{{ onPw }}" type="{{ pwType }}" placeholder="{{ t.pwPlaceholder }}" style="flex: 1; min-width: 0; height: 42px; box-sizing: border-box; padding: 0 62px 0 15px; border: 1px solid var(--hair); border-radius: 12px; background: var(--card); font-family: var(--font-body); font-size: 13.5px; color: var(--color-text); outline: none" style-focus="border-color: var(--color-neutral-400)" />
+              <span onClick="{{ togglePw }}" style="position: absolute; right: 14px; font-size: 11.5px; color: var(--color-neutral-600); cursor: default">{{ pwToggleLabel }}</span>
+            </div>
+          </div>
+
+          <div style="margin-top: 14px; display: flex; align-items: center; gap: 8px">
+            <span onClick="{{ toggleRemember }}" style="{{ rememberBoxStyle }}">{{ rememberMark }}</span>
+            <span onClick="{{ toggleRemember }}" style="font-size: 12.5px; color: var(--color-neutral-700); cursor: default">{{ t.remember }}</span>
+            <span style="margin-left: auto; font-size: 12.5px; color: var(--color-neutral-700); cursor: default">{{ t.forgot }}</span>
+          </div>
+
+          <button class="btn" onClick="{{ submitLogin }}" style="margin-top: 20px; height: 44px; border: none; border-radius: 12px; background: var(--color-text); color: var(--color-bg); font-size: 14px; cursor: default" style-hover="background: #2c2820">{{ t.signInBtn }}</button>
+
+          <sc-if value="{{ sent }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top: 12px; padding: 10px 14px; border: 1px solid var(--hair); border-radius: 12px; font-size: 12px; line-height: 1.6; color: var(--color-neutral-700)">{{ t.sentNote }}</div>
+          </sc-if>
+
+          <div style="margin: 20px 0 16px; display: flex; align-items: center; gap: 12px">
+            <span style="flex: 1; height: 1px; background: var(--hair)"></span>
+            <span style="font-size: 11.5px; color: var(--color-neutral-600)">{{ t.or }}</span>
+            <span style="flex: 1; height: 1px; background: var(--hair)"></span>
+          </div>
+
+          <div style="display: flex; gap: 10px">
+            <sc-for list="{{ ssoButtons }}" as="s" hint-placeholder-count="2">
+              <button class="btn" style="flex: 1; min-width: 0; height: 40px; display: flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--hair); border-radius: 12px; background: var(--card); color: var(--color-text); font-size: 12.5px; cursor: default" style-hover="background: var(--hair-soft)">
+                <span style="font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px; color: var(--color-neutral-600)">{{ s.glyph }}</span>
+                <span style="white-space: nowrap">{{ s.short }}</span>
+              </button>
+            </sc-for>
+          </div>
+
+          <span style="margin-top: 20px; font-size: 11.5px; line-height: 1.7; color: var(--color-neutral-600); text-wrap: pretty">{{ t.legal }}</span>
+          <span style="margin-top: 14px; font-size: 12.5px; color: var(--color-accent-700); cursor: default">{{ t.noAccount }}</span>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:980}}">
+class Component extends DCLogic {
+  state = { page: 'landing', lang: '中文', email: '', sent: false, hoverNav: null, ms: 0,
+    account: '', pw: '', showPw: false, remember: true };
+
+  L(zh, en) { return this.state.lang === 'English' ? en : zh; }
+
+  componentDidMount() {
+    this.timer = setInterval(() => {
+      this.setState(s => ({ ms: (s.ms + 90) % (this.period || 10800) }));
+    }, 90);
+  }
+
+  componentWillUnmount() { clearInterval(this.timer); }
+
+  renderVals() {
+    const st = this.state;
+    const L = (a, b) => this.L(a, b);
+
+    const askFull = L('把这周三篇访谈整理成一条长文，风格跟上次那篇一致。', 'Turn this week’s three interviews into one long post, same voice as last time.');
+    const cps = this.state.lang === 'English' ? 15 : 46;
+    const ansCps = this.state.lang === 'English' ? 11 : 34;
+    const askDone = 260 + askFull.length * cps;
+    const thinkAt = askDone + 240;
+    const stepDefs = [
+      { at: thinkAt + 420, dur: 900, glyph: '⌕', label: L('检索 12 篇同题内容', 'Searched 12 similar posts'), ms: '0.9s' },
+      { at: thinkAt + 1420, dur: 200, glyph: '▤', label: L('读取 topic-bank.md', 'Read topic-bank.md'), ms: '0.2s' },
+      { at: thinkAt + 1720, dur: 1400, glyph: '±', label: L('改写开头三段', 'Rewrote the first three paragraphs'), ms: '1.4s' }
+    ];
+    const stepsEnd = stepDefs[2].at + stepDefs[2].dur;
+    const ansFull = L('三篇访谈其实在说同一件事：你在帮客户把决策讲清楚。我把这句提到开头，案例按时间收拢。', 'All three interviews circle the same point: you help clients articulate decisions. I moved that up front and grouped the cases by date.');
+    const answerAt = stepsEnd + 320;
+    const answerDone = answerAt + ansFull.length * ansCps;
+    this.period = answerDone + 320 + 3200;
+
+    return {
+      isLanding: st.page === 'landing',
+      isLogin: st.page === 'login',
+      goLogin: () => this.setState({ page: 'login', sent: false }),
+      goLanding: () => this.setState({ page: 'landing' }),
+      email: st.email,
+      sent: st.sent,
+      onEmail: e => this.setState({ email: e.target.value }),
+      submitEmail: () => this.setState({ sent: true }),
+      submitLabel: st.sent ? L('重新发送链接', 'Resend link') : L('用邮箱继续', 'Continue with email'),
+
+      account: st.account,
+      pw: st.pw,
+      onAccount: e => this.setState({ account: e.target.value }),
+      onPw: e => this.setState({ pw: e.target.value }),
+      pwType: st.showPw ? 'text' : 'password',
+      pwToggleLabel: st.showPw ? L('隐藏', 'Hide') : L('显示', 'Show'),
+      togglePw: () => this.setState(x => ({ showPw: !x.showPw })),
+      toggleRemember: () => this.setState(x => ({ remember: !x.remember })),
+      rememberMark: st.remember ? '✓' : '',
+      rememberBoxStyle: {
+        width: 15, height: 15, borderRadius: 4, display: 'flex', alignItems: 'center',
+        justifyContent: 'center', fontSize: 10, cursor: 'default',
+        border: st.remember ? '1px solid var(--color-text)' : '1px solid var(--color-neutral-400)',
+        background: st.remember ? 'var(--color-text)' : 'transparent',
+        color: 'var(--color-bg)'
+      },
+      submitLogin: () => this.setState({ sent: true }),
+      langsDark: [
+        { id: '中文', label: '中' },
+        { id: 'English', label: 'EN' }
+      ].map(g => ({
+        label: g.label,
+        style: {
+          minWidth: 30, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          borderRadius: 999, fontSize: 12, cursor: 'default',
+          background: st.lang === g.id ? '#f2ede1' : 'transparent',
+          color: st.lang === g.id ? '#16150f' : 'rgba(233,225,206,0.6)'
+        },
+        onPick: () => this.setState({ lang: g.id, ms: 0 })
+      })),
+
+      langs: [
+        { id: '中文', label: '中' },
+        { id: 'English', label: 'EN' }
+      ].map(g => ({
+        label: g.label,
+        style: {
+          minWidth: 30, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          borderRadius: 999, fontSize: 12, cursor: 'default',
+          background: st.lang === g.id ? 'var(--color-text)' : 'transparent',
+          color: st.lang === g.id ? 'var(--color-bg)' : 'var(--color-neutral-700)'
+        },
+        onPick: () => this.setState({ lang: g.id, ms: 0 })
+      })),
+
+      navLinks: [
+        { id: 'a', label: L('能力', 'Product') },
+        { id: 'b', label: L('工作方式', 'How it works') },
+        { id: 'c', label: L('定价', 'Pricing') }
+      ].map(n => ({
+        label: n.label,
+        style: { fontSize: 13.5, color: 'var(--color-neutral-700)', cursor: 'default', whiteSpace: 'nowrap' }
+      })),
+
+      mockProjects: [
+        { label: L('个人品牌 2026', 'Personal brand 2026'), on: true, caret: '▾' },
+        { label: L('选题库', 'Topic bank'), on: false, caret: '▸' },
+        { label: L('长文改稿', 'Long-form edits'), on: false, caret: '▸' },
+        { label: L('客户案例', 'Client stories'), on: false, caret: '▸' }
+      ].map(m => ({
+        label: m.label, caret: m.caret,
+        style: {
+          display: 'flex', alignItems: 'center', gap: 7, height: 27, padding: '0 10px',
+          borderRadius: 999, fontSize: 12, color: 'var(--color-neutral-800)',
+          background: m.on ? 'var(--color-neutral-300)' : 'transparent'
+        }
+      })),
+      showAsk: st.ms > 260,
+      askText: askFull.slice(0, Math.max(0, Math.min(askFull.length, Math.round((st.ms - 260) / cps)))),
+      askCaretStyle: {
+        display: st.ms > 260 && st.ms < askDone + 120 ? 'inline-block' : 'none',
+        width: 1.5, height: 12, marginLeft: 2, verticalAlign: '-2px',
+        background: 'var(--color-neutral-600)', animation: 'blink 1s steps(1,end) infinite'
+      },
+      showThink: st.ms > thinkAt,
+      thinkLabel: st.ms > stepsEnd ? L('想了 12 秒', 'Thought for 12s') : L('正在想…', 'Thinking…'),
+      thinkDotStyle: {
+        width: 5, height: 5, borderRadius: 999, background: 'var(--color-neutral-500)',
+        animation: st.ms > stepsEnd ? 'none' : 'pulseDot 1.1s ease-in-out infinite'
+      },
+      mockSteps: stepDefs.filter(s => st.ms > s.at).map(s => {
+        const running = st.ms < s.at + s.dur;
+        return {
+          glyph: running ? '◔' : s.glyph,
+          label: s.label,
+          ms: running ? '' : s.ms,
+          glyphStyle: {
+            fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+            color: running ? 'var(--color-neutral-700)' : 'var(--color-neutral-500)',
+            display: 'inline-block',
+            animation: running ? 'spinArc 0.9s linear infinite' : 'none'
+          },
+          msStyle: { color: 'var(--color-neutral-500)', fontSize: 11 }
+        };
+      }),
+      showAnswer: st.ms > answerAt,
+      answerText: ansFull.slice(0, Math.max(0, Math.min(ansFull.length, Math.round((st.ms - answerAt) / ansCps)))),
+      answerCaretStyle: {
+        display: st.ms > answerAt && st.ms < answerDone + 200 ? 'inline-block' : 'none',
+        width: 1.5, height: 12, marginLeft: 2, verticalAlign: '-2px',
+        background: 'var(--color-neutral-600)', animation: 'blink 1s steps(1,end) infinite'
+      },
+      showDiff: st.ms > answerDone + 320,
+      features: [
+        {
+          glyph: '▤',
+          title: L('项目里长出内容', 'Projects, not loose chats'),
+          body: L('选题、素材、稿件挂在同一个项目下，下一次开口不用重新交代背景。', 'Topics, source material and drafts live in one project, so the next conversation starts with context already loaded.')
+        },
+        {
+          glyph: '⌕',
+          title: L('过程摊开给你看', 'The whole process is visible'),
+          body: L('检索、读文件、执行命令、改稿，每一步都能点开看输入和输出。', 'Search, file reads, commands and edits — every step opens up to show its input and output.')
+        },
+        {
+          glyph: '±',
+          title: L('改动先审再落地', 'Changes get reviewed first'),
+          body: L('模型动了哪一行都以 diff 呈现，逐个文件通过或退回。', 'Every touched line arrives as a diff you approve or reject file by file.')
+        }
+      ],
+      steps: [
+        {
+          num: '01',
+          title: L('建一个项目，把素材丢进去', 'Create a project and drop your material in'),
+          body: L('文档、链接、旧稿、访谈录音都可以，项目会成为这条线的记忆。', 'Documents, links, old drafts, interview recordings. The project becomes the memory for that thread.')
+        },
+        {
+          num: '02',
+          title: L('在对话里推进', 'Work it in conversation'),
+          body: L('说清目标，agent 自己拆步骤、查资料、写和改，中途你随时插话调整。', 'State the goal; the agent plans, researches, writes and revises. You can cut in at any point.')
+        },
+        {
+          num: '03',
+          title: L('审阅后再发出去', 'Review, then publish'),
+          body: L('侧边面板里看 diff、跑终端、预览网页，确认无误再发布。', 'Read the diff, run the terminal, preview the page in the side panel, and publish once it holds up.')
+        }
+      ].map((s, i) => ({
+        num: s.num, title: s.title, body: s.body,
+        rowStyle: {
+          display: 'flex', gap: 16, padding: '20px 0',
+          borderTop: i === 0 ? 'none' : '1px solid var(--hair)'
+        }
+      })),
+      ssoButtons: [
+        { glyph: '◉', label: L('用微信继续', 'Continue with WeChat'), short: L('微信', 'WeChat') },
+        { glyph: '◈', label: L('用 Google 继续', 'Continue with Google'), short: 'Google' }
+      ],
+      footLinks: [
+        { label: L('条款', 'Terms') },
+        { label: L('隐私', 'Privacy') },
+        { label: L('联系我们', 'Contact') }
+      ],
+
+      t: {
+        signIn: L('登录', 'Sign in'),
+        start: L('免费开始', 'Get started'),
+        badge: L('给做个人 IP 的人用的 agent 工作台', 'An agent workspace for building a personal brand'),
+        heroTitle: L('把你的专业，做成一个能被找到的个人 IP。', 'Turn what you know into a personal brand people can find.'),
+        heroBody: L('bossip 把选题、调研、写作和改稿放进同一个工作台。项目管住上下文，对话推进任务，每一次改动都能审阅后再发出去。', 'bossip puts topic research, writing and revision in one workspace. Projects hold the context, conversation moves the work, and every change is reviewed before it ships.'),
+        ctaPrimary: L('免费开始', 'Get started free'),
+        ctaSecondary: L('看它怎么工作', 'See how it works'),
+        ctaNote: L('无需信用卡 · 每月 200 积分', 'No card required · 200 credits a month'),
+        mockLabel: L('bossip 工作台', 'bossip workspace'),
+        mockNew: L('新对话', 'New chat'),
+        mockAsk: L('把这周三篇访谈整理成一条长文，风格跟上次那篇一致。', 'Turn this week’s three interviews into one long post, same voice as last time.'),
+        mockDiff: L('drafts/长文-v3.md', 'drafts/long-post-v3.md'),
+        mockReview: L('审阅 →', 'Review →'),
+        mockInput: L('接着说…', 'Keep going…'),
+        featEyebrow: L('三件它做得比较认真的事', 'Three things it takes seriously'),
+        flowEyebrow: L('工作方式', 'How it works'),
+        flowTitle: L('从一堆素材，到一篇能发的稿子。', 'From scattered material to something worth publishing.'),
+        endTitle: L('先跑一个项目试试。', 'Start with one project.'),
+        endBody: L('注册后有 200 积分，够做完一篇长文的调研、写作和改稿。', 'You get 200 credits on sign-up, enough to research, write and revise one long piece.'),
+        footer: L('© 2026 bossip', '© 2026 bossip'),
+        loginTitle: L('登录 bossip', 'Sign in to bossip'),
+        loginBody: L('用账号和密码进入工作台，项目与对话在设备之间同步。', 'Sign in with your account and password. Projects and chats sync across devices.'),
+        accountLabel: L('账号', 'Account'),
+        accountPlaceholder: L('邮箱或用户名', 'Email or username'),
+        pwLabel: L('密码', 'Password'),
+        pwPlaceholder: L('至少 8 位', 'At least 8 characters'),
+        remember: L('记住我', 'Keep me signed in'),
+        forgot: L('忘记密码？', 'Forgot password?'),
+        signInBtn: L('登录', 'Sign in'),
+        noAccount: L('还没有账号？创建一个 →', 'No account yet? Create one →'),
+        or: L('或', 'or'),
+        emailLabel: L('邮箱', 'Email'),
+        emailPlaceholder: L('you@example.com', 'you@example.com'),
+        sentNote: L('已提交，正在验证账号…', 'Submitted — verifying your account…'),
+        legal: L('继续即表示你同意服务条款与隐私政策。', 'By continuing you agree to the Terms and Privacy Policy.'),
+        backHome: L('← 返回首页', '← Back to home')
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -7,6 +7,7 @@ either strands a run or spins it forever — and neither surfaces as an error.
 The model, the persistence layer and the event bus are all stubbed: the subject
 here is the branch taken, not what gets written.
 """
+import asyncio
 import pytest
 
 from agent import processor as P
@@ -28,9 +29,21 @@ class Ctx:
 
 
 class NotAborted:
+    """An abort signal that never fires.
+
+    Needs `wait()` as well as `is_set()`: the processor races each stream chunk
+    against `abort.wait()` so a stop takes effect mid-silence rather than at
+    the next chunk. A never-resolving future is what "not aborted" means to
+    that race.
+    """
+
     @staticmethod
     def is_set():
         return False
+
+    @staticmethod
+    async def wait():
+        await asyncio.Event().wait()
 
 
 @pytest.fixture(autouse=True)

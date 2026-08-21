@@ -107,6 +107,9 @@ class ToolPartData(BaseModel):
     title: str | None = None
     call_id: str = ""  # LLM's original tool_call_id (e.g. "call_xxx" for OpenAI, "functions.name:0" for Kimi)
     duration: float | None = None
+    # Tool-reported extras the UI renders (exit_code, blocked, …). Kept small:
+    # the agent loop uses metadata for control flow too, so only public keys ship.
+    metadata: dict[str, Any] | None = None
     session_id: str = ""
     message_id: str = ""
     state: ToolState | None = None
@@ -168,6 +171,10 @@ class PatchPart(BaseModel):
     type: Literal["patch"] = "patch"
     id: str = Field(default_factory=lambda: ascending("part"))
     files: list[PatchFile] = []
+    # Snapshot range this patch describes, so the UI can fetch exactly this
+    # step's line-level diff instead of the session's cumulative one.
+    from_snapshot: str | None = None
+    to_snapshot: str | None = None
     session_id: str = ""
     message_id: str = ""
 
@@ -178,6 +185,21 @@ class FilePart(BaseModel):
     path: str = ""
     mime_type: str | None = None
     url: str | None = None
+    #: file_assets id when this file travelled through OSS — the UI trades it
+    #: for a fresh preview URL (presigned GETs expire).
+    asset_id: str | None = None
+    #: Exactly where the bytes live in the bucket. Stored rather than derived:
+    #: the object name does not always match the path's basename (a screenshot
+    #: at /tmp/obx-screen.png is stored as screen-<part>.png), and guessing it
+    #: silently 404s — which used to drop the image and leave the model
+    #: describing a screen it never saw.
+    oss_key: str | None = None
+    #: Bytes, when known; lets the card show a size without a round-trip.
+    size: int | None = None
+    #: A frame the agent produced only to look at (a computer-use screenshot).
+    #: These arrive once per action, so context keeps only the newest few —
+    #: unlike a user's attachment, which stays for the whole conversation.
+    transient: bool = False
     session_id: str = ""
     message_id: str = ""
 
@@ -273,6 +295,7 @@ class MessageWithParts(BaseModel):
     summary: bool | None = None
     tokens: TokenUsage | None = None
     error: dict | None = None
+    reaction: str | None = None  # "up" | "down" — user feedback on an answer
     # Structured output: the schema the user asked for, and what came back.
     format: dict | str | None = None
     structured: dict | None = None

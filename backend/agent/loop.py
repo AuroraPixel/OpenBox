@@ -28,13 +28,13 @@ from bus.events import (
 from session.compaction import filter_compacted
 from models.message import (
     SessionStatus, MessageWithParts, TextPart, ReasoningPart, ToolPartData, ToolStatus,
-    StepStartPart, StepFinishPart, TokenUsage, PlanPart,
+    StepStartPart, StepFinishPart, TokenUsage, PlanPart, PatchPart, PatchFile,
 )
 from session.session import (
     get_session, update_session, set_session_status, set_session_title,
     create_assistant_message, update_message_info, save_part, get_messages,
 )
-from session.status import get_abort_signal, clear_abort
+from session.status import register_run, clear_abort
 from snapshot import snapshot
 from tool.tool import ToolContext, ToolResult
 from core.identifier import ascending
@@ -322,7 +322,7 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
         log.error(f"Session {session_id} not found")
         return None
 
-    abort = get_abort_signal(session_id)
+    abort = register_run(session_id)
 
     try:
         # F2: Load persisted permission rules (once per user)
@@ -352,7 +352,22 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
         config = get_config()
         todo_nudge_enabled = bool(getattr(config, "agent_todo_nudge_enabled", True))
         max_todo_nudges = max(0, int(getattr(config, "agent_max_todo_nudges", 3)))
-        model_id = session.model or config.model or "anthropic/claude-sonnet-4-20250514"
+        # A session's stored model can outlive the provider that served it.
+        # Honour it only while the deployment still offers it, and write the
+        # replacement back so the fallback happens once rather than every step.
+        from agent.model_resolve import resolve as resolve_model
+        model_id, replaced_from = resolve_model(session.model, config, context=f"session {session_id}")
+        if replaced_from:
+            log.warning(
+                f"Session {session_id} was on {replaced_from!r}, which this deployment no "
+                f"longer offers; continuing on {model_id!r}"
+            )
+            try:
+                # user_id is required: update_session scopes by owner, and the
+                # default would silently match nothing.
+                await update_session(session_id, user_id=user_id, model=model_id)
+            except Exception as e:
+                log.debug(f"Could not persist model fallback: {e}")
         doom_loop_history = []  # Track tool parts across steps for doom loop detection
         compact_fail_count = 0  # Consecutive compaction failure counter
         finish_reason_prev = ""  # Previous step's finish reason
@@ -433,8 +448,9 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
                 log.warning(f"Session {session_id} exceeded max steps")
                 break
 
-            # Generate title once — only if still default title
-            if step == 1 and session.title and session.title.startswith("New session"):
+            # Generate title once — only if the user hasn't named it yet
+            # (empty, or the legacy "New session - <iso>" default)
+            if step == 1 and (not session.title or session.title.startswith("New session")):
                 asyncio.create_task(_ensure_title(session_id, last_user, user_id=user_id))
 
             # Get agent definition (copy to avoid mutating global)
@@ -501,7 +517,10 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
                 system.append(STRUCTURED_OUTPUT_SYSTEM_PROMPT)
 
             # Convert messages to LLM format
-            llm_messages = _to_llm_messages(msgs)
+            llm_messages = _to_llm_messages(msgs, user_id=user_id)
+            # Fetch the image bytes only here, on the path that actually calls
+            # a vision model — token counting and cron never need them.
+            llm_messages = await resolve_images(llm_messages)
 
             # Determine previous assistant agent for transition detection
             prev_assistant_agent = None
@@ -566,7 +585,7 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
                 message_id=assistant_info.id,
                 snapshot=start_snapshot,
             )
-            await save_part(step_start, user_id=user_id)
+            await save_part(step_start, is_new=True, user_id=user_id)
 
             # Stream LLM response
             # Track consecutive compaction failures to prevent infinite loops
@@ -663,11 +682,41 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
                 message_id=assistant_info.id,
                 snapshot=end_snapshot,
             )
-            await save_part(step_finish, user_id=user_id)
+            await save_part(step_finish, is_new=True, user_id=user_id)
 
-            # Notify frontend of file changes if snapshots differ
+            # Notify frontend of file changes if snapshots differ, and record
+            # which files this step touched as a patch part so the chat can
+            # show a per-turn change card (the session diff alone can't say
+            # which turn made a change).
             if start_snapshot and end_snapshot and start_snapshot != end_snapshot:
                 bus.publish(SESSION_DIFF, {"userId": user_id, "sessionId": session_id})
+                try:
+                    changed = await snapshot.diff(
+                        start_snapshot, end_snapshot, sandbox, session_id=session_id
+                    )
+                    if changed:
+                        await save_part(
+                            PatchPart(
+                                id=ascending("part"),
+                                files=[
+                                    PatchFile(
+                                        path=f.path,
+                                        additions=f.additions,
+                                        deletions=f.deletions,
+                                        status=f.status,
+                                    )
+                                    for f in changed
+                                ],
+                                session_id=session_id,
+                                message_id=assistant_info.id,
+                                from_snapshot=start_snapshot,
+                                to_snapshot=end_snapshot,
+                            ),
+                            is_new=True,
+                            user_id=user_id,
+                        )
+                except Exception as e:
+                    log.warning(f"Failed to record patch part: {e}")
 
             # Upsert PlanPart when plan agent is active
             if agent_name == "plan":
@@ -796,7 +845,7 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
         await set_session_status(session_id, SessionStatus.ERROR, user_id=user_id)
         return None
     finally:
-        clear_abort(session_id)
+        clear_abort(session_id, abort)
 
 
 async def _build_system_prompt(agent_def: AgentDef, model_id: str, workdir: str = "/workspace") -> list[str]:
@@ -851,7 +900,7 @@ async def _build_system_prompt(agent_def: AgentDef, model_id: str, workdir: str 
     return parts
 
 
-def _to_llm_messages(msgs: list[MessageWithParts]) -> list[dict]:
+def _to_llm_messages(msgs: list[MessageWithParts], user_id: str = "default") -> list[dict]:
     """Convert internal messages to LLM API format.
 
     For assistant messages with tool calls, produces proper function-calling format:
@@ -884,6 +933,7 @@ def _to_llm_messages(msgs: list[MessageWithParts]) -> list[dict]:
 
         if role == "user":
             text_parts = []
+            image_urls: list[str] = []
             is_synthetic = False
             is_ignored = False
             for p in parsed:
@@ -899,8 +949,18 @@ def _to_llm_messages(msgs: list[MessageWithParts]) -> list[dict]:
                         is_synthetic = True
                 elif pt == "compaction":
                     text_parts.append("What did we do so far?")
-            if text_parts:
-                user_msg = {"role": "user", "content": "\n\n".join(text_parts)}
+                elif pt == "file":
+                    ref = _image_ref_for_part(p, user_id)
+                    if ref:
+                        image_urls.append(ref)
+            if text_parts or image_urls:
+                user_msg = {"role": "user", "content": "\n\n".join(text_parts) or "(image attached)"}
+                if image_urls:
+                    # Kept out of `content` so reminder/caching/token passes
+                    # stay on plain strings; resolve_images fetches the bytes
+                    # and the provider layer builds multipart content at the
+                    # last moment. A person's attachment is never transient.
+                    user_msg["_images"] = image_urls
                 if is_synthetic:
                     user_msg["_synthetic"] = True
                 if is_ignored:
@@ -912,6 +972,7 @@ def _to_llm_messages(msgs: list[MessageWithParts]) -> list[dict]:
             text_content = ""
             tool_calls_api = []
             tool_results = []
+            image_followups: list[dict] = []
 
             for p in parsed:
                 pt = p.get("type", "")
@@ -979,6 +1040,24 @@ def _to_llm_messages(msgs: list[MessageWithParts]) -> list[dict]:
                         text_content += f"\n\nSubtask ({desc}): {output}"
                     elif desc:
                         text_content += f"\n\nSubtask: {desc}"
+                elif pt == "file":
+                    # view_image output: the tool pushed a workspace image to
+                    # OSS and pinned this part. Tool-role messages can't carry
+                    # images everywhere, so it rides a synthetic user message
+                    # right after the tool results (legal in every API).
+                    ref = _image_ref_for_part(p, user_id)
+                    if ref:
+                        transient = bool(p.get("transient"))
+                        label = "screenshot" if transient else "view_image"
+                        image_followups.append(
+                            {
+                                "role": "user",
+                                "content": f"[{label}] {p.get('path', '')} is attached.",
+                                "_images": [ref],
+                                "_transient_images": transient,
+                                "_synthetic": True,
+                            }
+                        )
 
             if tool_calls_api:
                 # Assistant message with tool_calls
@@ -990,8 +1069,158 @@ def _to_llm_messages(msgs: list[MessageWithParts]) -> list[dict]:
                 result.extend(tool_results)
             elif text_content.strip():
                 result.append({"role": "assistant", "content": text_content.strip()})
+            result.extend(image_followups)
 
-    return result
+    return _cap_images(result)
+
+
+#: Screenshots a computer-use turn produces are ephemeral: one lands after
+#: every action, so an uncapped history grows by a full image per click and
+#: the context (and the bill) blows up within a dozen steps. Only the newest
+#: frames still describe the screen.
+MAX_TRANSIENT_IMAGES = 3
+
+#: Images a person attached, or that the agent deliberately opened with
+#: view_image, are the task itself — a reference mockup must not be evicted by
+#: the screenshot stream. Bounded far more generously, and only as a backstop.
+MAX_DURABLE_IMAGES = 8
+
+
+def _cap_images(messages: list[dict]) -> list[dict]:
+    """Bound how many images reach the model, newest first.
+
+    Transient screenshots and durable attachments get separate budgets: a user
+    who says "make it look like this mockup" must still see the mockup after
+    the agent has clicked four times.
+    """
+    budget = {True: MAX_TRANSIENT_IMAGES, False: MAX_DURABLE_IMAGES}
+    for msg in reversed(messages):
+        images = msg.get("_images")
+        if not images:
+            continue
+        transient = bool(msg.get("_transient_images"))
+        allowance = budget[transient]
+        if allowance <= 0:
+            kept: list = []
+        else:
+            kept = images[-allowance:]
+        budget[transient] = allowance - len(kept)
+        dropped = len(images) - len(kept)
+        if kept:
+            msg["_images"] = kept
+        else:
+            msg.pop("_images", None)
+        if dropped:
+            label = "screenshot" if transient else "image"
+            note = f"[{dropped} older {label}{'s' if dropped > 1 else ''} omitted]"
+            content = msg.get("content")
+            msg["content"] = f"{content} {note}".strip() if isinstance(content, str) else note
+    return messages
+
+
+#: asset_id -> data URI. Asset content is immutable, so this never goes stale;
+#: bounded because a long computer-use session mints an asset per action.
+_IMAGE_CACHE: dict[str, str] = {}
+_IMAGE_CACHE_MAX = 64
+
+
+def _image_ref_for_part(p: dict, user_id: str) -> dict | None:
+    """Identify an image file part, without doing any I/O.
+
+    Message assembly is synchronous and shared with token counting and cron,
+    so it only records WHICH image is needed; `resolve_images` fetches the
+    bytes later, on the path that actually calls a vision model.
+    """
+    if not p.get("asset_id") or not str(p.get("mime_type", "")).startswith("image/"):
+        return None
+    # Older parts predate oss_key; their object name did match the basename.
+    key = p.get("oss_key") or f"assets/{user_id}/{p['asset_id']}/{str(p.get('path', '')).split('/')[-1]}"
+    return {
+        "asset_id": p["asset_id"],
+        "key": key,
+        "mime": p.get("mime_type") or "image/png",
+    }
+
+
+async def resolve_images(messages: list[dict]) -> list[dict]:
+    """Turn image references into inline base64 data URIs.
+
+    Deliberately NOT presigned URLs. Several providers (Vertex-backed Gemini
+    among them) fetch an image URL server-side, which then depends on their
+    crawler reaching our OSS bucket — and it does not: the bucket answers 403
+    on /robots.txt, and the provider reports URL_ERROR-ERROR_NOT_FOUND rather
+    than reading the image. Inlining the bytes removes that entire class of
+    failure and works the same on every provider. The bytes travel backend →
+    provider; the SSH tunnel to the desktop is never involved.
+
+    An image that cannot be fetched is dropped rather than raised — losing a
+    frame beats failing the whole turn.
+    """
+    import asyncio as _asyncio
+    import base64
+
+    import httpx
+
+    refs: dict[str, dict] = {}
+    for msg in messages:
+        for ref in msg.get("_images") or []:
+            if isinstance(ref, dict) and ref["asset_id"] not in _IMAGE_CACHE:
+                refs[ref["asset_id"]] = ref
+
+    if refs:
+        try:
+            from core.oss import get_oss
+            oss = get_oss()
+
+            async def fetch(ref: dict) -> tuple[str, str | None]:
+                try:
+                    url = oss.presign_get(ref["key"], expires_sec=300)
+                    async with httpx.AsyncClient(timeout=30) as client:
+                        resp = await client.get(url)
+                    if resp.status_code != 200:
+                        log.warning(f"image {ref['asset_id']} fetch: HTTP {resp.status_code}")
+                        return ref["asset_id"], None
+                    encoded = base64.b64encode(resp.content).decode()
+                    return ref["asset_id"], f"data:{ref['mime']};base64,{encoded}"
+                except Exception as e:
+                    log.warning(f"image {ref['asset_id']} fetch failed: {e}")
+                    return ref["asset_id"], None
+
+            for asset_id, uri in await _asyncio.gather(*(fetch(r) for r in refs.values())):
+                if uri:
+                    _IMAGE_CACHE[asset_id] = uri
+        except Exception as e:
+            log.warning(f"image resolution unavailable: {e}")
+
+    while len(_IMAGE_CACHE) > _IMAGE_CACHE_MAX:
+        _IMAGE_CACHE.pop(next(iter(_IMAGE_CACHE)))
+
+    for msg in messages:
+        images = msg.get("_images")
+        if not images:
+            continue
+        resolved = [
+            _IMAGE_CACHE[ref["asset_id"]]
+            for ref in images
+            if isinstance(ref, dict) and ref["asset_id"] in _IMAGE_CACHE
+        ]
+        missing = len(images) - len(resolved)
+        if resolved:
+            msg["_images"] = resolved
+        else:
+            msg.pop("_images", None)
+        if missing:
+            # Say so out loud. Silently dropping an image leaves the model
+            # believing it looked at a screen it never saw, and it then
+            # confidently describes something imaginary — which is exactly
+            # how a broken object key went unnoticed here.
+            note = (
+                f"[{missing} image{'s' if missing > 1 else ''} could not be loaded and "
+                "cannot be seen — say so instead of guessing what it showed]"
+            )
+            content = msg.get("content")
+            msg["content"] = f"{content} {note}".strip() if isinstance(content, str) else note
+    return messages
 
 
 async def _insert_reminders(

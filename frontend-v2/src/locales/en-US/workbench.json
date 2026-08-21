@@ -1,0 +1,80 @@
+{
+  "tabs": {
+    "new": "New tab",
+    "review": "Review",
+    "terminal": "Terminal",
+    "browser": "Browser",
+    "files": "Files",
+    "desktop": "Cloud desktop"
+  },
+  "panel": {
+    "collapse": "Collapse panel"
+  },
+  "menu": {
+    "review": "Review",
+    "terminal": "Terminal",
+    "browser": "Browser",
+    "files": "Files",
+    "pending_one": "{{count}} pending",
+    "pending_other": "{{count}} pending",
+    "clean": "No changes",
+    "online": "Sandbox online",
+    "desktop": "Cloud desktop"
+  },
+  "sandbox": {
+    "none": "No running sandbox",
+    "create": "Create sandbox"
+  },
+  "review": {
+    "lastChanges": "This turn's changes",
+    "empty": "No changes yet",
+    "emptyHint": "When the agent edits files, the diff shows up here.",
+    "skippedNew": "New file",
+    "skippedDeleted": "Whole file deleted",
+    "unchanged_one": "{{count}} line unchanged",
+    "unchanged_other": "{{count}} lines unchanged",
+    "openInFiles": "Open in Files"
+  },
+  "terminal": {
+    "empty": "No running sandbox",
+    "emptyHint": "Create a sandbox to open a terminal.",
+    "connecting": "Connecting to the terminal…",
+    "disconnected": "Terminal disconnected"
+  },
+  "browser": {
+    "placeholder": "Type a URL and press Enter",
+    "empty": "Page view",
+    "loading": "Opening…",
+    "failed": "The page failed to load"
+  },
+  "files": {
+    "filter": "Filter files…",
+    "fileList": "File list",
+    "copyPath": "Copy path",
+    "pathCopied": "Path copied",
+    "viewSource": "View source",
+    "empty": "No files in the sandbox yet",
+    "loadFailed": "Failed to read",
+    "binary": "Binary file — no preview",
+    "tooLarge": "File is large — showing the first {{limit}} lines",
+    "pickFile": "Pick a file to view",
+    "notSupported": "Preview not supported"
+  },
+  "desktop": {
+    "loading": "Connecting to the cloud desktop…",
+    "connected": "Connected",
+    "closed": "Connection closed",
+    "error": "Unable to connect",
+    "unavailable": "Cloud desktop is unavailable",
+    "sdkFailed": "Failed to load the desktop component",
+    "reconnect": "Reconnect",
+    "allowControl": "Allow control",
+    "readonly": "Watching read-only · tick “Allow control” to take over",
+    "controlOn": "You are in control",
+    "frameTitle": "Cloud desktop view",
+    "clipboard": "Sync clipboard",
+    "upload": "Upload a file to the desktop",
+    "fullscreen": "Fullscreen",
+    "exitFullscreen": "Exit fullscreen"
+  }
+}

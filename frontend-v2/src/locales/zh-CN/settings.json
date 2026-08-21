@@ -1,0 +1,77 @@
+{
+  "title": "设置",
+  "subtitle": "账号与偏好",
+  "nav": { "account": "账号", "usage": "用量与消耗", "models": "模型", "tools": "工具与权限", "browser": "浏览器", "appearance": "外观" },
+  "hint": {
+    "account": "登录方式、身份和会话。",
+    "usage": "各会话的 token 消耗与费用。",
+    "models": "默认模型和 agent 的选型。",
+    "tools": "哪些动作可以不经确认直接执行。",
+    "browser": "选择 agent 用哪个浏览器访问网页。",
+    "appearance": "语言、主题、颜色模式和字号。"
+  },
+  "account": {
+    "username": "用户名",
+    "email": "邮箱",
+    "emailNone": "未绑定",
+    "role": "角色",
+    "userId": "用户 ID"
+  },
+  "usage": {
+    "contextUsed": "当前会话上下文",
+    "totalTokens": "累计 tokens",
+    "totalCost": "累计费用",
+    "sessions_one": "共 {{count}} 条对话",
+    "sessions_other": "共 {{count}} 条对话",
+    "note": "统计范围为当前账号下的全部会话，费用按模型定价估算。",
+    "perSession": "各会话消耗",
+    "empty": "还没有会话消耗记录"
+  },
+  "models": {
+    "defaultModel": "默认模型",
+    "defaultModelHint": "新对话默认使用。",
+    "defaultAgent": "默认 agent",
+    "defaultAgentHint": "新对话使用的 agent 配置。"
+  },
+  "tools": {
+    "skills": "Skill",
+    "skillsHint": "已安装 {{count}} 个",
+    "mcp": "MCP 服务",
+    "mcpHint": "已连接 {{count}} 个",
+    "mcpNone": "未连接 MCP 服务",
+    "permissionNote": "工具执行权限在对话中逐次确认；实际拦截由后端执行。"
+  },
+  "browser": {
+    "mode": { "auto": "自动", "local": "云端浏览器", "remote": "我的浏览器" },
+    "desc": {
+      "auto": "优先使用你自己的浏览器，未连接时自动切换到云端浏览器。",
+      "local": "始终使用云端桌面上的 Chrome，无需安装扩展，但没有你的登录状态。",
+      "remote": "通过扩展使用你自己电脑上的 Chrome，带有你的登录状态，需保持扩展连接。"
+    },
+    "status": {
+      "title": "当前状态",
+      "remote": "我的浏览器",
+      "local": "云端浏览器",
+      "connected": "已连接",
+      "disconnected": "未连接",
+      "available": "可用",
+      "unavailable": "不可用"
+    },
+    "fallbackHint": "扩展尚未连接，在连接之前将暂时使用云端浏览器。"
+  },
+  "appearance": {
+    "language": "语言 / Language",
+    "langZh": "简体中文",
+    "langEn": "English",
+    "current": "当前",
+    "theme": "主题",
+    "themeDefault": "默认",
+    "colorMode": "颜色模式",
+    "light": "浅色",
+    "system": "跟随系统",
+    "dark": "深色",
+    "fontSize": "字体大小",
+    "fs": { "sm": "小号", "base": "标准", "md": "中号", "lg": "大号" },
+    "temp": { "warm": "warm", "cool": "cool", "neutral": "neutral" }
+  }
+}

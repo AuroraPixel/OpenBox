@@ -102,7 +102,21 @@ class OpenBoxConfig(BaseModel):
     # a tunnel. OpenBox never creates or destroys it.
     wuying_endpoint: str = "http://127.0.0.1:18000"
     wuying_api_key: str = ""                        # must match SESSION_API_KEY on the desktop
-    wuying_desktop_id: str = ""                     # ecd-... , informational only
+    wuying_desktop_id: str = ""                     # ecd-... , used by the desktop-view ticket API
+    wuying_region_id: str = "cn-hangzhou"           # region the desktop lives in
+    wuying_end_user_id: str = ""                    # Wuying end user the web view logs in as
+
+    # -- Browser automation on the cloud desktop --
+    # local=drive a headed Chrome on the cloud desktop over CDP; extension=drive
+    # the user's own browser through the dev-browser relay; auto=prefer the
+    # user's browser but fall back to the cloud one when it disconnects.
+    browser_mode: str = "auto"
+    browser_chrome_port: int = 9333                 # remote-debugging port of the desktop-local Chrome
+
+    # -- OSS asset transfer (browser -> OSS -> cloud desktop) --
+    oss_bucket: str = ""                            # empty = OSS transfer disabled
+    oss_region: str = "cn-hangzhou"
+    oss_endpoint: str = ""                          # default oss-{region}.aliyuncs.com
 
     # -- Multi-user infrastructure --
     database_url: str = "postgresql+asyncpg://openbox:openbox@localhost:5432/openbox"
@@ -121,7 +135,10 @@ class OpenBoxConfig(BaseModel):
     jwt_refresh_expire_days: int = 7
     max_containers_per_user: int = 5
     max_sessions_per_user: int = 200
-    max_concurrent_agents: int = 1
+    # Concurrent agent runs per user. One meant a second conversation could not
+    # start while the first was still thinking — the common case of parking a
+    # long task and working on something else was simply blocked.
+    max_concurrent_agents: int = 5
     monthly_cost_limit: float = 50.0
     rate_limit_login: str = "5/minute"
     rate_limit_api: str = "60/minute"
@@ -293,6 +310,13 @@ def _apply_env_overrides(data: dict) -> dict:
         "wuying_endpoint": "WUYING_ENDPOINT",
         "wuying_api_key": "WUYING_API_KEY",
         "wuying_desktop_id": "WUYING_DESKTOP_ID",
+        "wuying_region_id": "WUYING_REGION_ID",
+        "wuying_end_user_id": "WUYING_END_USER_ID",
+        "browser_mode": "BROWSER_MODE",
+        "browser_chrome_port": "BROWSER_CHROME_PORT",
+        "oss_bucket": "OSS_BUCKET",
+        "oss_region": "OSS_REGION",
+        "oss_endpoint": "OSS_ENDPOINT",
         "database_url": "DATABASE_URL",
         "db_pool_size": "DB_POOL_SIZE",
         "db_pool_overflow": "DB_POOL_OVERFLOW",
@@ -328,7 +352,7 @@ def _apply_env_overrides(data: dict) -> dict:
                 data[field_name] = int(value)
             elif field_name in {"db_pool_size", "db_pool_overflow", "jwt_access_expire_minutes",
                                 "jwt_refresh_expire_days", "max_containers_per_user", "max_sessions_per_user",
-                                "max_concurrent_agents"}:
+                                "max_concurrent_agents", "browser_chrome_port"}:
                 data[field_name] = int(value)
             elif field_name == "monthly_cost_limit":
                 data[field_name] = float(value)

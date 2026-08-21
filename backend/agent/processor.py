@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
 from dataclasses import dataclass, field
 from enum import Enum
@@ -39,6 +40,25 @@ from session.session import get_messages, save_part, update_message_info, update
 from tool.tool import ToolContext
 
 log = create_logger("agent.processor")
+
+#: Tool-call ids we persist are bounded and sanitised. OpenAI's Responses API
+#: accepts at most 64 characters and only letters, digits, underscore and dash;
+#: history is replayed to whichever provider is configured now, not the one
+#: that produced it. Gemini's ids violate both rules — a kilobytes-long base64
+#: thought signature — so an unfiltered id poisons the conversation for every
+#: later provider.
+MAX_CALL_ID = 64
+_CALL_ID_ILLEGAL = re.compile(r"[^A-Za-z0-9_-]")
+
+
+def sanitize_call_id(raw: str) -> str:
+    """A provider-portable form of a tool-call id.
+
+    Only has to stay unique within one assistant turn, so replacing illegal
+    characters and clipping is enough — and it must stay deterministic, since
+    the id is what pairs a call with its result.
+    """
+    return _CALL_ID_ILLEGAL.sub("_", raw or "")[:MAX_CALL_ID]
 
 
 class StepOutcome(str, Enum):
@@ -66,6 +86,48 @@ class StepResult:
     retry_reason: str | None = None
     error: str | None = None
     duration: float = 0.0
+
+
+async def _iter_until_abort(stream, abort: asyncio.Event):
+    """Yield stream events until exhaustion OR abort — whichever comes first.
+
+    The old `async for … if abort.is_set(): break` pattern only noticed an
+    abort after the NEXT chunk arrived, so a model silently composing a long
+    tool call ignored the stop button for the whole silence. Racing each
+    __anext__ against abort.wait() reacts immediately, and closing the
+    generator tears down the provider's HTTP stream — opencode's AbortSignal
+    semantics (its abort cancels the in-flight request, not just a flag).
+    """
+    import contextlib
+
+    if abort.is_set():
+        await stream.aclose()
+        return
+    abort_task = asyncio.create_task(abort.wait())
+    try:
+        while True:
+            next_task = asyncio.create_task(anext(stream))
+            done, _ = await asyncio.wait({next_task, abort_task}, return_when=asyncio.FIRST_COMPLETED)
+            if next_task not in done:
+                next_task.cancel()
+                with contextlib.suppress(BaseException):
+                    await next_task
+                with contextlib.suppress(BaseException):
+                    await stream.aclose()
+                return
+            try:
+                event = next_task.result()
+            except StopAsyncIteration:
+                return
+            yield event
+            if abort.is_set():
+                with contextlib.suppress(BaseException):
+                    await stream.aclose()
+                return
+    finally:
+        abort_task.cancel()
+        with contextlib.suppress(BaseException):
+            await abort_task
 
 
 async def _history_for_compaction(session_id: str) -> list:
@@ -115,7 +177,7 @@ async def process_step(
     step_start_time = time.time()
 
     try:
-        async for event in stream_llm(
+        llm_stream = stream_llm(
             agent_def=agent_def,
             system=system,
             messages=llm_messages,
@@ -125,10 +187,8 @@ async def process_step(
             hooks=hooks,
             variant=user_variant,
             tool_choice=tool_choice,
-        ):
-            if abort.is_set():
-                break
-
+        )
+        async for event in _iter_until_abort(llm_stream, abort):
             if event["type"] == "reasoning_delta":
                 text = event["text"]
                 collected_reasoning += text
@@ -233,7 +293,14 @@ async def process_step(
 
             # Preserve the LLM's original call_id for accurate matching.
             # Kimi uses "functions.name:idx", OpenAI uses "call_xxxx".
-            llm_call_id = tc_event.get("call_id", "")
+            #
+            # Bounded, because this is persisted and later replayed — possibly
+            # to a different provider. Gemini packs an encrypted thought
+            # signature into the id (kilobytes of it), and OpenAI's Responses
+            # API rejects any id over 64 characters, so an unbounded id poisons
+            # the conversation for every future provider. The id only has to be
+            # unique within one assistant turn, so the head is enough.
+            llm_call_id = sanitize_call_id(tc_event.get("call_id", ""))
 
             # Reuse the streaming part_id if we already created one during
             # LLM streaming, otherwise create a new part.
@@ -280,13 +347,26 @@ async def process_step(
                 await save_part(tool_part, user_id=user_id)
                 continue
 
-            # Execute via hooks (passes part_id for SSE events)
+            # Execute via hooks (passes part_id for SSE events). Raced against
+            # abort so the stop button interrupts a running command instead of
+            # waiting it out — the abandoned part is finalised as interrupted
+            # by the loop's cleanup, mirroring opencode.
             tool_info = tools.get(tool_name)
             if tool_info:
-                result = await hooks.wrap_execute(
-                    tool_name, tool_info.execute, tool_args, ctx,
-                    part_id=tool_part.id,
+                exec_task = asyncio.create_task(
+                    hooks.wrap_execute(tool_name, tool_info.execute, tool_args, ctx, part_id=tool_part.id)
                 )
+                abort_task = asyncio.create_task(abort.wait())
+                done, _ = await asyncio.wait({exec_task, abort_task}, return_when=asyncio.FIRST_COMPLETED)
+                abort_task.cancel()
+                if exec_task not in done:
+                    exec_task.cancel()
+                    try:
+                        await exec_task
+                    except (asyncio.CancelledError, Exception):
+                        pass
+                    break
+                result = exec_task.result()
 
                 # Check for agent_switch metadata
                 agent_switch = result.metadata.get("agent_switch")
@@ -307,6 +387,10 @@ async def process_step(
                 tool_part.output = result.output
                 tool_part.title = result.title
                 tool_part.error = result.output if result.metadata.get("error") else None
+                tool_part.metadata = {
+                    k: v for k, v in (result.metadata or {}).items()
+                    if k in ("exit_code", "blocked", "truncated", "count", "duration")
+                }
                 await save_part(tool_part, user_id=user_id)
 
                 # Track for doom loop detection (across steps)

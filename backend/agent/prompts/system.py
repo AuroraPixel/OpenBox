@@ -39,14 +39,46 @@ _INTERNET_AND_BROWSER = """\
 - `web_search` — find information, look up docs, discover URLs. Best for: factual queries, finding pages, news.
 - `web_fetch` — read a specific URL's content. Best for: reading docs, static pages, API references.
 - `skill("dev-browser")` — control a real browser (click, fill forms, scrape JS-rendered pages, screenshots). Best for: login flows, dynamic SPAs, form submissions. Load this skill for full instructions.
-- Choose the simplest tool first: `web_search` for discovery → `web_fetch` for reading → `skill("dev-browser")` only when interaction or JS rendering is required."""
+- Choose the simplest tool first: `web_search` for discovery → `web_fetch` for reading → `skill("dev-browser")` only when interaction or JS rendering is required.
+
+## Browser work goes through dev-browser, not the screen
+For anything happening inside a web page, use `skill("dev-browser")` — never drive the
+browser by taking screenshots and clicking coordinates with the `computer` tool. The
+skill reads the page structure directly, so it costs an order of magnitude fewer tokens
+and clicks the element you meant instead of a guessed pixel. Reach for `computer` only
+for what lives outside the page: native desktop apps, OS dialogs, the file manager — or
+as a fallback for something the page's structure genuinely cannot express, like a canvas
+drawing.
+
+One exception matters: a dialog the BROWSER draws — an app hand-off prompt, a file
+picker, a print sheet — is not part of the page, so no script can dismiss it and the
+run just hangs. When two script attempts in a row time out, take a screenshot with
+`computer`, dismiss the dialog (Escape, or click its Cancel button), then go back to
+dev-browser; the page kept its state. This works only when the browser is the cloud
+desktop's own — see the skill for the details.
+
+## Which browser you are driving
+dev-browser runs in one of two modes, and the user chooses in Settings:
+- **local** — Chrome on this cloud desktop. Always available, but it is not the user's
+  browser: it has none of their logins.
+- **remote** — the user's OWN Chrome, through a browser extension. It carries their real
+  sessions, so it is the only way to reach anything they are logged into.
+`auto` prefers the user's own browser and falls back to the cloud one when the extension
+is not connected. The skill reports the mode it resolved to; check it when the outcome
+depends on identity.
+
+If a task needs the user's own logged-in session (their email, their bank, an account
+only they can reach) and you are running on the cloud browser, stop and ask the user
+whether to connect their own browser or to log in on the cloud one — do not silently
+attempt it and hit a login wall."""
 
 _TOOL_FIRST = """\
 # Tool-First Principle
 CRITICAL: Before writing ANY code, check if a built-in tool can solve the task directly:
 - Scheduled/periodic tasks → use `cron` tool (NOT crontab/systemd/code)
 - Web research → use `web_search` / `web_fetch` (NOT writing a scraper)
-- Browser interaction → use `skill("dev-browser")` (NOT writing Puppeteer/Selenium code)
+- Browser interaction → use `skill("dev-browser")` (NOT writing Puppeteer/Selenium code, NOT clicking pixels with `computer`, NOT launching your own headless browser — the desktop's is already open and the user may be watching it)
+- Desktop GUI outside a browser → use `computer` (NOT xdotool/scrot through bash)
 - File operations → use Read/Edit/Write/Glob/Grep (NOT bash cat/sed/awk)
 Only write code when no built-in tool can accomplish the task."""
 

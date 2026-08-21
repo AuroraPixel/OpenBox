@@ -1,0 +1,209 @@
+{
+  "thinking": "正在想…",
+  "thoughtFor": "想了 {{duration}}",
+  "thought": "思考过程",
+  "process": "过程",
+  "processSummary": "{{count}} 步 · 共 {{duration}}",
+  "sources": "来源",
+  "reviewGo": "审阅 →",
+  "copy": "复制",
+  "copied": "已复制",
+  "regen": "重新生成",
+  "outputs_one": "产出 {{count}} 个文件",
+  "outputs_other": "产出 {{count}} 个文件",
+  "changedFiles_one": "改了 {{count}} 个文件",
+  "changedFiles_other": "改了 {{count}} 个文件",
+  "changedFile": "改了 {{path}}",
+  "kind": {
+    "skill": "加载 Skill",
+    "glob": "找文件",
+    "read": "读文件",
+    "bash": "执行命令",
+    "grep": "搜索",
+    "webSearch": "搜索",
+    "webFetch": "调研",
+    "mcp": "调用工具",
+    "edit": "编辑文件",
+    "write": "写文件",
+    "task": "子任务",
+    "todo": "计划",
+    "question": "提问",
+    "tool": "工具"
+  },
+  "toolMeta": {
+    "exit": "exit {{code}}",
+    "running": "运行中",
+    "failed": "失败"
+  },
+  "plan": {
+    "title": "任务计划",
+    "stepCounter": "第 {{current}} / {{total}} 步",
+    "stop": "停止",
+    "addStep": "＋ 加一步",
+    "review": {
+      "title": "计划待确认",
+      "accept": "按计划执行",
+      "reject": "回到讨论"
+    }
+  },
+  "permission": {
+    "title": "请求权限",
+    "body": "agent 想要执行以下操作：",
+    "allow": "允许",
+    "allowAlways": "始终允许",
+    "deny": "拒绝"
+  },
+  "question": {
+    "title": "agent 想确认",
+    "reject": "拒绝"
+  },
+  "compaction": "上下文已压缩",
+  "retry": "第 {{attempt}} 次重试",
+  "agentSwitch": "切换到 {{agent}}",
+  "subtask": "子任务 · {{agent}}",
+  "stopGen": "停止生成",
+  "attach": "附件",
+  "send": "发送",
+  "composerIdle": "今天想做点什么？",
+  "composerRunning": "运行中，仍可插话…",
+  "model": {
+    "pick": "切换模型",
+    "hints": {
+      "balanced": "均衡",
+      "deep": "深度",
+      "fast": "快"
+    }
+  },
+  "codeCopy": "复制",
+  "scrollBottom": "回到底部",
+  "empty": "开始向 agent 描述你的任务",
+  "processSummaryShort": "{{count}} 步",
+  "attachTitle": "附件（上传到沙箱）",
+  "attachNeedSandbox": "需要运行中的沙箱才能上传附件",
+  "attachUploading": "上传中…",
+  "attachFailed": "上传失败",
+  "attachTooLarge": "文件超过 8 MB",
+  "trace": {
+    "process": {
+      "titleActive": "处理中",
+      "titleDone": "处理完成",
+      "prepared": "准备 {{tokens}} tokens 上下文",
+      "stageContext": "上下文规划",
+      "stageResult": "请求结果",
+      "contextTokens": "本轮上下文 {{tokens}} tokens",
+      "duration": "耗时 {{duration}}"
+    },
+    "think": {
+      "titleActive": "正在思考",
+      "titleDone": "思考完成",
+      "subtitleActive": "正在解析问题并梳理关键信息",
+      "subtitleDone": "已理解并完成相关信息整合与推理"
+    },
+    "tool": {
+      "titleActive": "工具调用中",
+      "titleDone": "工具调用",
+      "summaryCount_one": "{{count}} 次工具调用",
+      "summaryCount_other": "{{count}} 次工具调用",
+      "expand": "展开",
+      "collapse": "收起",
+      "statusRunning": "调用中",
+      "statusFailed": "失败"
+    }
+  },
+  "meta": {
+    "copyReply": "复制",
+    "copied": "已复制",
+    "likeReply": "点赞",
+    "dislikeReply": "点踩",
+    "forkMessage": "复刻到新对话",
+    "forking": "正在复刻…",
+    "model": "模型",
+    "inputTokens": "输入 tokens",
+    "outputTokens": "输出 tokens",
+    "cacheTokens": "缓存 tokens",
+    "cost": "本次调用费用",
+    "generationDuration": "生成用时",
+    "totalDuration": "总用时",
+    "expandMessage": "展开全文",
+    "collapseMessage": "收起",
+    "errorTitle": "这一轮出错了"
+  },
+  "toolDetail": {
+    "request": "请求",
+    "response": "响应",
+    "error": "错误",
+    "expand": "展开",
+    "collapse": "收起",
+    "query": "关键词",
+    "action": "动作",
+    "source": "来源",
+    "sources": "来源",
+    "command": "命令",
+    "output": "输出",
+    "exitCode": "退出码",
+    "path": "路径",
+    "pattern": "匹配式",
+    "matches": "匹配",
+    "content": "内容",
+    "diff": "改动",
+    "arguments": "参数",
+    "result": "结果",
+    "truncated": "输出已截断",
+    "sourceFallback": "来源 {{index}}"
+  },
+  "toolStatus": {
+    "running": "调用中",
+    "completed": "已完成",
+    "failed": "失败"
+  },
+  "markdown": {
+    "expandCode": "展开代码",
+    "collapseCode": "收起代码",
+    "lines": "{{count}} 行"
+  },
+  "composer": {
+    "placeholder": "输入消息，或用 / 添加上下文，@ 添加资源",
+    "placeholderRunning": "运行中，仍可插话…",
+    "dropTitle": "松手即可上传到沙箱",
+    "send": "发送",
+    "stop": "停止生成",
+    "tools": "更多",
+    "uploadFile": "上传文件",
+    "screenshot": "屏幕截图",
+    "screenshotFailed": "截图失败或已取消",
+    "mention": {
+      "files": "文件",
+      "skills": "技能",
+      "commands": "命令",
+      "empty": "没有匹配项",
+      "needSandbox": "需要运行中的沙箱",
+      "loading": "查找中…"
+    },
+    "sendShortcut": {
+      "label": "发送快捷键",
+      "enter": "Enter 发送",
+      "modEnter": "⌘/Ctrl + Enter 发送",
+      "hintEnter": "Enter 发送 · Shift+Enter 换行",
+      "hintModEnter": "⌘/Ctrl+Enter 发送 · Enter 换行"
+    }
+  },
+  "diff": {
+    "unmodified_one": "{{count}} 行未修改",
+    "unmodified_other": "{{count}} 行未修改",
+    "more_one": "还有 {{count}} 处改动 · 点击审阅",
+    "more_other": "还有 {{count}} 处改动 · 点击审阅",
+    "loading": "正在读取改动…",
+    "empty": "没有可预览的行改动",
+    "openReview": "在侧栏审阅"
+  },
+  "attachOpen": "打开附件",
+  "gallery": {
+    "open": "打开 {{name}}",
+    "download": "下载",
+    "close": "关闭",
+    "failed": "加载失败",
+    "more_one": "还有 {{count}} 张",
+    "more_other": "还有 {{count}} 张",
+    "less": "收起"
+  }
+}

@@ -55,13 +55,16 @@ def register_builtin_tools() -> None:
     from tool.invalid import invalid_tool
     from tool.multiedit import multiedit_tool
     from tool.cron_tool import cron_tool
+    from tool.view_image import view_image_tool
+    from tool.computer import computer_tool
+    from tool.browser_mode import browser_mode_tool
 
     for tool in [
         bash_tool, read_tool, write_tool, edit_tool, apply_patch_tool,
         glob_tool, grep_tool, task_tool, batch_tool, question_tool,
         todo_write_tool, todo_read_tool, plan_enter_tool, plan_exit_tool,
         skill_tool, web_fetch_tool, web_search_tool, invalid_tool,
-        multiedit_tool, cron_tool,
+        multiedit_tool, cron_tool, view_image_tool, computer_tool, browser_mode_tool,
     ]:
         register(tool)
 

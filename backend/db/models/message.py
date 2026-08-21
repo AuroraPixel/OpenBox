@@ -28,6 +28,7 @@ class Message(Base):
     finish: Mapped[str | None] = mapped_column(String(32), nullable=True)
     summary: Mapped[bool | None] = mapped_column(Boolean, server_default="false")
     error: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
+    reaction: Mapped[str | None] = mapped_column(String(8), nullable=True)  # "up" | "down"
     structured: Mapped[dict | None] = mapped_column(JSONType, nullable=True)  # StructuredOutput payload
     created_at: Mapped[datetime] = mapped_column(nullable=False)
 

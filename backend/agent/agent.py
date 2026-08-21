@@ -113,7 +113,8 @@ AGENTS: dict[str, AgentDef] = {
         tools=[
             "bash", "read", "write", "edit", "multiedit", "apply_patch", "glob", "grep",
             "task", "batch", "question", "todo_write", "todo_read",
-            "plan_enter", "skill", "web_fetch", "web_search", "cron",
+            "plan_enter", "skill", "web_fetch", "web_search", "cron", "view_image",
+            "computer", "browser_mode",
         ],
         max_steps=200,
         # prompt is None — dynamically selected based on model_id
@@ -130,7 +131,7 @@ AGENTS: dict[str, AgentDef] = {
         tools=[
             "bash", "read", "write", "edit", "multiedit", "apply_patch", "glob", "grep",
             "task", "batch", "question", "plan_exit",
-            "web_fetch", "web_search",
+            "web_fetch", "web_search", "view_image", "browser_mode",
         ],
         permission=[
             # Override defaults: plan agent can ask questions and exit plan mode
@@ -148,7 +149,7 @@ AGENTS: dict[str, AgentDef] = {
     "explore": AgentDef(
         name="explore",
         description='Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns (eg. "src/components/**/*.tsx"), search code for keywords (eg. "API endpoints"), or answer questions about the codebase (eg. "how do API endpoints work?"). When calling this agent, specify the desired thoroughness level: "quick" for basic searches, "medium" for moderate exploration, or "very thorough" for comprehensive analysis across multiple locations and naming conventions.',
-        tools=["bash", "read", "glob", "grep", "web_fetch", "web_search"],
+        tools=["bash", "read", "glob", "grep", "web_fetch", "web_search", "view_image"],
         max_steps=20,
         mode="subagent",
         prompt=PROMPT_EXPLORE,
@@ -163,7 +164,7 @@ AGENTS: dict[str, AgentDef] = {
         description="General-purpose agent for researching complex questions and executing multi-step tasks. Use this agent to execute multiple units of work in parallel.",
         tools=[
             "bash", "read", "write", "edit", "multiedit", "glob", "grep",
-            "web_fetch", "web_search",
+            "web_fetch", "web_search", "view_image", "computer", "browser_mode",
         ],
         max_steps=100,
         mode="subagent",

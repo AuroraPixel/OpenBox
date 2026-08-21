@@ -209,6 +209,15 @@ def create_app() -> FastAPI:
     from api.cron import router as cron_router
     application.include_router(cron_router)
 
+    from api.desktop import router as desktop_router
+    application.include_router(desktop_router)
+
+    from api.browser import router as browser_router
+    application.include_router(browser_router)
+
+    from api.assets import router as assets_router
+    application.include_router(assets_router)
+
     # ── Agent routes ──
     agent_router = APIRouter(prefix="/api/agent", tags=["Agent"])
 

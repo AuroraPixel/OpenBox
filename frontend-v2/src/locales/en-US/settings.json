@@ -1,0 +1,77 @@
+{
+  "title": "Settings",
+  "subtitle": "Account & preferences",
+  "nav": { "account": "Account", "usage": "Usage & cost", "models": "Models", "tools": "Tools & permissions", "browser": "Browser", "appearance": "Appearance" },
+  "hint": {
+    "account": "Sign-in identity and session.",
+    "usage": "Token consumption and cost per chat.",
+    "models": "Default model and agent picks.",
+    "tools": "Which actions may run without confirmation.",
+    "browser": "Choose which browser the agent uses to open web pages.",
+    "appearance": "Language, theme, color mode and type size."
+  },
+  "account": {
+    "username": "Username",
+    "email": "Email",
+    "emailNone": "Not linked",
+    "role": "Role",
+    "userId": "User ID"
+  },
+  "usage": {
+    "contextUsed": "Current chat context",
+    "totalTokens": "Total tokens",
+    "totalCost": "Total cost",
+    "sessions_one": "{{count}} chat",
+    "sessions_other": "{{count}} chats",
+    "note": "Covers every chat under this account; cost is estimated from model pricing.",
+    "perSession": "Per-chat consumption",
+    "empty": "No consumption recorded yet"
+  },
+  "models": {
+    "defaultModel": "Default model",
+    "defaultModelHint": "Used for new chats.",
+    "defaultAgent": "Default agent",
+    "defaultAgentHint": "Agent preset for new chats."
+  },
+  "tools": {
+    "skills": "Skills",
+    "skillsHint": "{{count}} installed",
+    "mcp": "MCP servers",
+    "mcpHint": "{{count}} connected",
+    "mcpNone": "No MCP servers connected",
+    "permissionNote": "Tool permissions are confirmed per action in chat; enforcement happens on the backend."
+  },
+  "browser": {
+    "mode": { "auto": "Auto", "local": "Cloud browser", "remote": "My browser" },
+    "desc": {
+      "auto": "Prefer your own browser, and fall back to the cloud browser when it isn't connected.",
+      "local": "Always use Chrome on the cloud desktop — no extension needed, but without your logins.",
+      "remote": "Use Chrome on your own computer through the extension, with your logins; keep the extension connected."
+    },
+    "status": {
+      "title": "Current status",
+      "remote": "My browser",
+      "local": "Cloud browser",
+      "connected": "Connected",
+      "disconnected": "Not connected",
+      "available": "Available",
+      "unavailable": "Unavailable"
+    },
+    "fallbackHint": "The extension isn't connected yet — the cloud browser will be used until it connects."
+  },
+  "appearance": {
+    "language": "语言 / Language",
+    "langZh": "简体中文",
+    "langEn": "English",
+    "current": "Current",
+    "theme": "Theme",
+    "themeDefault": "Default",
+    "colorMode": "Color mode",
+    "light": "Light",
+    "system": "System",
+    "dark": "Dark",
+    "fontSize": "Font size",
+    "fs": { "sm": "Small", "base": "Default", "md": "Medium", "lg": "Large" },
+    "temp": { "warm": "warm", "cool": "cool", "neutral": "neutral" }
+  }
+}

@@ -129,6 +129,17 @@ async def _search_tavily(args: WebSearchArgs, api_key: str) -> ToolResult:
         return ToolResult(
             title=f"Search: {args.query} ({len(results)} results)",
             output="\n".join(output_lines),
+            metadata={
+                "query": args.query,
+                "results": [
+                    {
+                        "title": r.get("title", ""),
+                        "url": r.get("url", ""),
+                        "snippet": r.get("content", ""),
+                    }
+                    for r in results[: args.max_results]
+                ],
+            },
         )
 
     except Exception as e:
@@ -171,6 +182,17 @@ async def _search_duckduckgo(query: str, max_results: int) -> ToolResult:
             return ToolResult(
                 title=f"Search: {query} ({len(results)} results)",
                 output="\n".join(output_lines),
+                metadata={
+                    "query": query,
+                    "results": [
+                        {
+                            "title": r.get("title", ""),
+                            "url": r.get("url", ""),
+                            "snippet": r.get("snippet", ""),
+                        }
+                        for r in results
+                    ],
+                },
             )
 
     except ImportError:

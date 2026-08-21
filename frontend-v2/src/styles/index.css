@@ -1,0 +1,267 @@
+@import "tailwindcss";
+@import "./tokens.css";
+@import "streamdown/styles.css";
+/* Streamdown components carry Tailwind classes inside dist — scan them. */
+@source "../../node_modules/streamdown/dist/*.js";
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--t-bg);
+  color: var(--t-ink);
+  font-family: var(--font-body);
+  letter-spacing: -0.005em;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The appearance "font size" preference scales the whole UI (rem-based). */
+html[data-fs="sm"] { font-size: 92%; }
+html[data-fs="md"] { font-size: 109%; }
+html[data-fs="lg"] { font-size: 120%; }
+
+:focus {
+  outline: none;
+}
+:focus-visible {
+  outline: 2px solid var(--t-a700);
+  outline-offset: 2px;
+}
+/* Text fields never draw the global ring — their container carries focus
+   (the composer's InputGroup, the login/search field borders). A 2px ink
+   outline around a multi-line textarea reads as a black box. */
+textarea:focus-visible,
+input:focus-visible {
+  outline: none;
+}
+::selection {
+  background: color-mix(in srgb, var(--t-accent) 30%, transparent);
+}
+
+/* Design-language scrollbar */
+.scr::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+.scr::-webkit-scrollbar-thumb {
+  background: var(--t-n400);
+  border-radius: 999px;
+}
+.scr::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Brand wordmark shine — gradient text needs raw properties. */
+.wordmark {
+  background-image: linear-gradient(
+    100deg,
+    var(--t-ink) 0%,
+    var(--t-ink) 34%,
+    var(--t-shine) 46%,
+    #ffffff 52%,
+    var(--t-shine) 58%,
+    var(--t-ink) 70%,
+    var(--t-ink) 100%
+  );
+  background-size: 260% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shine 4.5s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wordmark {
+    animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Auth (login/register) animated grid backdrop ──────────────────────
+   Appended per feature ownership: only @keyframes + .login-grid* classes.
+   Ported from design-reference/bossip-landing-login.dc.html. Colors derive
+   from tokens via color-mix so the backdrop tracks theme + color mode. */
+@keyframes runX {
+  0% { transform: translateX(-30vw); opacity: 0; }
+  8% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { transform: translateX(115vw); opacity: 0; }
+}
+@keyframes runY {
+  0% { transform: translateY(-40vh); opacity: 0; }
+  10% { opacity: 1; }
+  86% { opacity: 1; }
+  100% { transform: translateY(120vh); opacity: 0; }
+}
+@keyframes cellGlow {
+  0%, 100% { opacity: 0; }
+  12% { opacity: 1; }
+  46% { opacity: 0.15; }
+  60% { opacity: 0.7; }
+  82% { opacity: 0; }
+}
+@keyframes gridDrift {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-44px, -44px, 0); }
+}
+
+.login-grid {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  --lg-line: color-mix(in srgb, var(--t-ink) 7%, transparent);
+  --lg-line-strong: color-mix(in srgb, var(--t-ink) 9%, transparent);
+  --lg-run: color-mix(in srgb, var(--t-ink) 45%, transparent);
+  --lg-cell: color-mix(in srgb, var(--t-ink) 30%, transparent);
+  --lg-veil-1: color-mix(in srgb, var(--t-bg) 44%, transparent);
+  --lg-veil-2: var(--t-bg);
+}
+.login-grid__mesh {
+  position: absolute;
+  inset: -60px;
+  background-image:
+    linear-gradient(var(--lg-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--lg-line) 1px, transparent 1px);
+  background-size: 44px 44px;
+  animation-name: gridDrift;
+  animation-duration: 9s;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+.login-grid__mesh--wide {
+  background-image:
+    linear-gradient(var(--lg-line-strong) 1px, transparent 1px),
+    linear-gradient(90deg, var(--lg-line-strong) 1px, transparent 1px);
+  background-size: 220px 220px;
+  animation-duration: 18s;
+}
+.login-grid__runx {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--lg-run), transparent);
+  animation-name: runX;
+  animation-duration: 5s;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+.login-grid__runy {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, var(--lg-run), transparent);
+  animation-name: runY;
+  animation-duration: 6.5s;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+.login-grid__cell {
+  position: absolute;
+  border: 1px solid var(--lg-cell);
+  animation-name: cellGlow;
+  animation-duration: 6.5s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+.login-grid__veil {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 76% 64% at 50% 46%,
+    transparent 0%,
+    var(--lg-veil-1) 56%,
+    var(--lg-veil-2) 100%
+  );
+}
+
+/* Shiki dual-theme: flip code colors when bossip dark mode is active. */
+[data-mode="dark"] .shiki,
+[data-mode="dark"] .shiki span {
+  color: var(--shiki-dark) !important;
+  background-color: var(--shiki-dark-bg) !important;
+  font-style: var(--shiki-dark-font-style) !important;
+  font-weight: var(--shiki-dark-font-weight) !important;
+}
+
+/* Running-state shimmer: a light sweep across label text (DEEIX-style). */
+.text-shimmer {
+  background-image: linear-gradient(
+    100deg,
+    var(--t-n600) 0%,
+    var(--t-n600) 36%,
+    var(--t-ink) 50%,
+    var(--t-n600) 64%,
+    var(--t-n600) 100%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shine 2s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .text-shimmer {
+    animation: none;
+    color: var(--t-n600);
+    background-image: none;
+  }
+}
+
+/* Collapse/expand transition for trace folds (accordion feel). */
+.fold {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 220ms ease-out;
+}
+.fold[data-open="true"] {
+  grid-template-rows: 1fr;
+}
+.fold > * {
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ── Streamdown code blocks ──────────────────────────────────────────
+   Streamdown ships shadcn-flavoured internals; restyle its slots here so
+   code blocks read like the reference: a muted language label with the copy
+   action above a soft rounded body, line numbers in a quiet gutter. */
+[data-streamdown="code-block"] {
+  margin-block: 0.875rem;
+}
+[data-streamdown="code-block-header"] {
+  padding-inline: 0.25rem;
+  color: var(--t-n600);
+}
+[data-streamdown="code-block-body"] {
+  border-radius: 14px;
+  border-color: var(--t-hair);
+  background: color-mix(in srgb, var(--t-n200) 45%, var(--t-card));
+  padding: 0.875rem 0;
+  font-size: 0.78rem;
+  line-height: 1.7;
+}
+[data-streamdown="code-block-body"] pre {
+  padding-inline: 1rem;
+}
+/* Line-number gutter: quiet, unselectable, aligned with the code baseline. */
+[data-streamdown="code-block-body"] code {
+  counter-reset: sd-line;
+}
+[data-streamdown="code-block-body"] [data-line-number]::before,
+[data-streamdown="code-block-body"] .line-number {
+  color: var(--t-n500);
+  user-select: none;
+}

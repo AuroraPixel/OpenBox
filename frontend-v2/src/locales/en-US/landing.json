@@ -1,0 +1,43 @@
+{
+  "nav": { "product": "Product", "how": "How it works", "pricing": "Pricing" },
+  "signIn": "Sign in",
+  "start": "Get started",
+  "badge": "An agent workspace for building a personal brand",
+  "heroTitle": "Turn what you know into a personal brand people can find.",
+  "heroBody": "bossip puts topic research, writing and revision in one workspace. Projects hold the context, conversation moves the work, and every change is reviewed before it ships.",
+  "ctaPrimary": "Get started free",
+  "ctaSecondary": "See how it works",
+  "ctaNote": "No card required · start right away",
+  "mock": {
+    "label": "bossip workspace",
+    "new": "New chat",
+    "ask": "Turn this week's three interviews into one long post, same voice as last time.",
+    "thinking": "Thinking…",
+    "thought": "Thought for 12s",
+    "step1": "Searched 12 similar posts",
+    "step2": "Read topic-bank.md",
+    "step3": "Rewrote the first three paragraphs",
+    "answer": "All three interviews circle the same point: you help clients articulate decisions. I moved that up front and grouped the cases by date.",
+    "diff": "drafts/long-post-v3.md",
+    "review": "Review →",
+    "input": "Keep going…",
+    "projects": ["Personal brand 2026", "Topic bank", "Long-form edits", "Client stories"]
+  },
+  "featEyebrow": "Three things it takes seriously",
+  "features": [
+    { "title": "Projects, not loose chats", "body": "Topics, source material and drafts live in one project, so the next conversation starts with context already loaded." },
+    { "title": "The whole process is visible", "body": "Search, file reads, commands and edits — every step opens up to show its input and output." },
+    { "title": "Changes get reviewed first", "body": "Every touched line arrives as a diff you approve or reject file by file." }
+  ],
+  "flowEyebrow": "How it works",
+  "flowTitle": "From scattered material to something worth publishing.",
+  "steps": [
+    { "title": "Create a project and drop your material in", "body": "Documents, links, old drafts, interview recordings. The project becomes the memory for that thread." },
+    { "title": "Work it in conversation", "body": "State the goal; the agent plans, researches, writes and revises. You can cut in at any point." },
+    { "title": "Review, then publish", "body": "Read the diff, run the terminal, preview the page in the side panel, and publish once it holds up." }
+  ],
+  "endTitle": "Start with one project.",
+  "endBody": "Sign up and get going — enough to research, write and revise one long piece.",
+  "footer": "© 2026 bossip",
+  "footLinks": { "terms": "Terms", "privacy": "Privacy", "contact": "Contact" }
+}

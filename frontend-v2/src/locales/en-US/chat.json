@@ -1,0 +1,209 @@
+{
+  "thinking": "Thinking…",
+  "thoughtFor": "Thought for {{duration}}",
+  "thought": "Reasoning",
+  "process": "Process",
+  "processSummary": "{{count}} steps · {{duration}} total",
+  "sources": "Sources",
+  "reviewGo": "Review →",
+  "copy": "Copy",
+  "copied": "Copied",
+  "regen": "Regenerate",
+  "outputs_one": "{{count}} file produced",
+  "outputs_other": "{{count}} files produced",
+  "changedFiles_one": "Edited {{count}} file",
+  "changedFiles_other": "Edited {{count}} files",
+  "changedFile": "Edited {{path}}",
+  "kind": {
+    "skill": "Load skill",
+    "glob": "Find files",
+    "read": "Read file",
+    "bash": "Run command",
+    "grep": "Search",
+    "webSearch": "Search",
+    "webFetch": "Research",
+    "mcp": "Call tool",
+    "edit": "Edit file",
+    "write": "Write file",
+    "task": "Subtask",
+    "todo": "Plan",
+    "question": "Ask",
+    "tool": "Tool"
+  },
+  "toolMeta": {
+    "exit": "exit {{code}}",
+    "running": "running",
+    "failed": "failed"
+  },
+  "plan": {
+    "title": "Task plan",
+    "stepCounter": "Step {{current}} of {{total}}",
+    "stop": "Stop",
+    "addStep": "+ Add a step",
+    "review": {
+      "title": "Plan awaiting review",
+      "accept": "Run the plan",
+      "reject": "Back to discussion"
+    }
+  },
+  "permission": {
+    "title": "Permission request",
+    "body": "The agent wants to perform this action:",
+    "allow": "Allow",
+    "allowAlways": "Always allow",
+    "deny": "Deny"
+  },
+  "question": {
+    "title": "The agent wants to confirm",
+    "reject": "Decline"
+  },
+  "compaction": "Context compacted",
+  "retry": "Retry #{{attempt}}",
+  "agentSwitch": "Switched to {{agent}}",
+  "subtask": "Subtask · {{agent}}",
+  "stopGen": "Stop generating",
+  "attach": "Attach",
+  "send": "Send",
+  "composerIdle": "What are we doing today?",
+  "composerRunning": "Running — you can still chime in…",
+  "model": {
+    "pick": "Switch model",
+    "hints": {
+      "balanced": "balanced",
+      "deep": "deep",
+      "fast": "fast"
+    }
+  },
+  "codeCopy": "Copy",
+  "scrollBottom": "Back to bottom",
+  "empty": "Describe your task to the agent",
+  "processSummaryShort": "{{count}} steps",
+  "attachTitle": "Attach (uploads into the sandbox)",
+  "attachNeedSandbox": "Attachments need a running sandbox",
+  "attachUploading": "Uploading…",
+  "attachFailed": "Upload failed",
+  "attachTooLarge": "File exceeds 8 MB",
+  "trace": {
+    "process": {
+      "titleActive": "Processing",
+      "titleDone": "Processed",
+      "prepared": "Prepared {{tokens}} tokens of context",
+      "stageContext": "Context planning",
+      "stageResult": "Request result",
+      "contextTokens": "{{tokens}} tokens of context this turn",
+      "duration": "Took {{duration}}"
+    },
+    "think": {
+      "titleActive": "Thinking",
+      "titleDone": "Thought through",
+      "subtitleActive": "Parsing the question and gathering key details",
+      "subtitleDone": "Understood, synthesized and reasoned it through"
+    },
+    "tool": {
+      "titleActive": "Running tools",
+      "titleDone": "Tool calls",
+      "summaryCount_one": "{{count}} tool call",
+      "summaryCount_other": "{{count}} tool calls",
+      "expand": "Expand",
+      "collapse": "Collapse",
+      "statusRunning": "Running",
+      "statusFailed": "Failed"
+    }
+  },
+  "meta": {
+    "copyReply": "Copy",
+    "copied": "Copied",
+    "likeReply": "Good response",
+    "dislikeReply": "Bad response",
+    "forkMessage": "Fork to a new chat",
+    "forking": "Forking…",
+    "model": "Model",
+    "inputTokens": "Input tokens",
+    "outputTokens": "Output tokens",
+    "cacheTokens": "Cached tokens",
+    "cost": "Cost of this call",
+    "generationDuration": "Generating for",
+    "totalDuration": "Total time",
+    "expandMessage": "Show full message",
+    "collapseMessage": "Show less",
+    "errorTitle": "This turn hit an error"
+  },
+  "toolDetail": {
+    "request": "Request",
+    "response": "Response",
+    "error": "Error",
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "query": "Query",
+    "action": "Action",
+    "source": "Source",
+    "sources": "Sources",
+    "command": "Command",
+    "output": "Output",
+    "exitCode": "Exit code",
+    "path": "Path",
+    "pattern": "Pattern",
+    "matches": "Matches",
+    "content": "Content",
+    "diff": "Diff",
+    "arguments": "Arguments",
+    "result": "Result",
+    "truncated": "Output truncated",
+    "sourceFallback": "Source {{index}}"
+  },
+  "toolStatus": {
+    "running": "Running",
+    "completed": "Done",
+    "failed": "Failed"
+  },
+  "markdown": {
+    "expandCode": "Expand code",
+    "collapseCode": "Collapse code",
+    "lines": "{{count}} lines"
+  },
+  "composer": {
+    "placeholder": "Message, or use / for context and @ for resources",
+    "placeholderRunning": "Running — you can still chime in…",
+    "dropTitle": "Drop to upload into the sandbox",
+    "send": "Send",
+    "stop": "Stop generating",
+    "tools": "More",
+    "uploadFile": "Upload a file",
+    "screenshot": "Capture screen",
+    "screenshotFailed": "Screen capture failed or was cancelled",
+    "mention": {
+      "files": "Files",
+      "skills": "Skills",
+      "commands": "Commands",
+      "empty": "No matches",
+      "needSandbox": "Needs a running sandbox",
+      "loading": "Searching…"
+    },
+    "sendShortcut": {
+      "label": "Send shortcut",
+      "enter": "Enter to send",
+      "modEnter": "⌘/Ctrl + Enter to send",
+      "hintEnter": "Enter to send · Shift+Enter for newline",
+      "hintModEnter": "⌘/Ctrl+Enter to send · Enter for newline"
+    }
+  },
+  "diff": {
+    "unmodified_one": "{{count}} unmodified line",
+    "unmodified_other": "{{count}} unmodified lines",
+    "more_one": "{{count}} more change · open review",
+    "more_other": "{{count}} more changes · open review",
+    "loading": "Loading changes…",
+    "empty": "No line-level changes to preview",
+    "openReview": "Review in the side panel"
+  },
+  "attachOpen": "Open attachment",
+  "gallery": {
+    "open": "Open {{name}}",
+    "download": "Download",
+    "close": "Close",
+    "failed": "Failed to load",
+    "more_one": "{{count}} more",
+    "more_other": "{{count}} more",
+    "less": "Show less"
+  }
+}

@@ -30,5 +30,16 @@ export interface ListPagesResponse {
 }
 
 export interface ServerInfoResponse {
-  wsEndpoint: string;
+  /** CDP WebSocket endpoint Playwright connects to. Null in local mode when Chrome is unreachable. */
+  wsEndpoint: string | null;
+  /** Effective mode after "auto" resolution. */
+  mode?: "extension" | "local";
+  /** Mode originally requested via options (may still be "auto"). */
+  configuredMode?: "extension" | "local" | "auto";
+  /** Whether a Chrome extension is currently connected (extension/auto modes). */
+  extensionConnected?: boolean;
+  /** Local mode: whether Chrome's CDP endpoint was reachable. */
+  chromeAvailable?: boolean;
+  /** Human-readable error, set when chromeAvailable is false. */
+  error?: string;
 }

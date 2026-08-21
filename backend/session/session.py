@@ -92,7 +92,10 @@ async def create_session(
     now_iso = now.isoformat()
     session_id = descending("session")
     slug = create_slug()
-    final_title = title or f"New session - {now_iso}"
+    # Empty rather than "New session - <iso timestamp>": the frontend renders
+    # its own localized "untitled" placeholder, and a raw ISO string leaking
+    # into the sidebar reads as garbage. The title generator fills it in.
+    final_title = title or ""
 
     # A session always belongs to a project; an unrecognised one (or none at
     # all) lands in the user's default rather than failing the request.
@@ -599,9 +602,21 @@ async def get_messages(session_id: str, offset: int = 0, limit: int = 200, user_
             tokens=tokens_obj,
             format=m.format,
             structured=m.structured,
+            reaction=m.reaction,
+            error=m.error,
         ))
 
     return result
+
+
+async def set_message_reaction(message_id: str, session_id: str, reaction: str | None) -> None:
+    """Persist thumbs up/down feedback for an assistant message."""
+    async with get_db_session() as db:
+        await db.execute(
+            update(MessageORM)
+            .where(MessageORM.id == message_id, MessageORM.session_id == session_id)
+            .values(reaction=reaction)
+        )
 
 
 async def get_parts_for_message(message_id: str) -> list[dict]:

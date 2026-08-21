@@ -153,10 +153,66 @@ async def execute(args: SkillArgs, ctx: ToolContext) -> ToolResult:
         output_parts.append("</skill_files>")
     output_parts.append("</skill_content>")
 
+    if args.skill == "dev-browser":
+        output_parts.append("")
+        output_parts.append(await _browser_readiness(ctx))
+
     return ToolResult(
         title=f"Loaded skill: {args.skill}",
         output="\n".join(output_parts),
     )
+
+
+async def _browser_readiness(ctx: ToolContext) -> str:
+    """Bring up the browser this user chose, and say which one they got.
+
+    Done at skill-load time so the model never writes a script against a
+    browser that is not there. The fallback matters most: when someone has
+    asked for their own browser but the extension is not connected, the run
+    continues on the cloud desktop's Chrome rather than failing — the model
+    just has to know, because the two have different logins.
+    """
+    from session.browser_pref import get_browser_mode, relay_mode
+
+    preference = await get_browser_mode(ctx.user_id)
+    if not ctx.sandbox:
+        return f"<browser_mode>preference={preference}; no sandbox, browser unavailable</browser_mode>"
+
+    try:
+        from sandbox.browser import ensure_browser
+        state = await ensure_browser(ctx.sandbox, ctx.session_id, relay_mode(preference))
+    except Exception as e:
+        log.warning(f"browser readiness failed: {e}")
+        return (
+            f"<browser_mode>preference={preference}; the browser could not be started: "
+            f"{str(e)[:200]}. Report this rather than retrying blindly.</browser_mode>"
+        )
+
+    effective = state.get("mode", "unknown")
+    lines = [
+        "<browser_mode>",
+        f"  preference: {preference}",
+        f"  running as: {effective}",
+    ]
+    if effective == "local":
+        lines.append("  This is the cloud desktop's Chrome — it does NOT have the user's logins.")
+        lines.append(
+            "  It runs on this desktop, so if a native dialog blocks a script you can "
+            "dismiss it with the `computer` tool and resume (see the skill's handoff section)."
+        )
+        if preference == "remote":
+            lines.append(
+                "  The user asked for their own browser, but the extension is not connected, "
+                "so this fell back. Tell them if the task needs their accounts."
+            )
+    elif effective == "extension":
+        lines.append("  This is the user's OWN Chrome, with their real sessions.")
+        lines.append(
+            "  It runs on the user's machine, so `computer` cannot see or touch it. "
+            "If a native dialog blocks a script, tell the user what to dismiss."
+        )
+    lines.append("</browser_mode>")
+    return "\n".join(lines)
 
 
 skill_tool = define_tool(

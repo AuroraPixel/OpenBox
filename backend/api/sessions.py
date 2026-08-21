@@ -33,6 +33,9 @@ class PromptBody(BaseModel):
     client_message_id: str | None = None
     # {"type": "json_schema", "schema": {...}} to require a structured answer.
     format: dict | None = None
+    #: Ready file_assets ids — pulled from OSS into the sandbox before the
+    #: agent loop starts, and attached to the user message as file parts.
+    attachments: list[str] | None = None
 
 
 class UpdateSessionBody(BaseModel):
@@ -44,6 +47,24 @@ class UpdateSessionBody(BaseModel):
 class CommandBody(BaseModel):
     command: str
     arguments: str | None = None
+
+
+async def _remember_model(session, requested: str | None, user_id: str) -> str:
+    """Settle on a model for this turn and keep it on the session.
+
+    Each conversation carries its own model, so reopening one restores what it
+    was last using instead of snapping back to the global default. A model the
+    deployment no longer offers is replaced here rather than at the provider,
+    where it returns an opaque "no channel for model X" that the retry layer
+    attempts five times before the turn fails.
+    """
+    from agent.model_resolve import resolve as resolve_model
+
+    chosen, _dropped = resolve_model(requested or session.model, get_config(),
+                                     context=f"session {session.id}")
+    if chosen and chosen != session.model:
+        await session_mod.update_session(session.id, model=chosen, user_id=user_id)
+    return chosen
 
 
 async def _require_session_owned(session_id: str, user_id: str):
@@ -103,8 +124,11 @@ async def create_session(
     user_id = current_user["user_id"]
     config = get_config()
     await check_session_quota(user_id, config)
+    # Validate at birth so a retired model never gets stored in the first place.
+    from agent.model_resolve import resolve as resolve_model
+    model, _ = resolve_model(body.model, config, context="new session")
     session = await session_mod.create_session(
-        model=body.model,
+        model=model,
         agent=body.agent,
         title=body.title,
         user_id=user_id,
@@ -130,7 +154,12 @@ async def get_session(session_id: str, current_user: dict = Depends(get_current_
     session = await session_mod.get_session(session_id, user_id=user_id)
     if not session:
         raise HTTPException(404, "Session not found")
-    return session.model_dump()
+    from project.workspace import workdir_for_session
+    data = session.model_dump()
+    # The project directory this session's tools run in (/workspace/<slug>).
+    # The files panel scopes its tree here rather than to the whole sandbox.
+    data["directory"] = await workdir_for_session(session)
+    return data
 
 
 @router.delete("/session/{session_id}")
@@ -181,11 +210,13 @@ async def send_message(
     from sandbox.manager import sandbox_manager
     await sandbox_manager.get_client(session_id, user_id=user_id)
 
+    chosen_model = await _remember_model(session, body.model, user_id)
+
     user_msg = await session_mod.create_user_message(
         session_id=session_id,
         text=body.text,
         agent=body.agent or session.agent,
-        model=body.model,
+        model=chosen_model,
         variant=body.variant,
         client_message_id=body.client_message_id,
         output_format=body.format,
@@ -226,16 +257,26 @@ async def send_message_async(
     # The agent loop calls sandbox_manager.get_client() which auto-creates
     # containers if needed. This lets the response return immediately.
 
+    # A model the deployment no longer offers must not reach the provider: it
+    # comes back as an opaque "no channel for model X" that the retry layer
+    # attempts five times before failing the turn.
+    chosen_model = await _remember_model(session, body.model, user_id)
+
     user_msg = await session_mod.create_user_message(
         session_id=session_id,
         text=body.text,
         agent=body.agent or session.agent,
-        model=body.model,
+        model=chosen_model,
         variant=body.variant,
         client_message_id=body.client_message_id,
         output_format=body.format,
         user_id=user_id,
     )
+
+    # Attachment cards: a file part per OSS asset on the user message, so the
+    # chat renders previews instead of parsing paths out of the text trailer.
+    if body.attachments:
+        await _attach_file_parts(session_id, user_msg.id, user_id, body.attachments)
 
     # F4: Save to prompt history (fire-and-forget)
     try:
@@ -246,15 +287,92 @@ async def send_message_async(
 
     # Launch agent loop in background
     from agent.loop import run_loop
-    task = asyncio.create_task(_run_loop_with_log(session_id, user_id)); _background_tasks.add(task); task.add_done_callback(_background_tasks.discard)
+    task = asyncio.create_task(_run_loop_with_log(session_id, user_id, body.attachments)); _background_tasks.add(task); task.add_done_callback(_background_tasks.discard)
 
     return {"ok": True}
+
+
+async def _attach_file_parts(session_id: str, message_id: str, user_id: str, asset_ids: list[str]) -> None:
+    from sqlalchemy import select
+    from core.identifier import ascending
+    from db.base import get_db_session
+    from db.models.file_asset import FileAsset
+    from models.message import FilePart
+
+    async with get_db_session() as db:
+        rows = (
+            await db.execute(
+                select(FileAsset).where(
+                    FileAsset.id.in_(asset_ids),
+                    FileAsset.user_id == user_id,
+                    FileAsset.status == "ready",
+                )
+            )
+        ).scalars().all()
+    by_id = {r.id: r for r in rows}
+    for asset_id in asset_ids:
+        row = by_id.get(asset_id)
+        if not row:
+            continue
+        await session_mod.save_part(
+            FilePart(
+                id=ascending("part"),
+                path=f"/workspace/uploads/{row.name}",
+                mime_type=row.mime,
+                asset_id=row.id,
+                oss_key=row.oss_key,
+                size=row.size,
+                session_id=session_id,
+                message_id=message_id,
+            ),
+            is_new=True,
+            user_id=user_id,
+        )
 
 
 # ─── Session fork ───
 
 class ForkBody(BaseModel):
     message_id: str | None = None
+
+
+class ReactionBody(BaseModel):
+    reaction: str | None = None  # "up" | "down" | null to clear
+
+
+@router.get("/session/{session_id}/diff/step")
+async def get_step_diff(
+    session_id: str,
+    from_snapshot: str,
+    to_snapshot: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Line-level diff for one step's snapshot range.
+
+    The session diff is cumulative (first snapshot → last); a per-turn change
+    card needs exactly what that step touched, which is this.
+    """
+    from snapshot import snapshot
+    await _require_session_owned(session_id, current_user["user_id"])
+    if not from_snapshot or not to_snapshot or from_snapshot == to_snapshot:
+        return []
+    return await snapshot.diff_full(from_snapshot, to_snapshot, session_id=session_id)
+
+
+@router.post("/session/{session_id}/message/{message_id}/reaction")
+async def set_message_reaction(
+    session_id: str,
+    message_id: str,
+    body: ReactionBody,
+    current_user: dict = Depends(get_current_user),
+):
+    """Thumbs up / down on an assistant reply (frontend-v2 message meta bar)."""
+    user_id = current_user["user_id"]
+    await _require_session_owned(session_id, user_id)
+    if body.reaction not in (None, "up", "down"):
+        raise HTTPException(400, "reaction must be 'up', 'down' or null")
+    await session_mod.set_message_reaction(message_id, session_id, body.reaction)
+    return {"ok": True, "reaction": body.reaction}
 
 
 @router.post("/session/{session_id}/fork")
@@ -552,11 +670,46 @@ async def get_diff(session_id: str, full: bool = False, current_user: dict = Dep
         return [{"path": d.path, "additions": d.additions, "deletions": d.deletions, "status": d.status} for d in diffs]
 
 
-async def _run_loop_with_log(session_id: str, user_id: str):
-    """Wrapper that logs exceptions from run_loop."""
+async def _run_loop_with_log(session_id: str, user_id: str, attachment_ids: list[str] | None = None):
+    """Wrapper that logs exceptions from run_loop.
+
+    Attachments land in the sandbox BEFORE the loop starts — the message text
+    references their /workspace/uploads paths, so the agent must find them.
+    """
     try:
+        if attachment_ids:
+            try:
+                await _deliver_attachments(session_id, user_id, attachment_ids)
+            except Exception as e:
+                import logging
+                logging.getLogger("sessions").warning(f"attachment delivery failed for {session_id}: {e}")
         from agent.loop import run_loop
         await run_loop(session_id, user_id=user_id)
     except Exception as e:
         import logging
         logging.getLogger("sessions").error(f"run_loop FAILED for {session_id}: {e}", exc_info=True)
+
+
+async def _deliver_attachments(session_id: str, user_id: str, asset_ids: list[str]) -> None:
+    """Pull the message's OSS assets into the sandbox via obx-file."""
+    from sqlalchemy import select
+    from core.oss import get_oss
+    from db.base import get_db_session
+    from db.models.file_asset import FileAsset
+    from sandbox.manager import sandbox_manager
+    from sandbox.assets import deliver
+
+    async with get_db_session() as db:
+        rows = (
+            await db.execute(
+                select(FileAsset).where(
+                    FileAsset.id.in_(asset_ids),
+                    FileAsset.user_id == user_id,
+                    FileAsset.status == "ready",
+                )
+            )
+        ).scalars().all()
+    if not rows:
+        return
+    client = await sandbox_manager.get_client(session_id, user_id=user_id)
+    await deliver(client, f"{user_id}:{session_id}", get_oss(), rows)

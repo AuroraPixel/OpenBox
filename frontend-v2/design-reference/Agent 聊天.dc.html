@@ -1,0 +1,2081 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="ds/styles.css">
+<style>
+  :root {
+    --color-bg: #f8f8f6;
+    --color-surface: #f1efe7;
+    --color-text: #3e3929;
+    --color-divider: #eeece9;
+    --color-neutral-100: #f8f8f6;
+    --color-neutral-200: #f2f0ea;
+    --color-neutral-300: #eceae2;
+    --color-neutral-400: #dcdad3;
+    --color-neutral-500: #b7b5ae;
+    --color-neutral-600: #8b8a84;
+    --color-neutral-700: #75746e;
+    --color-neutral-800: #55534d;
+    --color-neutral-900: #33322e;
+    --color-accent: #3e3929;
+    --color-accent-100: #f4f2ec;
+    --color-accent-200: #eceae2;
+    --color-accent-300: #dedbd1;
+    --color-accent-400: #afafab;
+    --color-accent-600: #5c5749;
+    --color-accent-700: #3e3929;
+    --color-accent-800: #2c2820;
+    --color-accent-2: #7d8a76;
+    --color-accent-2-100: #eff4ec;
+    --color-accent-2-200: #e4ece0;
+    --color-accent-2-300: #d3ddce;
+    --color-accent-2-400: #b3c2ad;
+    --color-accent-2-600: #5a8560;
+    --color-accent-2-700: #4c7553;
+    --color-accent-2-800: #3f6446;
+    --rail: #f7f7f5;
+    --card: #ffffff;
+    --hair: #eeece9;
+    --hair-soft: #f4f2ec;
+  }
+  html, body { height: 100%; overflow: hidden; }
+  body { margin: 0; background: var(--color-bg); -webkit-font-smoothing: antialiased; letter-spacing: -0.005em; }
+  .btn { font-family: var(--font-body); font-weight: 500; letter-spacing: 0; }
+  .tag { font-family: var(--font-body); font-weight: 400; }
+  h1, h2, h3 { font-family: var(--font-body); font-weight: 500; letter-spacing: -0.02em; }
+  strong, b { font-weight: 500; }
+  svg, svg * { stroke-width: 2; }
+  @keyframes shine { 0% { background-position: 220% 50%; } 100% { background-position: -120% 50%; } }
+  a { color: var(--color-accent-700); }
+  a:hover { color: var(--color-accent-600); }
+  .scr::-webkit-scrollbar { width: 9px; height: 9px; }
+  .scr::-webkit-scrollbar-thumb { background: var(--color-neutral-400); border-radius: 999px; }
+  .scr::-webkit-scrollbar-track { background: transparent; }
+  @keyframes blink { 0%,49%{opacity:1} 50%,100%{opacity:0} }
+</style>
+</helmet>
+
+<div style="{{ rootStyle }}">
+
+  <aside style="{{ leftStyle }}">
+    <sc-if value="{{ leftOpen }}" hint-placeholder-val="{{ true }}">
+    <div style="flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 14px 12px 10px 18px">
+
+      <div style="display: flex; align-items: center; gap: 10px; padding: 2px 0 16px">
+        <div style="flex: none; position: relative; width: 28px; height: 28px; border-radius: 9px; background: var(--color-text); display: flex; align-items: center; justify-content: center">
+          <span style="font-family: var(--font-body); font-size: 15px; font-weight: 700; line-height: 1; color: var(--color-bg); margin-top: 1px">b</span>
+          <span style="position: absolute; top: -1px; right: -1px; width: 7px; height: 7px; border-radius: 999px; background: var(--color-accent-300); box-shadow: 0 0 0 2px var(--rail)"></span>
+        </div>
+        <span style="flex: 1; min-width: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.028em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background-image: linear-gradient(100deg, var(--color-text) 0%, var(--color-text) 34%, #b9b2a1 46%, #ffffff 52%, #b9b2a1 58%, var(--color-text) 70%, var(--color-text) 100%); background-size: 260% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shine 4.5s linear infinite">{{ brandName }}</span>
+        <button class="btn" style="flex: none; width: 30px; height: 30px; padding: 0; border-radius: 999px; color: var(--color-neutral-700)" style-hover="background: var(--hair-soft)" onClick="{{ startNewProject }}" title="{{ t.newProject }}">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5a2 2 0 0 1 2-2h3.2l2 2H19a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"></path><path d="M12 11.5v4M10 13.5h4"></path></svg>
+        </button>
+        <button class="btn" style="flex: none; width: 30px; height: 30px; padding: 0; border-radius: 999px; color: var(--color-neutral-700)" style-hover="background: var(--hair-soft)" onClick="{{ toggleLeft }}" title="{{ t.collapse }}">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="4"></rect><path d="M9.5 4.5v15"></path></svg>
+        </button>
+      </div>
+
+      <button class="btn" style="flex: none; border-radius: 999px; height: 40px; font-size: 14px; gap: 8px; background: var(--color-accent-200); color: var(--color-text)" style-hover="background: var(--color-accent-300)" onClick="{{ newChatHere }}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+        {{ t.newChat }}
+      </button>
+
+      <div style="position: relative; flex: none; margin: 12px 0 8px">
+        <span style="position: absolute; left: 13px; top: 9px; color: var(--color-neutral-500); display: flex">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M16.5 16.5 21 21"></path></svg>
+        </span>
+        <input class="input" placeholder="{{ t.search }}" style="border-radius: 999px; height: 34px; font-size: 13px; padding-left: 36px; background: transparent; border: 1px solid var(--hair); width: 100%; box-sizing: border-box">
+      </div>
+
+      <sc-if value="{{ draftOpen }}" hint-placeholder-val="{{ false }}">
+        <div style="flex: none; display: flex; align-items: center; gap: 9px; padding: 7px 14px; margin-bottom: 4px; border-radius: 999px; border: 1px solid var(--hair)">
+          <span style="width: 7px; height: 7px; border-radius: 999px; background: var(--color-accent)"></span>
+          <input value="{{ draftName }}" onChange="{{ onDraftChange }}" onKeyDown="{{ onDraftKey }}" onBlur="{{ commitDraft }}" autoFocus="{{ true }}" placeholder="{{ t.projectName }}" style="flex: 1; min-width: 0; border: none; outline: none; background: transparent; font-family: var(--font-body); font-size: 14px; color: var(--color-text)">
+        </div>
+      </sc-if>
+
+      <div class="scr" style="flex: 1; min-height: 0; overflow: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 2px; margin: 0 -4px; padding: 4px">
+        <sc-for list="{{ projects }}" as="p" hint-placeholder-count="4">
+          <div style="display: flex; flex-direction: column">
+            <div style="{{ p.rowStyle }}" onMouseEnter="{{ p.onEnter }}" onMouseLeave="{{ p.onLeave }}" onClick="{{ p.onToggle }}">
+              <span style="{{ p.chevStyle }}">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
+              </span>
+              <sc-if value="{{ p.renaming }}" hint-placeholder-val="{{ false }}">
+                <input value="{{ renameValue }}" onChange="{{ onRenameChange }}" onKeyDown="{{ onRenameKey }}" onBlur="{{ commitRename }}" autoFocus="{{ true }}" style="flex: 1; min-width: 0; border: none; outline: none; background: transparent; font-family: var(--font-body); font-size: 13.5px; font-weight: 600; color: var(--color-text)">
+              </sc-if>
+              <sc-if value="{{ p.notRenaming }}" hint-placeholder-val="{{ true }}">
+                <span style="flex: 1; min-width: 0; font-size: 13.5px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ p.name }}</span>
+              </sc-if>
+              <sc-if value="{{ p.hover }}" hint-placeholder-val="{{ false }}">
+                <span style="flex: none; display: flex; gap: 2px; color: var(--color-neutral-700)">
+                  <span onClick="{{ p.onNewChat }}" title="{{ t.newChatIn }}" style="width: 22px; height: 22px; border-radius: 999px; display: flex; align-items: center; justify-content: center">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+                  </span>
+                  <span onClick="{{ p.onMenu }}" title="{{ t.more }}" style="width: 22px; height: 22px; border-radius: 999px; display: flex; align-items: center; justify-content: center">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="12" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle><circle cx="18.5" cy="12" r="1.7"></circle></svg>
+                  </span>
+                </span>
+              </sc-if>
+              <sc-if value="{{ p.menuOpen }}" hint-placeholder-val="{{ false }}">
+                <div style="position: absolute; right: 4px; top: 32px; z-index: 20; width: 172px; background: var(--card); border: 1px solid var(--hair); border-radius: 16px; box-shadow: var(--shadow-md); padding: 6px; display: flex; flex-direction: column">
+                  <span onClick="{{ p.onRename }}" style="padding: 8px 12px; border-radius: 999px; font-size: 13.5px" style-hover="background: var(--color-neutral-200)">{{ t.rename }}</span>
+                  <span onClick="{{ p.onNewChat }}" style="padding: 8px 12px; border-radius: 999px; font-size: 13.5px" style-hover="background: var(--color-neutral-200)">{{ t.newChatIn }}</span>
+                  <span onClick="{{ p.onDuplicate }}" style="padding: 8px 12px; border-radius: 999px; font-size: 13.5px" style-hover="background: var(--color-neutral-200)">{{ t.duplicate }}</span>
+                  <span onClick="{{ p.onArchive }}" style="padding: 8px 12px; border-radius: 999px; font-size: 13.5px" style-hover="background: var(--color-neutral-200)">{{ t.archive }}</span>
+                  <span onClick="{{ p.onAskDelete }}" style="padding: 8px 12px; border-radius: 999px; font-size: 13.5px; color: #9c3a22" style-hover="background: var(--color-neutral-200)">{{ t.deleteProject }}</span>
+                </div>
+              </sc-if>
+            </div>
+
+            <sc-if value="{{ p.expanded }}" hint-placeholder-val="{{ true }}">
+              <div style="display: flex; flex-direction: column; gap: 1px; padding-bottom: 8px">
+                <sc-for list="{{ p.convos }}" as="c" hint-placeholder-count="3">
+                  <div style="{{ c.rowStyle }}" onMouseEnter="{{ c.onEnter }}" onMouseLeave="{{ c.onLeave }}" onClick="{{ c.onOpen }}">
+                    <span style="flex: 1; min-width: 0; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ c.title }}</span>
+                    <sc-if value="{{ c.showBranch }}" hint-placeholder-val="{{ false }}">
+                      <span style="flex: none; color: var(--color-accent-2-600); display: flex">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="6" r="2.4"></circle><circle cx="7" cy="18" r="2.4"></circle><circle cx="17" cy="8" r="2.4"></circle><path d="M7 8.4v7.2"></path><path d="M17 10.4c0 3.2-2.6 5.6-6 5.6"></path></svg>
+                      </span>
+                    </sc-if>
+                    <sc-if value="{{ c.hover }}" hint-placeholder-val="{{ false }}">
+                      <span style="flex: none; display: flex; gap: 2px; color: var(--color-neutral-700)">
+                        <span title="{{ t.pin }}" style="width: 22px; height: 22px; display: flex; align-items: center; justify-content: center">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><circle cx="12" cy="9" r="4"></circle><path d="M12 13v7"></path></svg>
+                        </span>
+                        <span title="{{ t.archive }}" style="width: 22px; height: 22px; display: flex; align-items: center; justify-content: center">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="4" rx="1.6"></rect><path d="M5.5 8.5v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-9"></path><path d="M10 12.5h4"></path></svg>
+                        </span>
+                      </span>
+                    </sc-if>
+                  </div>
+                </sc-for>
+                <sc-if value="{{ p.empty }}" hint-placeholder-val="{{ false }}">
+                  <div style="padding: 4px 12px 4px 30px; font-size: 13px; color: var(--color-neutral-600)">{{ t.noChats }}</div>
+                </sc-if>
+              </div>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="position: relative; flex: none; margin-top: 4px">
+        <sc-if value="{{ userMenuOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="position: absolute; left: 4px; right: 4px; bottom: 46px; z-index: 25; background: var(--card); border: 1px solid var(--hair); border-radius: 16px; box-shadow: var(--shadow-md); padding: 6px; display: flex; flex-direction: column">
+            <span onClick="{{ openSettings }}" style="padding: 8px 12px; border-radius: 999px; font-size: 13.5px" style-hover="background: var(--hair-soft)">{{ t.settings }}</span>
+            <span onClick="{{ closeUserMenu }}" style="padding: 8px 12px; border-radius: 999px; font-size: 13.5px" style-hover="background: var(--hair-soft)">{{ t.signOut }}</span>
+          </div>
+        </sc-if>
+        <div style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 999px" style-hover="background: var(--color-neutral-200)">
+          <div style="flex: none; width: 28px; height: 28px; border-radius: 999px; background: var(--color-neutral-800)"></div>
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.35">
+            <span style="font-size: 13px; font-weight: 500">何遇</span>
+            <span style="font-size: 11.5px; color: var(--color-neutral-600); overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ planLine }}</span>
+          </div>
+          <span onClick="{{ toggleUserMenu }}" title="{{ t.more }}" style="flex: none; width: 24px; height: 24px; border-radius: 999px; display: flex; align-items: center; justify-content: center; color: var(--color-neutral-600); cursor: default">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="12" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle><circle cx="18.5" cy="12" r="1.7"></circle></svg>
+          </span>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+    <div onMouseDown="{{ startLeftDrag }}" style="{{ leftHandleStyle }}"></div>
+  </aside>
+
+  <main style="flex: 1; min-width: 420px; display: flex; flex-direction: column; min-height: 0; overflow: hidden">
+
+    <div style="flex: none; height: 62px; display: flex; align-items: center; gap: 12px; padding: 0 18px 0 26px">
+      <sc-if value="{{ leftClosed }}" hint-placeholder-val="{{ false }}">
+        <button class="btn" style="flex: none; width: 32px; height: 32px; padding: 0; border-radius: 999px; color: var(--color-neutral-700)" style-hover="background: var(--color-neutral-200)" onClick="{{ toggleLeft }}" title="{{ t.expand }}">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="4"></rect><path d="M9.5 4.5v15"></path></svg>
+        </button>
+      </sc-if>
+      <div style="flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 10px; overflow: hidden">
+        <span style="flex: none; max-width: 60%; font-size: 15px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ activeTitle }}</span>
+        <span style="flex: none; min-width: 0; font-size: 12.5px; color: var(--color-neutral-600); overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ activeProject }}</span>
+      </div>
+      <sc-if value="{{ isSettings }}" hint-placeholder-val="{{ false }}">
+        <span onClick="{{ backToChat }}" style="flex: none; font-size: 12.5px; color: var(--color-accent-700); cursor: default; white-space: nowrap">{{ t.backToChat }}</span>
+      </sc-if>
+      <sc-if value="{{ barWide }}" hint-placeholder-val="{{ true }}">
+        <span style="flex: none; font-size: 12.5px; color: var(--color-neutral-600); white-space: nowrap">{{ ctxLine }}</span>
+      </sc-if>
+      <button class="btn" style="flex: none; width: 32px; height: 32px; padding: 0; border-radius: 999px; color: var(--color-neutral-700)" style-hover="background: var(--hair-soft)" title="{{ t.share }}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7.5 8.5 12 4l4.5 4.5"></path><path d="M5 15v3.5a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5V15"></path></svg>
+      </button>
+      <sc-if value="{{ panelClosed }}" hint-placeholder-val="{{ true }}">
+        <button class="btn" style="flex: none; width: 32px; height: 32px; padding: 0; border-radius: 999px; color: var(--color-neutral-700)" style-hover="background: var(--color-neutral-200)" onClick="{{ togglePanel }}" title="{{ t.openPanel }}">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="4"></rect><path d="M14.5 4.5v15"></path></svg>
+        </button>
+      </sc-if>
+    </div>
+
+    <sc-if value="{{ sEmpty }}" hint-placeholder-val="{{ false }}">
+      <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; padding: 0 26px 40px">
+        <div style="width: 100%; max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px">
+          <h1 style="margin: 0; font-size: 34px; font-weight: 500; letter-spacing: -0.024em; line-height: 1.18">{{ greeting }}</h1>
+          <p style="margin: 0; font-size: 16px; line-height: 1.7; color: var(--color-neutral-700); max-width: 480px; text-wrap: pretty">{{ emptyHint }}</p>
+          <div style="display: flex; flex-direction: column; gap: 2px; margin-top: 4px">
+            <sc-for list="{{ suggestions }}" as="g" hint-placeholder-count="3">
+              <div style="{{ g.rowStyle }}" onMouseEnter="{{ g.onEnter }}" onMouseLeave="{{ g.onLeave }}" onClick="{{ g.onPick }}">
+                <span style="flex: none; width: 8px; height: 8px; border-radius: 999px; background: var(--color-accent-2-400)"></span>
+                <span style="flex: none; font-size: 15px">{{ g.title }}</span>
+                <span style="flex: 1; min-width: 0; font-size: 13px; color: var(--color-neutral-600); overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ g.hint }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ sChat }}" hint-placeholder-val="{{ true }}">
+      <div class="scr" style="flex: 1; min-height: 0; overflow: auto; padding: 6px 26px 8px">
+        <div style="{{ chatColStyle }}">
+
+          <div style="align-self: flex-end; max-width: 560px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px">
+            <div style="display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px">
+              <sc-for list="{{ userMedia }}" as="m" hint-placeholder-count="3">
+                <div style="{{ m.tileStyle }}" onClick="{{ m.onOpen }}" onMouseEnter="{{ m.onEnter }}" onMouseLeave="{{ m.onLeave }}">
+                  <span style="{{ m.glyphStyle }}">{{ m.glyph }}</span>
+                  <sc-if value="{{ m.isVideo }}" hint-placeholder-val="{{ false }}">
+                    <span style="position: absolute; bottom: 6px; right: 7px; padding: 1px 5px; border-radius: 5px; background: rgba(44,43,40,.72); color: #fff; font-size: 10px; font-family: ui-monospace, SFMono-Regular, monospace">{{ m.badge }}</span>
+                  </sc-if>
+                  <sc-if value="{{ m.hover }}" hint-placeholder-val="{{ false }}">
+                    <span style="position: absolute; inset: 0; border-radius: 13px; background: rgba(44,43,40,.28); display: flex; align-items: center; justify-content: center; color: #fff">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"></path><path d="M10 20H4v-6"></path><path d="M20 4l-8 8M4 20l8-8"></path></svg>
+                    </span>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+            <div style="background: var(--color-neutral-200); border-radius: 20px 20px 8px 20px; padding: 12px 18px; font-size: 15px; line-height: 1.65">帮我把这份季度数据做成复盘，重点看增长来自哪里。</div>
+            <div style="display: flex; align-items: center; gap: 9px; padding: 5px 14px 5px 7px; border-radius: 999px; border: 1px solid var(--hair)">
+              <span style="width: 22px; height: 22px; border-radius: 999px; background: var(--color-neutral-200)"></span>
+              <span style="font-size: 12px">Q3-明细.xlsx · 2.4 MB</span>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 16px">
+            <div style="flex: none; width: 28px; height: 28px; border-radius: 9px; background: var(--color-text); display: flex; align-items: center; justify-content: center; margin-top: 2px"><span style="font-size: 15px; font-weight: 700; line-height: 1; color: var(--color-bg)">b</span></div>
+            <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 18px">
+
+              <div style="display: flex; flex-direction: column; gap: 10px">
+                <div onClick="{{ toggleThink }}" style="align-self: flex-start; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--color-neutral-600); cursor: default">
+                  <span style="{{ thinkChev }}">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
+                  </span>
+                  <span>{{ t.thoughtFor }}</span>
+                </div>
+                <sc-if value="{{ thinkOpen }}" hint-placeholder-val="{{ false }}">
+                  <div style="margin-left: 20px; padding-left: 16px; border-left: 2px solid var(--color-accent-2-300); display: flex; flex-direction: column; gap: 7px; max-width: 620px; font-size: 13.5px; line-height: 1.65; color: var(--color-neutral-700)">
+                    <div>先确认表里有哪几个维度，再决定按渠道还是按地区拆。</div>
+                    <div>同比需要去年同期口径，表里只有本年，用附带的历史表补。</div>
+                    <div>华东的异常增长要单独看，可能是 8 月的活动。</div>
+                  </div>
+                </sc-if>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 10px">
+                <div onClick="{{ toggleLogGroup }}" style="align-self: flex-start; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--color-neutral-600); cursor: default">
+                  <span style="{{ logChev }}">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
+                  </span>
+                  <span>{{ t.process }}</span>
+                  <span style="color: var(--color-neutral-500)">{{ logSummary }}</span>
+                </div>
+                <sc-if value="{{ logGroupOpen }}" hint-placeholder-val="{{ false }}">
+                  <div style="margin-left: 20px; padding-left: 10px; border-left: 2px solid var(--color-neutral-300); display: flex; flex-direction: column; gap: 2px">
+                    <sc-for list="{{ doneEntries }}" as="e" hint-placeholder-count="4">
+                      <div style="display: flex; flex-direction: column">
+                        <div style="{{ e.headStyle }}" onMouseEnter="{{ e.onEnter }}" onMouseLeave="{{ e.onLeave }}" onClick="{{ e.onToggle }}">
+                          <span style="{{ e.glyphStyle }}">{{ e.glyph }}</span>
+                          <span style="flex: none; width: 56px; font-size: 12px; color: var(--color-neutral-700)">{{ e.kind }}</span>
+                          <span style="{{ e.targetStyle }}">{{ e.target }}</span>
+                          <span style="flex: none; font-size: 11.5px; color: var(--color-neutral-500)">{{ e.meta }}</span>
+                          <span style="{{ e.chevStyle }}">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
+                          </span>
+                        </div>
+                        <sc-if value="{{ e.open }}" hint-placeholder-val="{{ false }}">
+                          <div style="padding: 2px 8px 14px 34px; display: flex; flex-direction: column; gap: 3px">
+                            <sc-for list="{{ e.lines }}" as="l" hint-placeholder-count="3">
+                              <div style="{{ l.style }}"><span style="{{ l.pfxStyle }}">{{ l.pfx }}</span>{{ l.text }}</div>
+                            </sc-for>
+                            <sc-if value="{{ e.hasActions }}" hint-placeholder-val="{{ false }}">
+                              <div style="display: flex; gap: 16px; padding-top: 8px">
+                                <span onClick="{{ e.onActionA }}" style="font-size: 12px; color: var(--color-accent-700); cursor: default">{{ e.actionA }}</span>
+                                <span style="font-size: 12px; color: var(--color-accent-700); cursor: default">{{ e.actionB }}</span>
+                              </div>
+                            </sc-if>
+                          </div>
+                        </sc-if>
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 14px; max-width: 660px; font-size: 15.5px; line-height: 1.78; text-wrap: pretty">
+                <p style="margin: 0">本季度收入 4,821 万，同比 +23.6%。增长高度集中：<strong>华东贡献了新增部分的 61%</strong>，主要来自 8 月上线的订阅套餐<sup style="color: var(--color-accent-700)">[1]</sup>；其余地区基本持平，西南略有下滑<sup style="color: var(--color-accent-700)">[2]</sup>。</p>
+                <p style="margin: 0">如果要一页复盘，我建议只讲三件事：增长来自哪、能不能复制、下季度押哪个动作。</p>
+              </div>
+
+              <div style="max-width: 660px; background: var(--card); border: 1px solid var(--hair); border-radius: 14px; overflow: hidden">
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 9px 16px 2px">
+                  <span style="font-family: ui-monospace, SFMono-Regular, monospace; font-size: 11.5px; color: var(--color-neutral-600)">python</span>
+                  <span style="font-size: 12px; color: var(--color-neutral-600); cursor: default">复制</span>
+                </div>
+                <pre style="margin: 0; padding: 2px 16px 14px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12.5px; line-height: 1.85; color: var(--color-neutral-800); overflow: auto"><span style="color: var(--color-accent-2-700)">g</span> = df.groupby(<span style="color: var(--color-accent-700)">"region"</span>)[<span style="color: var(--color-accent-700)">"revenue"</span>].sum()
+<span style="color: var(--color-accent-2-700)">yoy</span> = g / last_year.set_index(<span style="color: var(--color-accent-700)">"region"</span>).revenue - <span style="color: var(--color-neutral-700)">1</span>
+yoy.sort_values(ascending=<span style="color: var(--color-neutral-700)">False</span>).head(<span style="color: var(--color-neutral-700)">4</span>)</pre>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 10px">
+                <span style="font-size: 12.5px; color: var(--color-neutral-600)">{{ t.outputs }}</span>
+                <div style="display: flex; flex-wrap: wrap; gap: 10px">
+                  <sc-for list="{{ outMedia }}" as="m" hint-placeholder-count="3">
+                    <div style="display: flex; flex-direction: column; gap: 6px; width: 158px">
+                      <div style="{{ m.tileStyle }}" onClick="{{ m.onOpen }}" onMouseEnter="{{ m.onEnter }}" onMouseLeave="{{ m.onLeave }}">
+                        <span style="{{ m.glyphStyle }}">{{ m.glyph }}</span>
+                        <sc-if value="{{ m.isVideo }}" hint-placeholder-val="{{ false }}">
+                          <span style="position: absolute; bottom: 7px; right: 8px; padding: 1px 6px; border-radius: 5px; background: rgba(44,43,40,.72); color: #fff; font-size: 10.5px; font-family: ui-monospace, SFMono-Regular, monospace">{{ m.badge }}</span>
+                        </sc-if>
+                        <sc-if value="{{ m.hover }}" hint-placeholder-val="{{ false }}">
+                          <span style="position: absolute; inset: 0; border-radius: 13px; background: rgba(44,43,40,.28); display: flex; align-items: center; justify-content: center; color: #fff">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"></path><path d="M10 20H4v-6"></path><path d="M20 4l-8 8M4 20l8-8"></path></svg>
+                          </span>
+                        </sc-if>
+                      </div>
+                      <span style="font-size: 11.5px; color: var(--color-neutral-600); overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ m.name }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+
+              <sc-if value="{{ showSources }}" hint-placeholder-val="{{ true }}">
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center">
+                  <span style="font-size: 12px; color: var(--color-neutral-600)">{{ t.sources }}</span>
+                  <span class="tag tag-outline" style="border-radius: 999px; font-size: 12px">[1] Q3-明细.xlsx · sheet 订阅</span>
+                  <span class="tag tag-outline" style="border-radius: 999px; font-size: 12px">[2] 2025 区域月报.pdf · p.7</span>
+                </div>
+              </sc-if>
+
+              <div onClick="{{ openReviewChip }}" style="align-self: flex-start; max-width: 100%; display: flex; align-items: center; gap: 12px; padding: 9px 16px; border-radius: 999px; border: 1px solid var(--hair); cursor: default" style-hover="background: var(--hair-soft)">
+                <span style="flex: 1; min-width: 0; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ t.changedFile }}</span>
+                <span style="flex: none; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px; color: var(--color-accent-2-700)">+5</span>
+                <span style="flex: none; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px; color: #9c3a22">−2</span>
+                <span style="flex: none; font-size: 12px; color: var(--color-accent-700)">{{ t.reviewGo }}</span>
+              </div>
+
+              <div style="display: flex; gap: 18px">
+                <span style="font-size: 12.5px; color: var(--color-neutral-600); cursor: default">{{ t.copy }}</span>
+                <span style="font-size: 12.5px; color: var(--color-neutral-600); cursor: default">{{ t.regen }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div style="align-self: flex-end; max-width: 520px; background: var(--color-neutral-200); border-radius: 20px 20px 8px 20px; padding: 12px 18px; font-size: 15px; line-height: 1.65">那就出一版完整复盘，图表也一起做了。</div>
+
+          <div style="display: flex; gap: 16px">
+            <div style="flex: none; width: 28px; height: 28px; border-radius: 9px; background: var(--color-text); display: flex; align-items: center; justify-content: center; margin-top: 2px"><span style="font-size: 15px; font-weight: 700; line-height: 1; color: var(--color-bg)">b</span></div>
+            <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 18px">
+
+              <div style="max-width: 660px; background: var(--card); border: 1px solid var(--hair); border-radius: 18px; padding: 16px 20px 18px; display: flex; flex-direction: column; gap: 12px">
+                <div style="display: flex; align-items: center; gap: 10px">
+                  <span style="font-size: 15px; font-weight: 500">{{ t.planTitle }}</span>
+                  <span style="font-size: 12.5px; color: var(--color-neutral-600)">{{ stepCounter }}</span>
+                  <span style="margin-left: auto; font-size: 12.5px; color: var(--color-accent-700); cursor: default">{{ t.stop }}</span>
+                </div>
+                <div style="display: flex; flex-direction: column">
+                  <sc-for list="{{ steps }}" as="s" hint-placeholder-count="5">
+                    <div style="display: flex; flex-direction: column">
+                      <div style="{{ s.rowStyle }}" onMouseEnter="{{ s.onEnter }}" onMouseLeave="{{ s.onLeave }}" onClick="{{ s.onToggle }}">
+                        <span style="{{ s.dotStyle }}">{{ s.dotMark }}</span>
+                        <span style="{{ s.titleStyle }}">{{ s.title }}</span>
+                        <sc-if value="{{ s.running }}" hint-placeholder-val="{{ true }}">
+                          <span style="margin-left: auto; font-size: 12px; color: var(--color-neutral-600)">{{ pctLabel }}</span>
+                        </sc-if>
+                        <sc-if value="{{ s.canEdit }}" hint-placeholder-val="{{ false }}">
+                          <span style="margin-left: auto; display: flex; gap: 2px; color: var(--color-neutral-600)">
+                            <span onClick="{{ s.onInsert }}" title="{{ t.addStep }}" style="width: 22px; height: 22px; border-radius: 999px; display: flex; align-items: center; justify-content: center">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+                            </span>
+                            <span onClick="{{ s.onRemove }}" title="{{ t.del }}" style="width: 22px; height: 22px; border-radius: 999px; display: flex; align-items: center; justify-content: center">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+                            </span>
+                          </span>
+                        </sc-if>
+                      </div>
+                      <sc-if value="{{ s.running }}" hint-placeholder-val="{{ true }}">
+                        <div style="margin: 4px 0 10px 30px; height: 5px; border-radius: 999px; background: var(--color-neutral-300); overflow: hidden">
+                          <div style="height: 100%; border-radius: 999px; background: var(--color-accent); width: {{ pctWidth }}"></div>
+                        </div>
+                      </sc-if>
+                      <sc-if value="{{ s.showLog }}" hint-placeholder-val="{{ true }}">
+                        <div style="margin: 0 0 12px 30px; padding-left: 10px; border-left: 2px solid var(--color-neutral-300); display: flex; flex-direction: column; gap: 2px">
+                          <sc-for list="{{ s.entries }}" as="e" hint-placeholder-count="3">
+                            <div style="display: flex; flex-direction: column">
+                              <div style="{{ e.headStyle }}" onMouseEnter="{{ e.onEnter }}" onMouseLeave="{{ e.onLeave }}" onClick="{{ e.onToggle }}">
+                                <span style="{{ e.glyphStyle }}">{{ e.glyph }}</span>
+                                <span style="flex: none; width: 56px; font-size: 12px; color: var(--color-neutral-700)">{{ e.kind }}</span>
+                                <span style="{{ e.targetStyle }}">{{ e.target }}</span>
+                                <span style="flex: none; font-size: 11.5px; color: var(--color-neutral-500)">{{ e.meta }}</span>
+                                <span style="{{ e.chevStyle }}">
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
+                                </span>
+                              </div>
+                              <sc-if value="{{ e.open }}" hint-placeholder-val="{{ false }}">
+                                <div style="padding: 2px 8px 14px 34px; display: flex; flex-direction: column; gap: 3px">
+                                  <sc-for list="{{ e.lines }}" as="l" hint-placeholder-count="3">
+                                    <div style="{{ l.style }}"><span style="{{ l.pfxStyle }}">{{ l.pfx }}</span>{{ l.text }}</div>
+                                  </sc-for>
+                                  <sc-if value="{{ e.running }}" hint-placeholder-val="{{ false }}">
+                                    <div style="font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12.5px; color: var(--color-neutral-700)">{{ logTail }}<span style="display: inline-block; width: 7px; height: 12px; background: var(--color-accent); vertical-align: -1px; animation: blink 1s steps(1) infinite"></span></div>
+                                  </sc-if>
+                                  <sc-if value="{{ e.hasActions }}" hint-placeholder-val="{{ false }}">
+                                    <div style="display: flex; gap: 16px; padding-top: 8px">
+                                      <span onClick="{{ e.onActionA }}" style="font-size: 12px; color: var(--color-accent-700); cursor: default">{{ e.actionA }}</span>
+                                      <span style="font-size: 12px; color: var(--color-accent-700); cursor: default">{{ e.actionB }}</span>
+                                    </div>
+                                  </sc-if>
+                                </div>
+                              </sc-if>
+                            </div>
+                          </sc-for>
+                        </div>
+                      </sc-if>
+                    </div>
+                  </sc-for>
+                </div>
+                <span onClick="{{ addStep }}" style="align-self: flex-start; font-size: 12.5px; color: var(--color-accent-700); cursor: default">{{ t.addStep }}</span>
+              </div>
+
+              <div style="max-width: 660px; font-size: 15.5px; line-height: 1.78">{{ streamText }}<span style="display: inline-block; width: 8px; height: 17px; background: var(--color-accent); vertical-align: -3px; animation: blink 1s steps(1) infinite"></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isSettings }}" hint-placeholder-val="{{ false }}">
+      <div class="scr" style="flex: 1; min-height: 0; overflow: auto; padding: 6px 26px 28px">
+        <div style="width: 100%; max-width: 860px; margin: 0 auto; display: flex; gap: 28px; align-items: flex-start">
+          <div style="flex: none; width: 176px; display: flex; flex-direction: column; gap: 2px">
+            <sc-for list="{{ settingsNav }}" as="s" hint-placeholder-count="5">
+              <div style="{{ s.rowStyle }}" onClick="{{ s.onPick }}" onMouseEnter="{{ s.onEnter }}" onMouseLeave="{{ s.onLeave }}">
+                <span style="font-size: 13.5px">{{ s.label }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 18px">
+            <div style="display: flex; flex-direction: column; gap: 4px">
+              <span style="font-size: 19px; font-weight: 500; letter-spacing: -0.02em">{{ settingsTitle }}</span>
+              <span style="font-size: 13px; color: var(--color-neutral-600)">{{ settingsHint }}</span>
+            </div>
+            <sc-if value="{{ showCredits }}" hint-placeholder-val="{{ true }}">
+              <div style="background: var(--card); border: 1px solid var(--hair); border-radius: 18px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px">
+                <div style="display: flex; align-items: baseline; gap: 10px">
+                  <span style="font-size: 28px; font-weight: 500; letter-spacing: -0.02em">{{ credits }}</span>
+                  <span style="font-size: 13px; color: var(--color-neutral-600); white-space: nowrap">{{ t.creditsLeft }} · {{ creditsCycle }}</span>
+                  <span style="margin-left: auto; font-size: 12.5px; color: var(--color-accent-700); cursor: default">{{ t.topUp }}</span>
+                </div>
+                <div style="height: 6px; border-radius: 999px; background: var(--color-neutral-200); overflow: hidden">
+                  <div style="height: 100%; border-radius: 999px; background: var(--color-text); width: {{ creditsPct }}"></div>
+                </div>
+                <span style="font-size: 12px; color: var(--color-neutral-600)">{{ t.creditsNote }}</span>
+              </div>
+            </sc-if>
+            <sc-if value="{{ isAppearance }}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-direction: column; gap: 24px">
+                <div style="display: flex; flex-direction: column; gap: 10px">
+                  <span style="font-size: 12.5px; color: var(--color-neutral-600)">语言 / Language</span>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px">
+                    <sc-for list="{{ langs }}" as="g" hint-placeholder-count="2">
+                      <div style="{{ g.cardStyle }}" onClick="{{ g.onPick }}">
+                        <span style="font-size: 14px">{{ g.label }}</span>
+                        <span style="font-size: 12px; color: var(--color-neutral-600)">{{ g.hint }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 10px">
+                  <span style="font-size: 12.5px; color: var(--color-neutral-600)">{{ t.themeLabel }}</span>
+                  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+                    <sc-for list="{{ themes }}" as="th" hint-placeholder-count="8">
+                      <div style="{{ th.cardStyle }}" onClick="{{ th.onPick }}">
+                        <div style="display: flex; align-items: center; gap: 8px">
+                          <span style="{{ th.badgeStyle }}">{{ th.temp }}</span>
+                          <span style="margin-left: auto; display: flex; gap: 3px">
+                            <sc-for list="{{ th.swatches }}" as="sw" hint-placeholder-count="4">
+                              <span style="{{ sw.style }}"></span>
+                            </sc-for>
+                          </span>
+                        </div>
+                        <span style="{{ th.nameStyle }}">{{ th.name }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 10px">
+                  <span style="font-size: 12.5px; color: var(--color-neutral-600)">{{ t.colorMode }}</span>
+                  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px">
+                    <sc-for list="{{ modes }}" as="md" hint-placeholder-count="3">
+                      <div style="{{ md.cardStyle }}" onClick="{{ md.onPick }}">
+                        <sc-if value="{{ md.isSystem }}" hint-placeholder-val="{{ false }}">
+                          <span style="position: absolute; inset: 0; background: linear-gradient(115deg, transparent 0 48%, #1b1a18 48% 100%)"></span>
+                        </sc-if>
+                        <span style="{{ md.labelStyle }}">{{ md.glyph }} {{ md.label }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 10px">
+                  <span style="font-size: 12.5px; color: var(--color-neutral-600)">{{ t.fontSize }}</span>
+                  <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px">
+                    <sc-for list="{{ fontSizes }}" as="fz" hint-placeholder-count="4">
+                      <div style="{{ fz.cardStyle }}" onClick="{{ fz.onPick }}">{{ fz.label }}</div>
+                    </sc-for>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ hasRows }}" hint-placeholder-val="{{ true }}">
+            <div style="background: var(--card); border: 1px solid var(--hair); border-radius: 18px; overflow: hidden; display: flex; flex-direction: column">
+              <sc-for list="{{ settingsRows }}" as="r" hint-placeholder-count="4">
+                <div style="{{ r.rowStyle }}">
+                  <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px">
+                    <span style="font-size: 14px">{{ r.label }}</span>
+                    <span style="font-size: 12.5px; color: var(--color-neutral-600); text-wrap: pretty">{{ r.hint }}</span>
+                  </div>
+                  <sc-if value="{{ r.isToggle }}" hint-placeholder-val="{{ false }}">
+                    <span onClick="{{ r.onToggle }}" style="{{ r.trackStyle }}"><span style="{{ r.knobStyle }}"></span></span>
+                  </sc-if>
+                  <sc-if value="{{ r.isValue }}" hint-placeholder-val="{{ true }}">
+                    <span style="flex: none; display: flex; align-items: center; gap: 7px; height: 30px; padding: 0 12px; border-radius: 999px; background: var(--color-neutral-200); font-size: 12.5px; white-space: nowrap">{{ r.value }}<span style="font-size: 9px; color: var(--color-neutral-600)">▾</span></span>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+            </sc-if>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <div style="{{ composerWrapStyle }}">
+      <div style="width: 100%; max-width: 760px; margin: 0 auto; background: var(--card); border: 1px solid var(--hair); border-radius: 20px; padding: 15px 16px 12px 22px; display: flex; flex-direction: column; gap: 10px">
+        <sc-if value="{{ hasDraftMedia }}" hint-placeholder-val="{{ true }}">
+          <div style="display: flex; flex-wrap: wrap; gap: 8px; padding-bottom: 2px">
+            <sc-for list="{{ draftMedia }}" as="m" hint-placeholder-count="2">
+              <div style="position: relative; display: flex">
+                <div style="{{ m.tileStyle }}" onClick="{{ m.onOpen }}" onMouseEnter="{{ m.onEnter }}" onMouseLeave="{{ m.onLeave }}">
+                  <span style="{{ m.glyphStyle }}">{{ m.glyph }}</span>
+                  <sc-if value="{{ m.isVideo }}" hint-placeholder-val="{{ false }}">
+                    <span style="position: absolute; bottom: 5px; right: 6px; padding: 1px 5px; border-radius: 5px; background: rgba(44,43,40,.72); color: #fff; font-size: 10px; font-family: ui-monospace, SFMono-Regular, monospace">{{ m.badge }}</span>
+                  </sc-if>
+                </div>
+                <span onClick="{{ m.onRemove }}" title="{{ t.del }}" style="position: absolute; top: -5px; right: -5px; width: 18px; height: 18px; border-radius: 999px; background: var(--color-text); color: var(--color-bg); display: flex; align-items: center; justify-content: center; font-size: 11px; cursor: default">×</span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <div style="display: flex; align-items: center; gap: 12px">
+          <span style="flex: 1; min-width: 0; font-size: 15px; color: var(--color-neutral-700)">{{ composerHint }}</span>
+          <sc-if value="{{ isRunning }}" hint-placeholder-val="{{ true }}">
+            <span style="flex: none; font-size: 12.5px; color: var(--color-accent-700); cursor: default">{{ t.stopGen }}</span>
+          </sc-if>
+        </div>
+        <div style="display: flex; align-items: center; gap: 4px">
+          <button class="btn" style="flex: none; width: 32px; height: 32px; padding: 0; border-radius: 999px; color: var(--color-neutral-700)" style-hover="background: var(--hair-soft)" title="{{ t.attach }}">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+          </button>
+          <button class="btn" style="flex: none; width: 32px; height: 32px; padding: 0; border-radius: 999px; color: var(--color-neutral-700)" style-hover="background: var(--hair-soft)" title="{{ t.voice }}">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5.5 12a6.5 6.5 0 0 0 13 0M12 18.5V21"></path></svg>
+          </button>
+          <div style="position: relative; margin-left: auto; display: flex; align-items: center">
+            <sc-if value="{{ modelOpen }}" hint-placeholder-val="{{ false }}">
+              <div style="position: absolute; right: 0; bottom: 40px; z-index: 30; width: 240px; background: var(--card); border: 1px solid var(--hair); border-radius: 16px; box-shadow: var(--shadow-md); padding: 6px; display: flex; flex-direction: column">
+                <sc-for list="{{ models }}" as="mo" hint-placeholder-count="4">
+                  <div style="{{ mo.rowStyle }}" onClick="{{ mo.onPick }}" onMouseEnter="{{ mo.onEnter }}" onMouseLeave="{{ mo.onLeave }}">
+                    <span style="{{ mo.dotStyle }}"></span>
+                    <span style="flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ mo.name }}</span>
+                    <span style="flex: none; font-size: 11.5px; color: var(--color-neutral-600)">{{ mo.hint }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+            <div onClick="{{ toggleModel }}" style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: 999px; cursor: default; white-space: nowrap" style-hover="background: var(--hair-soft)">
+              <span style="display: flex; color: var(--color-text)">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="7.5"></circle><path d="M6 19 18 5"></path></svg>
+              </span>
+              <span style="font-size: 13px; font-weight: 500">{{ activeModel }}</span>
+              <span style="font-size: 9px; color: var(--color-neutral-600)">▾</span>
+            </div>
+          </div>
+          <button class="btn btn-primary" style="flex: none; width: 40px; height: 40px; padding: 0; border-radius: 999px" title="{{ t.send }}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"></path></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <sc-if value="{{ panelOpen }}" hint-placeholder-val="{{ false }}">
+    <section ref="{{ panelRef }}" style="{{ panelStyle }}">
+      <div onMouseDown="{{ startPanelDrag }}" style="{{ panelHandleStyle }}"></div>
+
+      <div style="flex: none; height: 52px; display: flex; align-items: center; gap: 6px; padding: 0 12px">
+        <div style="flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; overflow: hidden">
+          <sc-for list="{{ tabs }}" as="tb" hint-placeholder-count="1">
+            <div style="{{ tb.style }}" onClick="{{ tb.onSelect }}">
+              <span style="{{ tb.glyphStyle }}">{{ tb.glyph }}</span>
+              <span style="font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px">{{ tb.title }}</span>
+              <span onClick="{{ tb.onClose }}" title="{{ t.close }}" style="flex: none; width: 18px; height: 18px; border-radius: 999px; display: flex; align-items: center; justify-content: center; color: var(--color-neutral-600); font-size: 14px">×</span>
+            </div>
+          </sc-for>
+          <button class="btn" style="flex: none; width: 28px; height: 28px; padding: 0; border-radius: 999px; color: var(--color-neutral-700)" style-hover="background: var(--color-neutral-200)" onClick="{{ addTab }}" title="{{ t.newTab }}">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+          </button>
+        </div>
+        <button class="btn" style="flex: none; width: 30px; height: 30px; padding: 0; border-radius: 999px; color: var(--color-neutral-700)" style-hover="background: var(--hair-soft)" title="{{ t.maximize }}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M10 20H4v-6"></path><path d="M20 4l-7 7M4 20l7-7"></path></svg>
+        </button>
+        <button class="btn" style="flex: none; width: 30px; height: 30px; padding: 0; border-radius: 999px; color: var(--color-neutral-700)" style-hover="background: var(--color-neutral-200)" onClick="{{ togglePanel }}" title="{{ t.closePanel }}">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="4"></rect><path d="M14.5 4.5v15"></path></svg>
+        </button>
+      </div>
+
+      <sc-if value="{{ tabIsMenu }}" hint-placeholder-val="{{ true }}">
+        <div class="scr" style="flex: 1; min-height: 0; overflow: auto; padding: 4px 12px 16px; display: flex; flex-direction: column; gap: 2px">
+          <sc-for list="{{ menuItems }}" as="m" hint-placeholder-count="4">
+            <div style="{{ m.rowStyle }}" onMouseEnter="{{ m.onEnter }}" onMouseLeave="{{ m.onLeave }}" onClick="{{ m.onOpen }}">
+              <span style="{{ m.glyphStyle }}">{{ m.glyph }}</span>
+              <span style="font-size: 14.5px">{{ m.label }}</span>
+              <span style="margin-left: auto; font-size: 12px; color: var(--color-neutral-600)">{{ m.hint }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ tabIsTerminal }}" hint-placeholder-val="{{ false }}">
+        <div class="scr" style="flex: 1; min-height: 0; margin: 0 12px 12px; border-radius: 16px; background: #26251f; padding: 16px 18px; overflow: auto; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12.5px; line-height: 1.8; color: #e6e3dc; display: flex; flex-direction: column">
+          <div><span style="color: var(--color-accent-2-300)">➜</span> pnpm install</div>
+          <div style="color: var(--color-neutral-500)">Packages: +812  done in 6.1s</div>
+          <div><span style="color: var(--color-accent-2-300)">➜</span> python scripts/calc_yoy.py --by region</div>
+          <div style="color: var(--color-neutral-500)">华东  +38.1%   贡献 61.2%</div>
+          <div style="color: var(--color-neutral-500)">西南  -3.2%    贡献 -1.1%</div>
+          <div><span style="color: var(--color-accent-2-300)">➜</span> python scripts/make_charts.py</div>
+          <div style="color: var(--color-neutral-500)">[2/3] 地区贡献度 ✓</div>
+          <div>{{ logTail }}<span style="display: inline-block; width: 7px; height: 13px; background: var(--color-neutral-300); vertical-align: -2px; animation: blink 1s steps(1) infinite"></span></div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ tabIsBrowser }}" hint-placeholder-val="{{ false }}">
+        <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 0 12px 12px">
+          <div style="flex: none; display: flex; align-items: center; gap: 8px">
+            <button class="btn" style="flex: none; width: 30px; height: 30px; padding: 0; border-radius: 999px; color: var(--color-neutral-700)" style-hover="background: var(--hair-soft)" title="{{ t.back }}">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>
+            </button>
+            <div style="flex: 1; min-width: 0; height: 32px; border-radius: 999px; background: var(--card); border: 1px solid var(--hair); display: flex; align-items: center; padding: 0 14px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px; color: var(--color-neutral-700); overflow: hidden; white-space: nowrap; text-overflow: ellipsis">bench.example.org/2025/pricing</div>
+            <button class="btn" style="flex: none; width: 30px; height: 30px; padding: 0; border-radius: 999px; color: var(--color-neutral-700)" style-hover="background: var(--hair-soft)" title="{{ t.reload }}">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.4-5.7"></path><path d="M20 4v4h-4"></path></svg>
+            </button>
+          </div>
+          <div style="flex: 1; min-height: 0; border-radius: 16px; background: var(--card); border: 1px solid var(--hair); display: flex; align-items: center; justify-content: center; font-size: 12.5px; color: var(--color-neutral-600)">{{ t.pageView }}</div>
+          <div style="flex: none; display: flex; gap: 18px; padding-left: 4px">
+            <span style="font-size: 12.5px; color: var(--color-accent-700); cursor: default">{{ t.extract }}</span>
+            <span style="font-size: 12.5px; color: var(--color-accent-700); cursor: default">{{ t.addSource }}</span>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ tabIsReview }}" hint-placeholder-val="{{ false }}">
+        <div style="flex: 1; min-height: 0; display: flex; flex-direction: column">
+          <div style="flex: none; display: flex; align-items: center; gap: 10px; padding: 0 16px 12px">
+            <span style="font-size: 13px; font-weight: 500">{{ t.lastChanges }}</span>
+            <span style="font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12.5px; color: var(--color-accent-2-700)">{{ reviewAdd }}</span>
+            <span style="font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12.5px; color: #9c3a22">{{ reviewDel }}</span>
+            <div style="margin-left: auto; display: flex; align-items: center; gap: 14px">
+              <span style="font-size: 12.5px; color: var(--color-neutral-600); cursor: default">{{ t.rejectAll }}</span>
+              <button class="btn btn-primary" style="border-radius: 999px; font-size: 12.5px; height: 30px">{{ t.approveAll }}</button>
+            </div>
+          </div>
+          <div class="scr" style="flex: 1; min-height: 0; overflow: auto; padding: 0 12px 14px; display: flex; flex-direction: column; gap: 10px">
+            <sc-for list="{{ reviewFiles }}" as="r" hint-placeholder-count="3">
+              <div style="border-radius: 16px; overflow: hidden; background: var(--card); border: 1px solid var(--hair)">
+                <div style="{{ r.headStyle }}" onClick="{{ r.onSelect }}">
+                  <span style="{{ r.badgeStyle }}">{{ r.badge }}</span>
+                  <span style="flex: 1; min-width: 0; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap"><span style="color: var(--color-neutral-600)">{{ r.dir }}</span><span style="font-weight: 500">{{ r.base }}</span></span>
+                  <span style="flex: none; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px; color: var(--color-accent-2-700)">{{ r.add }}</span>
+                  <span style="flex: none; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px; color: #9c3a22">{{ r.del }}</span>
+                </div>
+                <sc-if value="{{ r.open }}" hint-placeholder-val="{{ true }}">
+                  <div style="display: flex; flex-direction: column; border-top: 1px solid var(--hair)">
+                    <div style="padding: 7px 16px; font-size: 12px; color: var(--color-neutral-600)">{{ r.skipped }}</div>
+                    <div class="scr" style="overflow-x: auto">
+                      <div style="min-width: max-content">
+                        <sc-for list="{{ r.lines }}" as="d" hint-placeholder-count="6">
+                          <div style="{{ d.rowStyle }}">
+                            <span style="{{ d.numStyle }}">{{ d.n }}</span>
+                            <span style="{{ d.markStyle }}">{{ d.mark }}</span>
+                            <span style="white-space: pre; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12.5px">{{ d.text }}</span>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </div>
+                    <div style="display: flex; gap: 18px; padding: 12px 16px">
+                      <span style="font-size: 12.5px; color: var(--color-accent-700); cursor: default">{{ t.rejectFile }}</span>
+                      <span style="font-size: 12.5px; color: var(--color-accent-700); cursor: default">{{ t.approve }}</span>
+                      <span onClick="{{ r.onOpenFile }}" style="font-size: 12.5px; color: var(--color-accent-700); cursor: default">{{ t.openInFiles }}</span>
+                    </div>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ tabIsFiles }}" hint-placeholder-val="{{ false }}">
+        <div style="flex: 1; min-height: 0; display: flex; flex-direction: column">
+          <div style="flex: none; display: flex; align-items: center; gap: 8px; padding: 0 12px 10px">
+            <sc-if value="{{ panelWide }}" hint-placeholder-val="{{ true }}">
+              <span style="flex: none; font-size: 13px; color: var(--color-neutral-600)">{{ repoName }} ›</span>
+            </sc-if>
+            <span style="flex: 1; min-width: 0; font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ openFileName }}</span>
+            <sc-if value="{{ panelWide }}" hint-placeholder-val="{{ true }}">
+              <span style="flex: none; font-size: 12.5px; color: var(--color-accent-700); cursor: default">{{ t.viewSource }}</span>
+            </sc-if>
+            <button class="btn" style="flex: none; width: 30px; height: 30px; padding: 0; border-radius: 999px; color: var(--color-neutral-700)" style-hover="background: var(--hair-soft)" title="{{ t.copyPath }}">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="3"></rect><path d="M15 5.5A2.5 2.5 0 0 0 12.5 3h-6A3.5 3.5 0 0 0 3 6.5v6A2.5 2.5 0 0 0 5.5 15"></path></svg>
+            </button>
+            <button class="btn" style="flex: none; width: 30px; height: 30px; padding: 0; border-radius: 999px; color: var(--color-neutral-700)" style-hover="background: var(--color-neutral-200)" onClick="{{ toggleTree }}" title="{{ t.fileList }}">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"></path></svg>
+            </button>
+          </div>
+
+          <div style="flex: 1; min-height: 0; display: flex; gap: 10px; padding: 0 12px 12px">
+            <sc-if value="{{ showViewer }}" hint-placeholder-val="{{ true }}">
+              <div class="scr" style="{{ viewerStyle }}">
+                <sc-if value="{{ openIsDoc }}" hint-placeholder-val="{{ true }}">
+                  <div style="display: flex; flex-direction: column; gap: 14px; max-width: 620px">
+                    <sc-for list="{{ openBlocks }}" as="b" hint-placeholder-count="4">
+                      <div style="{{ b.style }}">{{ b.text }}</div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ openIsCode }}" hint-placeholder-val="{{ false }}">
+                  <div style="display: flex; flex-direction: column; min-width: max-content">
+                    <sc-for list="{{ openLines }}" as="l" hint-placeholder-count="10">
+                      <div style="display: flex; gap: 16px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12.5px; line-height: 1.9">
+                        <span style="flex: none; width: 24px; text-align: right; color: var(--color-neutral-500); user-select: none">{{ l.n }}</span>
+                        <span style="white-space: pre"><sc-for list="{{ l.spans }}" as="tk" hint-placeholder-count="3"><span style="{{ tk.style }}">{{ tk.text }}</span></sc-for></span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ showTree }}" hint-placeholder-val="{{ true }}">
+              <div style="{{ treeColStyle }}">
+                <div onMouseDown="{{ startTreeDrag }}" style="{{ treeHandleStyle }}"></div>
+                <div style="flex: none; padding: 10px 10px 8px">
+                  <input class="input" placeholder="{{ t.filterFiles }}" style="border-radius: 999px; height: 30px; font-size: 12.5px; background: transparent; border: 1px solid var(--hair); width: 100%; box-sizing: border-box">
+                </div>
+                <div class="scr" style="flex: 1; min-height: 0; overflow: auto; padding: 0 8px 10px; display: flex; flex-direction: column; gap: 1px">
+                  <sc-for list="{{ tree }}" as="f" hint-placeholder-count="12">
+                    <div style="{{ f.rowStyle }}" onMouseEnter="{{ f.onEnter }}" onMouseLeave="{{ f.onLeave }}" onClick="{{ f.onClick }}">
+                      <sc-if value="{{ f.isDir }}" hint-placeholder-val="{{ true }}">
+                        <span style="{{ f.chevStyle }}">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
+                        </span>
+                      </sc-if>
+                      <sc-if value="{{ f.isFile }}" hint-placeholder-val="{{ false }}">
+                        <span style="{{ f.badgeStyle }}">{{ f.badge }}</span>
+                      </sc-if>
+                      <span style="{{ f.nameStyle }}">{{ f.name }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+      </sc-if>
+    </section>
+  </sc-if>
+
+  <sc-if value="{{ lightboxOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position: fixed; inset: 0; z-index: 60; background: rgba(30,29,26,.66); display: flex; flex-direction: column">
+      <div style="flex: none; display: flex; align-items: center; gap: 14px; padding: 16px 20px; color: #f3f2ef">
+        <span style="font-size: 13.5px; font-weight: 500">{{ lbName }}</span>
+        <span style="font-size: 12.5px; opacity: .72">{{ lbMeta }}</span>
+        <span style="margin-left: auto; font-size: 12.5px; opacity: .72">{{ lbCount }}</span>
+        <span onClick="{{ lbDownload }}" style="font-size: 12.5px; cursor: default">{{ t.download }}</span>
+        <span onClick="{{ lbClose }}" title="{{ t.close }}" style="width: 30px; height: 30px; border-radius: 999px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,.14); cursor: default">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+        </span>
+      </div>
+      <div style="flex: 1; min-height: 0; display: flex; align-items: center; gap: 14px; padding: 0 20px 28px">
+        <span onClick="{{ lbPrev }}" style="flex: none; width: 40px; height: 40px; border-radius: 999px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,.14); color: #f3f2ef; cursor: default">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>
+        </span>
+        <div style="flex: 1; min-width: 0; height: 100%; display: flex; align-items: center; justify-content: center">
+          <div style="{{ lbStageStyle }}">
+            <span style="font-size: 34px; color: var(--color-neutral-500)">{{ lbGlyph }}</span>
+            <span style="font-size: 12.5px; color: var(--color-neutral-600)">{{ lbHint }}</span>
+            <sc-if value="{{ lbIsVideo }}" hint-placeholder-val="{{ false }}">
+              <div style="position: absolute; left: 18px; right: 18px; bottom: 16px; display: flex; align-items: center; gap: 12px">
+                <span style="width: 34px; height: 34px; border-radius: 999px; background: var(--color-text); color: var(--color-bg); display: flex; align-items: center; justify-content: center; font-size: 12px">▶</span>
+                <span style="flex: 1; height: 4px; border-radius: 999px; background: var(--color-neutral-300); overflow: hidden"><span style="display: block; height: 100%; width: 38%; background: var(--color-text)"></span></span>
+                <span style="font-family: ui-monospace, SFMono-Regular, monospace; font-size: 11.5px; color: var(--color-neutral-600)">{{ lbMeta }}</span>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+        <span onClick="{{ lbNext }}" style="flex: none; width: 40px; height: 40px; border-radius: 999px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,.14); color: #f3f2ef; cursor: default">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
+        </span>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ confirmName }}" hint-placeholder-val="{{ false }}">
+    <div style="position: fixed; inset: 0; background: color-mix(in srgb, #2e2b25 32%, transparent); display: flex; align-items: center; justify-content: center; z-index: 50">
+      <div style="width: 400px; background: var(--card); border: 1px solid var(--hair); border-radius: 20px; box-shadow: var(--shadow-md); padding: 26px; display: flex; flex-direction: column; gap: 10px">
+        <span style="font-size: 19px; font-weight: 500; letter-spacing: -0.02em">{{ delTitle }}</span>
+        <span style="font-size: 14px; line-height: 1.65; color: var(--color-neutral-700)">{{ delBody }}</span>
+        <div style="display: flex; align-items: center; gap: 18px; justify-content: flex-end; margin-top: 12px">
+          <span onClick="{{ cancelDelete }}" style="font-size: 13.5px; color: var(--color-neutral-700); cursor: default">{{ t.cancel }}</span>
+          <button class="btn" style="border-radius: 999px; font-size: 13.5px; background: #9c3a22; color: var(--color-bg)" onClick="{{ confirmDelete }}">{{ t.del }}</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;brandName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;bossip&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;showSources&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;streamSpeed&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:1.4,&quot;min&quot;:0.4,&quot;max&quot;:4,&quot;step&quot;:0.2,&quot;tsType&quot;:&quot;number&quot;}}">
+class Component extends DCLogic {
+  state = {
+    screen: 'chat', thinkOpen: false, n: 0,
+    hoverP: null, hoverC: null, menuP: null, renamingP: null, renameValue: '',
+    draftOpen: false, draftName: '', confirmP: null, hoverG: null,
+    hoverS: null, openDone: null, stepSeq: 10,
+    hoverE: null, openE: {}, logGroupOpen: false,
+    entries: [
+      { id: 'e1', kind: '加载 Skill', glyph: '✦', tone: 'sage', target: 'data-analysis', meta: '0.2s',
+        lines: [
+          { k: 'note', text: '读表、算同比、出图的标准流程；含 pandas 与图表模板。' },
+          { k: 'path', text: 'skills/data-analysis/SKILL.md' },
+          { k: 'path', text: 'skills/data-analysis/chart_presets.py' }
+        ] },
+      { id: 'e2', kind: '找文件', glyph: '⌕', tone: 'accent', target: 'glob  **/Q3*.{xlsx,csv}', meta: '2 个匹配',
+        lines: [
+          { k: 'path', text: 'uploads/Q3-明细.xlsx' },
+          { k: 'path', text: 'archive/Q3-2024-明细.xlsx' },
+          { k: 'ctx', text: '忽略 3 个 .tmp 文件' }
+        ], actionA: '在文件面板打开', actionB: '复制路径' },
+      { id: 'e3', kind: '读文件', glyph: '▤', tone: 'grey', target: 'uploads/Q3-明细.xlsx', meta: '18,342 行',
+        lines: [
+          { k: 'ctx', text: 'sheets: 汇总 / 订阅 / 渠道 / 退款' },
+          { k: 'out', text: 'cols = date, region, channel, plan, revenue, refund, …' },
+          { k: 'out', text: 'revenue_sum = 48,210,553' }
+        ] },
+      { id: 'e4', kind: '执行命令', glyph: '$', tone: 'accent', target: 'python scripts/calc_yoy.py --by region', meta: '1.8s · exit 0',
+        lines: [
+          { k: 'cmd', text: 'python scripts/calc_yoy.py --by region' },
+          { k: 'out', text: '华东  +38.1%   贡献 61.2%' },
+          { k: 'out', text: '华南  +4.2%    贡献 12.8%' },
+          { k: 'out', text: '华北  +1.6%    贡献 8.4%' },
+          { k: 'out', text: '西南  -3.2%    贡献 -1.1%' }
+        ], actionA: '重新运行', actionB: '复制输出' },
+      { id: 'e5', kind: '搜索', glyph: '⌕', tone: 'accent', target: '订阅套餐 定价 竞品 2025', meta: '3 条结果',
+        lines: [
+          { k: 'link', text: '订阅制定价的三种常见结构 — pricing.example.com' },
+          { k: 'link', text: '2025 SaaS 定价基准报告 — bench.example.org/2025' },
+          { k: 'ctx', text: '已过滤 12 条低相关结果' }
+        ], actionA: '看原文', actionB: '加入来源' },
+      { id: 'e6', kind: '调用工具', glyph: '⚒', tone: 'sage', target: 'mcp.sheets.query', meta: '0.9s',
+        lines: [
+          { k: 'key', text: '{ "sheet": "订阅", "group": "plan", "metric": "revenue" }' },
+          { k: 'out', text: 'Pro 年付 2,140 单 · 收入 1,842 万' },
+          { k: 'out', text: 'Pro 月付 5,308 单 · 收入 967 万' }
+        ] },
+      { id: 'e7', kind: '编辑文件', glyph: '✎', tone: 'sage', target: 'report/q3-review.md', meta: '+5 −2', reviewFile: 'report/q3-review.md',
+        lines: [
+          { k: 'ctx', text: '@@ 第 12 行 · 增长归因' },
+          { k: 'del', text: '本季度增长来自多地区共同拉动。' },
+          { k: 'del', text: '（占比待补）' },
+          { k: 'add', text: '增长高度集中在华东：贡献新增部分的 61%。' },
+          { k: 'add', text: '主要来自 8 月上线的订阅套餐，Pro 年付单价提升 22%。' },
+          { k: 'add', text: '其余地区基本持平，西南 −3.2%，与两家渠道商合约到期吻合。' }
+        ], actionA: '查看完整 diff', actionB: '撤销这次编辑' },
+      { id: 'e8', kind: '删除文件', glyph: '×', tone: 'red', target: 'tmp/scratch-merge.csv', meta: '已移入回收站', reviewFile: 'tmp/scratch-merge.csv',
+        lines: [
+          { k: 'ctx', text: '中间产物，已被 yoy_by_region.parquet 取代' },
+          { k: 'path', text: 'tmp/scratch-merge.csv · 41 MB' }
+        ], actionA: '恢复', actionB: '永久删除' },
+      { id: 'e9', kind: '执行命令', glyph: '$', tone: 'accent', target: 'python scripts/make_charts.py', meta: '运行中', running: true,
+        lines: [
+          { k: 'cmd', text: 'python scripts/make_charts.py --out report/figs' },
+          { k: 'out', text: '[1/3] 收入趋势 ✓' },
+          { k: 'out', text: '[2/3] 地区贡献度 ✓' }
+        ] }
+    ],
+    steps: [
+      { id: 's1', status: 'done', title: '拆解目标与口径' },
+      { id: 's2', status: 'done', title: '读取 Q3-明细.xlsx 与历史表' },
+      { id: 's3', status: 'running', title: '计算分地区同比与贡献度' },
+      { id: 's4', status: 'pending', title: '生成三张图表' },
+      { id: 's5', status: 'pending', title: '写一页复盘并附来源' }
+    ],
+    activeC: 'c0', activeP: 'p0', seq: 100,
+    hoverMed: null, lb: null,
+    userMenu: false, settingsTab: '订阅与积分', hoverSet: null,
+    theme: 'default', mode: 'light', lang: '中文', fs: '标准',
+    toggles: { '云端同步': true, '发布前人工确认': true, '终端命令免确认': false, '进度邮件提醒': false, '深色模式': false },
+    model: 'Aster 3', modelOpen: false, hoverMo: null,
+    draftMedia: [
+      { id: 'd1', kind: 'image', name: '封面-草稿.png', meta: '1440×1810 · 2.1 MB', ratio: 0.8 },
+      { id: 'd2', kind: 'video', name: '开场-15s.mp4', meta: '00:15 · 1080p', ratio: 1.78 }
+    ],
+    userMedia: [
+      { id: 'u1', kind: 'image', name: '仪表盘-截图.png', meta: '2560×1440 · 3.4 MB', ratio: 1.78 },
+      { id: 'u2', kind: 'image', name: '渠道表-手写.jpg', meta: '1600×2000 · 1.2 MB', ratio: 0.8 },
+      { id: 'u3', kind: 'video', name: '录屏-报表卡顶.mov', meta: '00:42 · 720p', ratio: 1.78 }
+    ],
+    outMedia: [
+      { id: 'o1', kind: 'image', name: 'yoy_region.svg', meta: '640×360 · 矢量', ratio: 1.78 },
+      { id: 'o2', kind: 'image', name: 'channel_mix.png', meta: '1200×900 · 480 KB', ratio: 1.33 },
+      { id: 'o3', kind: 'video', name: '复盘-讲解.mp4', meta: '01:20 · 1080p', ratio: 1.78 }
+    ],
+    hoverF: null, openFile: 'ARCHITECTURE.md',
+    leftW: 280, leftCollapsed: false, panelW: 640, treeW: 250, treeOpen: true,
+    panelOpen: false, tabs: [], activeTab: null, tabSeq: 1, hoverM: null, hoverT: null,
+    reviewFile: 'report/q3-review.md',
+    reviewData: [
+      { name: 'report/q3-review.md', badge: 'MD', tone: 'sage', add: '+5', del: '−2', skipped: '11 行未修改',
+        lines: [
+          { k: 'ctx', n: 11, text: '## 增长归因' },
+          { k: 'del', n: 12, text: '本季度增长来自多地区共同拉动。' },
+          { k: 'del', n: 13, text: '（占比待补）' },
+          { k: 'add', n: 12, text: '增长高度集中在华东：贡献新增部分的 61%。' },
+          { k: 'add', n: 13, text: '主要来自 8 月上线的订阅套餐，Pro 年付单价提升 22%。' },
+          { k: 'add', n: 14, text: '其余地区基本持平，西南 −3.2%，与渠道合约到期吻合。' },
+          { k: 'ctx', n: 15, text: '' }
+        ] },
+      { name: 'report/figs/yoy_region.svg', badge: 'SVG', tone: 'grey', add: '+128', del: '−0', skipped: '新文件',
+        lines: [
+          { k: 'add', n: 1, text: '<svg viewBox="0 0 640 360">' },
+          { k: 'add', n: 2, text: '  <rect width="640" height="360" fill="#f5ead8"/>' },
+          { k: 'add', n: 3, text: '  <g id="bars" fill="#c67139">' }
+        ] },
+      { name: 'tmp/scratch-merge.csv', badge: 'CSV', tone: 'red', add: '+0', del: '−41', skipped: '整个文件删除',
+        lines: [
+          { k: 'del', n: 1, text: 'date,region,channel,revenue' },
+          { k: 'del', n: 2, text: '2025-07-01,华东,订阅,182340' }
+        ] }
+    ],
+    dirs: ['.git', 'assets', 'deploy', 'dist', 'mobile', 'nix', 'node_modules', 'patches', 'scratch', 'scripts', 'src', 'tests'],
+    files: [
+      { name: '.gitignore', badge: 'GIT', tone: 'red' },
+      { name: 'ARCHITECTURE.md', badge: 'MD', tone: 'sage', doc: [
+        { k: 'h1', text: 'architecture' },
+        { k: 'p', text: '这份文档讲整个东西是怎么拼起来的。' },
+        { k: 'p', text: '大致做法是把桌面端安装包下载下来解包，再打上尽量少的补丁让它能跑。' },
+        { k: 'p', text: '应用分两部分：一部分跑在主进程里，一部分跑在渲染进程里。' },
+        { k: 'code', text: 'require("electron")' },
+        { k: 'p', text: '主进程本质上是一个 node 进程，在界面出现之前就已经启动，负责托盘、后台任务和启动器事件的监听。无论开多少窗口，主进程只有一个。' },
+        { k: 'p', text: '界面跑在渲染进程里，像一个改过外壳的浏览器：负责显示、响应交互，并持有贴近界面的状态（比如输入框里现在是什么）。' },
+        { k: 'p', text: '两者之间通过 preload 暴露的 IPC 通道通信。' }
+      ] },
+      { name: 'default.nix', badge: 'NIX', tone: 'grey' },
+      { name: 'flake.lock', badge: 'LCK', tone: 'grey' },
+      { name: 'flake.nix', badge: 'NIX', tone: 'grey' },
+      { name: 'package-lock.json', badge: '{}', tone: 'red' },
+      { name: 'package.json', badge: '{}', tone: 'red', code: [
+        '{',
+        '  "name": "codex-web",',
+        '  "private": true,',
+        '  "type": "module",',
+        '  "scripts": {',
+        '    "dev": "vite --config vite.browser.config.ts",',
+        '    "build": "tsc -b && vite build",',
+        '    "test": "node --test tests/*.test.mjs"',
+        '  },',
+        '  "dependencies": {',
+        '    "react": "19.0.0",',
+        '    "react-dom": "19.0.0"',
+        '  }',
+        '}'
+      ] },
+      { name: 'README.md', badge: 'MD', tone: 'sage', doc: [
+        { k: 'h1', text: 'codex-web' },
+        { k: 'p', text: '把桌面端的能力搬到浏览器里：同一套渲染层，换掉外壳。' },
+        { k: 'code', text: 'pnpm install && pnpm dev' }
+      ] },
+      { name: 'UPGRADING.md', badge: 'MD', tone: 'sage' },
+      { name: 'vite.browser.config.ts', badge: 'TS', tone: 'accent', code: [
+        'import { defineConfig } from "vite";',
+        'import react from "@vitejs/plugin-react";',
+        'import path from "node:path";',
+        '',
+        'const root = path.resolve(__dirname, "src/browser");',
+        '',
+        'export default defineConfig({',
+        '  root,',
+        '  plugins: [react()],',
+        '  build: { outDir: "dist/browser", sourcemap: true },',
+        '  server: { port: 5183, strictPort: true },',
+        '  resolve: { alias: { "@": path.resolve(__dirname, "src") } }',
+        '});'
+      ] }
+    ],
+    projects: [
+      { id: 'p0', name: '增长分析', expanded: true, convos: [
+        { id: 'c0', title: '季度增长复盘' },
+        { id: 'c1', title: '定价结构对比' }
+      ] },
+      { id: 'p1', name: 'OpenBox', expanded: true, convos: [
+        { id: 'c2', title: '分析整个项目' }
+      ] },
+      { id: 'p2', name: 'codex-web-mobile', expanded: true, convos: [
+        { id: 'c3', title: '登录 AWS CLI', branch: true },
+        { id: 'c4', title: '下载 OpenBox 项目', branch: true },
+        { id: 'c5', title: '完善 OSS 资源管线功能', branch: true },
+        { id: 'c6', title: '连接远程服务器' }
+      ] },
+      { id: 'p3', name: 'New project', expanded: true, convos: [] },
+      { id: 'p4', name: 'codex-web', expanded: false, convos: [
+        { id: 'c7', title: '寻找开源多用户 Agent Web 应用' },
+        { id: 'c8', title: '修复内置浏览器打开百度' },
+        { id: 'c9', title: '生成公共 SSH 密钥' }
+      ] }
+    ]
+  };
+
+  componentDidMount() {
+    this.timer = setInterval(() => this.setState(s => ({ n: s.n + 1 })), 70);
+    this.onWinResize = () => this.setState({ winW: window.innerWidth });
+    window.addEventListener('resize', this.onWinResize);
+    this.setState({ winW: window.innerWidth });
+    this.applyTokens();
+    if (typeof ResizeObserver !== 'undefined') {
+      this.ro = new ResizeObserver(es => {
+        const w = es[0].contentRect.width;
+        const narrow = w < 470;
+        if (narrow !== this.state.panelNarrow) this.setState({ panelNarrow: narrow });
+      });
+      if (this._panelEl) this.ro.observe(this._panelEl);
+    }
+  }
+  componentWillUnmount() {
+    clearInterval(this.timer);
+    if (this.ro) this.ro.disconnect();
+    window.removeEventListener('resize', this.onWinResize);
+  }
+
+  patch(id, fn) {
+    this.setState(s => ({ projects: s.projects.map(p => p.id === id ? fn(p) : p) }));
+  }
+
+  newTab(id, kind) {
+    const meta = {
+      menu: { title: '新标签', glyph: '≡' },
+      review: { title: '审阅', glyph: '±' },
+      terminal: { title: '终端', glyph: '›_' },
+      browser: { title: '浏览器', glyph: '⊕' },
+      files: { title: '文件', glyph: '▤' }
+    }[kind];
+    return { id, kind, title: meta.title, glyph: meta.glyph };
+  }
+
+  openKind(kind, extra) {
+    this.setState(x => {
+      const active = x.tabs.find(t => t.id === x.activeTab);
+      if (active && active.kind === kind) return { panelOpen: true, ...(extra || {}) };
+      const hit = x.tabs.find(t => t.kind === kind);
+      if (hit) return { panelOpen: true, activeTab: hit.id, ...(extra || {}) };
+      const id = 't' + x.tabSeq;
+      return {
+        panelOpen: true, tabSeq: x.tabSeq + 1, activeTab: id,
+        tabs: [...x.tabs, this.newTab(id, kind)], ...(extra || {})
+      };
+    });
+  }
+
+  openReview(name) { this.openKind('review', name ? { reviewFile: name } : null); }
+  openFiles(name) { this.openKind('files', name ? { openFile: name } : null); }
+
+  activeKind() {
+    const t = this.state.tabs.find(x => x.id === this.state.activeTab);
+    return t ? t.kind : null;
+  }
+
+  handle(side) {
+    if (!side) return { display: 'none' };
+    return { position: 'absolute', top: 0, bottom: 0, width: 8, zIndex: 6, cursor: 'col-resize', [side]: -6 };
+  }
+
+  beginDrag(kind, e) {
+    e.preventDefault();
+    const s = this.state;
+    const x0 = e.clientX, l0 = s.leftW, p0 = s.panelW, t0 = s.treeW;
+    const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+    const move = ev => {
+      const dx = ev.clientX - x0;
+      if (kind === 'left') this.setState({ leftW: clamp(l0 + dx, 220, 420), leftCollapsed: false });
+      if (kind === 'panel') this.setState({ panelW: clamp(p0 - dx, 360, 1000) });
+      if (kind === 'tree') this.setState(st => ({ treeW: clamp(t0 - dx, 170, Math.max(180, st.panelW - 280)) }));
+    };
+    const up = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+      document.body.style.userSelect = '';
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+    document.body.style.userSelect = 'none';
+  }
+
+  currentFile() {
+    const f = this.state.files.find(x => x.name === this.state.openFile);
+    if (!f) return null;
+    if (f.doc || f.code) return f;
+    return { doc: [
+      { k: 'h1', text: f.name },
+      { k: 'p', text: '预览还没加载。点右上角「查看源代码」拉取完整内容。' }
+    ] };
+  }
+
+  mediaTile(w, h) {
+    return {
+      position: 'relative', flex: 'none', width: w, height: h, borderRadius: 13,
+      background: 'var(--color-neutral-200)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      overflow: 'hidden', cursor: 'default'
+    };
+  }
+
+  mapMedia(list, key, w, h, gs) {
+    return list.map((m, i) => ({
+      id: m.id, name: m.name, meta: m.meta,
+      isVideo: m.kind === 'video',
+      glyph: m.kind === 'video' ? '▶' : '◱',
+      badge: m.meta.split(' · ')[0],
+      hover: this.state.hoverMed === key + m.id,
+      tileStyle: this.mediaTile(w, h),
+      glyphStyle: { fontSize: gs, color: 'var(--color-neutral-500)' },
+      onEnter: () => this.setState({ hoverMed: key + m.id }),
+      onLeave: () => this.setState(x => ({ hoverMed: x.hoverMed === key + m.id ? null : x.hoverMed })),
+      onOpen: () => this.setState({ lb: { key, i } }),
+      onRemove: e => {
+        if (e && e.stopPropagation) e.stopPropagation();
+        this.setState(x => ({ draftMedia: x.draftMedia.filter(y => y.id !== m.id) }));
+      }
+    }));
+  }
+
+  themeDefs() {
+    return {
+      'default': { name: '默认', temp: 'warm', accent: '#b06a3f', bg: '#f8f8f6', rail: '#f7f7f5', hair: '#eeece9', soft: '#f4f2ec', n200: '#f2f0ea', n300: '#eceae2', text: '#3e3929', pills: ['#c67139', '#2c2b28'] },
+      azure: { name: 'azure', temp: 'cool', accent: '#1f8fff', bg: '#f7f9fb', rail: '#f5f8fa', hair: '#e9edf1', soft: '#f0f4f8', n200: '#eef2f7', n300: '#e5ebf2', text: '#23272b', pills: ['#3ba0ff', '#1c1f22'] },
+      cobalt: { name: 'cobalt', temp: 'cool', accent: '#1a48d0', bg: '#f7f8fb', rail: '#f5f7fa', hair: '#e8ebf2', soft: '#eff2f8', n200: '#edf0f7', n300: '#e3e8f2', text: '#20242c', pills: ['#1a48d0', '#191c22'] },
+      graphite: { name: 'graphite', temp: 'neutral', accent: '#2b2b2b', bg: '#f8f8f8', rail: '#f6f6f6', hair: '#ececec', soft: '#f2f2f2', n200: '#f1f1f1', n300: '#e8e8e8', text: '#232323', pills: ['#111111', '#3d3d3d'] },
+      lagoon: { name: 'lagoon', temp: 'cool', accent: '#0f9d86', bg: '#f6faf9', rail: '#f4f9f7', hair: '#e6efec', soft: '#eef5f3', n200: '#ebf4f1', n300: '#e0ede9', text: '#1f2b28', pills: ['#12b39a', '#17332e'] },
+      ink: { name: 'ink', temp: 'cool', accent: '#1a1a1a', bg: '#f5f8fb', rail: '#f2f6fa', hair: '#e5ebf1', soft: '#edf2f7', n200: '#eaf0f6', n300: '#dfe8f1', text: '#191d22', pills: ['#101215', '#2c3138'] },
+      ochre: { name: 'ochre', temp: 'warm', accent: '#d9760f', bg: '#faf7f2', rail: '#f8f5ef', hair: '#f0eae0', soft: '#f6f1e8', n200: '#f4efe6', n300: '#ede6d9', text: '#3a3227', pills: ['#f07c0a', '#28221a'] },
+      sepia: { name: 'sepia', temp: 'warm', accent: '#7a5348', bg: '#faf7f4', rail: '#f8f4f1', hair: '#efe8e3', soft: '#f5efeb', n200: '#f3ede8', n300: '#e9e0d9', text: '#382d28', pills: ['#8a5f52', '#2c2320'] }
+    };
+  }
+
+  applyTokens() {
+    if (typeof document === 'undefined') return;
+    const t = this.themeDefs()[this.state.theme] || this.themeDefs()['default'];
+    const sysDark = typeof window !== 'undefined' && window.matchMedia
+      ? window.matchMedia('(prefers-color-scheme: dark)').matches : false;
+    const dark = this.state.mode === 'dark' || (this.state.mode === 'system' && sysDark);
+    const s = (k, v) => document.documentElement.style.setProperty(k, v);
+    if (dark) {
+      const map = {
+        '--color-bg': '#1b1a18', '--rail': '#1f1e1c', '--card': '#232220',
+        '--hair': '#302e2b', '--hair-soft': '#272624', '--color-text': '#ece9e3',
+        '--color-divider': '#302e2b',
+        '--color-neutral-100': '#1b1a18', '--color-neutral-200': '#272624',
+        '--color-neutral-300': '#302e2b', '--color-neutral-400': '#45433f',
+        '--color-neutral-500': '#6f6d67', '--color-neutral-600': '#9a988f',
+        '--color-neutral-700': '#b6b3ab', '--color-neutral-800': '#d8d5ce',
+        '--color-neutral-900': '#f0ede7',
+        '--color-accent': t.accent, '--color-accent-700': t.pills[0],
+        '--color-accent-100': '#272624', '--color-accent-200': '#302e2b',
+        '--color-accent-300': '#3d3b37', '--color-surface': '#272624'
+      };
+      Object.keys(map).forEach(k => s(k, map[k]));
+    } else {
+      const map = {
+        '--color-bg': t.bg, '--rail': t.rail, '--card': '#ffffff',
+        '--hair': t.hair, '--hair-soft': t.soft, '--color-text': t.text,
+        '--color-divider': t.hair,
+        '--color-neutral-100': t.bg, '--color-neutral-200': t.n200,
+        '--color-neutral-300': t.n300, '--color-neutral-400': '#dcdad3',
+        '--color-neutral-500': '#b7b5ae', '--color-neutral-600': '#8b8a84',
+        '--color-neutral-700': '#75746e', '--color-neutral-800': '#55534d',
+        '--color-neutral-900': '#33322e',
+        '--color-accent': t.accent, '--color-accent-700': t.accent,
+        '--color-accent-100': t.soft, '--color-accent-200': t.n300,
+        '--color-accent-300': '#dedbd1', '--color-surface': t.n200
+      };
+      Object.keys(map).forEach(k => s(k, map[k]));
+    }
+  }
+
+  componentDidUpdate(pp, ps) {
+    if (!ps) return;
+    if (ps.theme !== this.state.theme || ps.mode !== this.state.mode) this.applyTokens();
+  }
+
+  L(zh, en) { return this.state.lang === 'English' ? en : zh; }
+
+  strings() {
+    const p = (zh, en) => this.L(zh, en);
+    return {
+      newProject: p('新建项目', 'New project'),
+      collapse: p('收起侧栏', 'Collapse sidebar'),
+      expand: p('展开侧栏', 'Expand sidebar'),
+      newChat: p('新对话', 'New chat'),
+      search: p('搜索', 'Search'),
+      projectName: p('项目名称', 'Project name'),
+      rename: p('重命名项目', 'Rename project'),
+      newChatIn: p('新建对话', 'New chat here'),
+      duplicate: p('复制项目', 'Duplicate project'),
+      archive: p('归档', 'Archive'),
+      deleteProject: p('删除项目…', 'Delete project…'),
+      noChats: p('还没有对话', 'No chats yet'),
+      pin: p('置顶', 'Pin'),
+      more: p('更多', 'More'),
+      settings: p('设置', 'Settings'),
+      signOut: p('登出', 'Sign out'),
+      share: p('分享', 'Share'),
+      openPanel: p('打开工作面板', 'Open workspace panel'),
+      backToChat: p('返回对话', 'Back to chat'),
+      thoughtFor: p('想了 12 秒', 'Thought for 12s'),
+      process: p('过程', 'Process'),
+      sources: p('来源', 'Sources'),
+      reviewGo: p('审阅 →', 'Review →'),
+      copy: p('复制', 'Copy'),
+      regen: p('重新生成', 'Regenerate'),
+      outputs: p('产出 3 个文件', '3 files produced'),
+      planTitle: p('正在做复盘', 'Working on the review'),
+      stop: p('停止', 'Stop'),
+      addStep: p('＋ 加一步', '+ Add a step'),
+      stopGen: p('停止生成', 'Stop generating'),
+      attach: p('附件', 'Attach'),
+      voice: p('语音输入', 'Voice input'),
+      send: p('发送', 'Send'),
+      newTab: p('新标签', 'New tab'),
+      maximize: p('最大化', 'Maximize'),
+      closePanel: p('收起面板', 'Collapse panel'),
+      close: p('关闭', 'Close'),
+      download: p('下载', 'Download'),
+      lastChanges: p('上一轮改动', 'Last turn’s changes'),
+      rejectAll: p('全部退回', 'Reject all'),
+      approveAll: p('全部通过', 'Approve all'),
+      rejectFile: p('退回这个文件', 'Reject this file'),
+      approve: p('通过', 'Approve'),
+      openInFiles: p('在文件里打开', 'Open in Files'),
+      viewSource: p('查看源代码', 'View source'),
+      copyPath: p('复制路径', 'Copy path'),
+      fileList: p('文件列表', 'File list'),
+      filterFiles: p('筛选文件…', 'Filter files…'),
+      back: p('后退', 'Back'),
+      reload: p('刷新', 'Reload'),
+      pageView: p('网页画面', 'Page view'),
+      extract: p('摘取正文', 'Extract text'),
+      addSource: p('加入来源', 'Add as source'),
+      cancel: p('取消', 'Cancel'),
+      del: p('删除', 'Delete'),
+      themeLabel: p('主题', 'Theme'),
+      colorMode: p('颜色模式', 'Color mode'),
+      fontSize: p('字体大小', 'Font size'),
+      creditsLeft: p('剩余积分', 'credits left'),
+      topUp: p('充值', 'Top up'),
+      creditsNote: p('本周用了 1,520 分，主要在长文档抽取和图表生成。', '1,520 credits used this week, mostly long-document extraction and chart generation.'),
+      changedFile: p('改了 report/q3-review.md', 'Edited report/q3-review.md')
+    };
+  }
+
+  rowT() {
+    if (this.state.lang !== 'English') return {};
+    return {
+      '邮箱': { l: 'Email', h: 'heyu@example.com · verified', v: 'Change' },
+      '登录设备': { l: 'Devices', h: '3 devices online', v: 'View' },
+      '云端同步': { l: 'Cloud sync', h: 'Keep chats and projects in sync across devices.' },
+      '导出全部数据': { l: 'Export all data', h: 'JSON export including an attachment manifest.', v: 'Export' },
+      '当前套餐': { l: 'Current plan', h: 'Pro · 6,000 credits per month', v: 'Change plan' },
+      '自动充值': { l: 'Auto top-up', h: 'Buy 2,000 credits when the balance drops below 500.', v: 'On' },
+      '账单与发票': { l: 'Billing & invoices', h: 'Latest: Mar 1 · ¥199', v: 'View' },
+      '进度邮件提醒': { l: 'Progress emails', h: 'Send one email when a long run finishes.' },
+      '默认模型': { l: 'Default model', h: 'Used for new chats.' },
+      '长文档模型': { l: 'Long-context model', h: 'Switches past 200k tokens.' },
+      '图像理解': { l: 'Vision', h: 'Screenshots, handwriting and video frames.' },
+      '终端命令免确认': { l: 'Run read-only commands', h: 'Read-only commands run directly; writes still ask.' },
+      '发布前人工确认': { l: 'Confirm before publishing', h: 'Anything published outward needs your approval.' },
+      'MCP 服务': { l: 'MCP servers', h: '4 connected · sheets, notion, slack, s3', v: 'Manage' }
+    };
+  }
+
+  fileRow(selected, hovered) {
+    return {
+      display: 'flex', alignItems: 'center', gap: 8, minHeight: 28,
+      padding: '4px 10px', borderRadius: 999, cursor: 'default',
+      background: selected ? 'var(--color-neutral-200)' : hovered ? 'var(--hair-soft)' : 'transparent'
+    };
+  }
+
+  docStyle(k) {
+    if (k === 'h1') return { fontSize: 23, fontWeight: 500, letterSpacing: '-0.022em', lineHeight: 1.25 };
+    if (k === 'code') return {
+      fontFamily: 'ui-monospace, SFMono-Regular, monospace', fontSize: 12.5,
+      border: '1px solid var(--hair)', borderRadius: 12,
+      padding: '10px 14px', color: 'var(--color-neutral-800)'
+    };
+    return { fontSize: 14.5, lineHeight: 1.8, color: 'var(--color-neutral-800)', textWrap: 'pretty' };
+  }
+
+  tokenize(text) {
+    const re = /(\/\/[^\n]*|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`[^`]*`|\b(?:import|from|export|default|const|let|var|await|async|function|return|new|type|interface|class|if|else|true|false|null|undefined)\b|\b[A-Z][A-Za-z0-9_]*\b|\b\d+(?:\.\d+)*\b)/g;
+    const out = [];
+    let last = 0, m;
+    const base = { color: 'var(--color-neutral-900)' };
+    while ((m = re.exec(text)) !== null) {
+      if (m.index > last) out.push({ text: text.slice(last, m.index), style: base });
+      const t = m[0];
+      let style = base;
+      if (t.slice(0, 2) === '//') style = { color: 'var(--color-neutral-500)', fontStyle: 'italic' };
+      else if (t[0] === '"' || t[0] === "'" || t[0] === '`') style = { color: 'var(--color-accent-2-700)' };
+      else if (/^\d/.test(t)) style = { color: 'var(--color-accent-600)' };
+      else if (/^[A-Z]/.test(t)) style = { color: 'var(--color-neutral-700)' };
+      else style = { color: 'var(--color-accent-700)' };
+      out.push({ text: t, style });
+      last = m.index + t.length;
+    }
+    if (last < text.length) out.push({ text: text.slice(last), style: base });
+    if (!out.length) out.push({ text: ' ', style: base });
+    return out;
+  }
+
+  mapEntries(list) {
+    const st = this.state;
+    return list.map(e => {
+      const open = !!st.openE[e.id];
+      return {
+        id: e.id, kind: e.kind, glyph: e.glyph, target: e.target, meta: e.meta,
+        running: !!e.running, open,
+        hasActions: open && !!e.actionA, actionA: e.actionA, actionB: e.actionB,
+        onActionA: e.reviewFile ? () => this.openReview(e.reviewFile) : () => {},
+        headStyle: {
+          display: 'flex', alignItems: 'center', gap: 10, padding: '7px 12px 7px 8px',
+          borderRadius: 999, cursor: 'default',
+          background: st.hoverE === e.id ? 'var(--hair-soft)' : 'transparent'
+        },
+        glyphStyle: {
+          flex: 'none', width: 22, height: 22, borderRadius: 999, display: 'flex',
+          alignItems: 'center', justifyContent: 'center', fontSize: 11,
+          fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+          background: this.toneBg(e.tone), color: this.toneFg(e.tone)
+        },
+        targetStyle: {
+          flex: 1, minWidth: 0, fontSize: 12.5, overflow: 'hidden',
+          textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+          color: e.running ? 'var(--color-text)' : 'var(--color-neutral-800)'
+        },
+        chevStyle: {
+          flex: 'none', display: 'flex', color: 'var(--color-neutral-500)',
+          transform: open ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .15s'
+        },
+        lines: e.lines.map(l => ({
+          text: l.text, pfx: this.linePfx(l.k), style: this.lineStyle(l.k),
+          pfxStyle: { display: 'inline-block', width: 12, color: 'var(--color-neutral-500)' }
+        })),
+        onEnter: () => this.setState({ hoverE: e.id }),
+        onLeave: () => this.setState(x => ({ hoverE: x.hoverE === e.id ? null : x.hoverE })),
+        onToggle: () => this.setState(x => {
+          const next = { ...x.openE };
+          if (next[e.id]) delete next[e.id]; else next[e.id] = true;
+          return { openE: next };
+        })
+      };
+    });
+  }
+
+  toneBg(t) {
+    return t === 'accent' ? 'var(--color-accent-100)'
+      : t === 'sage' ? 'var(--color-accent-2-100)'
+      : t === 'red' ? '#fbeeea' : 'var(--color-neutral-200)';
+  }
+  toneFg(t) {
+    return t === 'accent' ? 'var(--color-accent-800)'
+      : t === 'sage' ? 'var(--color-accent-2-800)'
+      : t === 'red' ? '#a4553f' : 'var(--color-neutral-700)';
+  }
+  linePfx(k) {
+    return k === 'cmd' ? '$' : k === 'add' ? '+' : k === 'del' ? '−' : k === 'path' ? '·' : k === 'link' ? '↗' : '';
+  }
+  lineStyle(k) {
+    const mono = { fontFamily: 'ui-monospace, SFMono-Regular, monospace', fontSize: 12.5, lineHeight: 1.75, borderRadius: 6, padding: '0 5px' };
+    if (k === 'note') return { fontSize: 13, lineHeight: 1.65, color: 'var(--color-neutral-700)' };
+    if (k === 'cmd') return { ...mono, color: 'var(--color-accent-700)', fontWeight: 500 };
+    if (k === 'add') return { ...mono, background: 'var(--color-accent-2-100)', color: 'var(--color-accent-2-800)' };
+    if (k === 'del') return { ...mono, background: '#fbeeea', color: '#a4553f' };
+    if (k === 'link') return { ...mono, color: 'var(--color-accent-700)' };
+    if (k === 'ctx') return { ...mono, color: 'var(--color-neutral-600)' };
+    if (k === 'key') return { ...mono, color: 'var(--color-neutral-700)', background: 'var(--color-neutral-200)' };
+    return { ...mono, color: 'var(--color-neutral-800)' };
+  }
+
+  renderVals() {
+    const st = this.state;
+    const full = '正在对比同比与环比。华东区贡献了本季度新增的 61%，主要来自 8 月上线的订阅套餐；西南区略有下滑，和两家渠道商的合约到期时间对得上。';
+    const speed = this.props.streamSpeed ?? 1.4;
+    const cut = Math.floor((st.n * speed) % (full.length + 24));
+    const pct = 34 + Math.floor((st.n * 0.6) % 46);
+    const chev = open => ({
+      flex: 'none', display: 'flex', color: 'var(--color-neutral-500)',
+      transform: open ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .15s'
+    });
+
+    const projects = st.projects.map(p => ({
+      id: p.id,
+      name: p.name,
+      expanded: p.expanded,
+      empty: p.expanded && p.convos.length === 0,
+      hover: st.hoverP === p.id && st.renamingP !== p.id,
+      menuOpen: st.menuP === p.id,
+      renaming: st.renamingP === p.id,
+      notRenaming: st.renamingP !== p.id,
+      rowStyle: {
+        position: 'relative', display: 'flex', alignItems: 'center', gap: 8,
+        padding: '6px 8px 6px 10px', borderRadius: 999, cursor: 'default', minHeight: 32,
+        background: st.hoverP === p.id ? 'var(--hair-soft)' : 'transparent'
+      },
+      chevStyle: {
+        flex: 'none', display: 'flex', color: 'var(--color-neutral-600)',
+        transform: p.expanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .15s'
+      },
+      onEnter: () => this.setState({ hoverP: p.id }),
+      onLeave: () => this.setState(s => ({ hoverP: s.hoverP === p.id ? null : s.hoverP })),
+      onToggle: () => { if (st.renamingP !== p.id) this.patch(p.id, x => ({ ...x, expanded: !x.expanded })); },
+      onMenu: () => this.setState(s => ({ menuP: s.menuP === p.id ? null : p.id })),
+      onRename: () => this.setState({ renamingP: p.id, renameValue: p.name, menuP: null }),
+      onNewChat: () => this.setState(s => {
+        const id = 'c' + s.seq;
+        return {
+          seq: s.seq + 1, menuP: null, activeC: id, activeP: p.id, screen: 'empty', draftMedia: [], lb: null,
+          projects: s.projects.map(x => x.id === p.id
+            ? { ...x, expanded: true, convos: [{ id, title: '未命名对话' }, ...x.convos] } : x)
+        };
+      }),
+      onDuplicate: () => this.setState(s => {
+        const i = s.projects.findIndex(x => x.id === p.id);
+        const copy = { ...p, id: 'p' + s.seq, name: p.name + ' 副本' };
+        const next = s.projects.slice();
+        next.splice(i + 1, 0, copy);
+        return { projects: next, seq: s.seq + 1, menuP: null };
+      }),
+      onArchive: () => this.setState(s => ({ menuP: null, projects: s.projects.filter(x => x.id !== p.id) })),
+      onAskDelete: () => this.setState({ confirmP: p.id, menuP: null }),
+      convos: p.convos.map(c => ({
+        id: c.id,
+        title: c.title,
+        showBranch: !!c.branch && st.hoverC !== c.id,
+        hover: st.hoverC === c.id,
+        rowStyle: {
+          display: 'flex', alignItems: 'center', gap: 6, minHeight: 32,
+          padding: '5px 8px 5px 30px', borderRadius: 999, cursor: 'default',
+          fontWeight: st.activeC === c.id ? 500 : 400,
+          background: st.activeC === c.id ? 'var(--color-neutral-200)'
+            : st.hoverC === c.id ? 'var(--hair-soft)' : 'transparent'
+        },
+        onEnter: () => this.setState({ hoverC: c.id }),
+        onLeave: () => this.setState(s => ({ hoverC: s.hoverC === c.id ? null : s.hoverC })),
+        onOpen: () => this.setState({ activeC: c.id, activeP: p.id, screen: 'chat', lb: null })
+      }))
+    }));
+
+    const winW = st.winW || 1440;
+    const overlay = winW - (st.leftCollapsed ? 0 : st.leftW) - st.panelW < 520;
+    const mainNarrow = winW - (st.leftCollapsed ? 0 : st.leftW) - (st.panelOpen && !overlay ? st.panelW : 0) < 700;
+    const activeProject = st.projects.find(p => p.id === st.activeP);
+    let activeTitle = '未命名对话';
+    st.projects.forEach(p => p.convos.forEach(c => { if (c.id === st.activeC) activeTitle = c.title; }));
+    const confirmProject = st.projects.find(p => p.id === st.confirmP);
+
+    const lb = st.lb;
+    const lbList = lb ? st[lb.key] : [];
+    const lbItem = lb && lbList.length ? lbList[Math.min(lb.i, lbList.length - 1)] : null;
+    const lbRatio = lbItem ? lbItem.ratio : 1.78;
+
+    return {
+      draftMedia: this.mapMedia(st.draftMedia, 'draftMedia', 62, 62, 18),
+      hasDraftMedia: st.draftMedia.length > 0,
+      userMedia: this.mapMedia(st.userMedia, 'userMedia', 96, 96, 20),
+      outMedia: this.mapMedia(st.outMedia, 'outMedia', 158, 104, 22),
+      lightboxOpen: !!lbItem,
+      lbName: lbItem ? lbItem.name : '',
+      lbMeta: lbItem ? lbItem.meta : '',
+      lbGlyph: lbItem ? (lbItem.kind === 'video' ? '▶' : '◱') : '',
+      lbHint: lbItem ? (lbItem.kind === 'video' ? this.L('视频预览', 'Video preview') : this.L('图片预览', 'Image preview')) : '',
+      lbIsVideo: !!lbItem && lbItem.kind === 'video',
+      lbCount: lbItem ? (Math.min(lb.i, lbList.length - 1) + 1) + ' / ' + lbList.length : '',
+      lbStageStyle: {
+        position: 'relative', maxWidth: '100%', maxHeight: '100%',
+        width: lbRatio >= 1 ? 'min(76vw, 1120px)' : 'min(42vw, 560px)',
+        aspectRatio: String(lbRatio),
+        borderRadius: 20, background: 'var(--color-neutral-100)',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8
+      },
+      lbClose: () => this.setState({ lb: null }),
+      lbDownload: () => {},
+      lbPrev: () => this.setState(x => ({ lb: { key: x.lb.key, i: (x.lb.i - 1 + x[x.lb.key].length) % x[x.lb.key].length } })),
+      lbNext: () => this.setState(x => ({ lb: { key: x.lb.key, i: (x.lb.i + 1) % x[x.lb.key].length } })),
+      brandName: this.props.brandName ?? 'bossip',
+      showSources: this.props.showSources ?? true,
+      projects,
+      activeTitle: st.screen === 'settings' ? this.L('设置', 'Settings') : activeTitle,
+      activeProject: st.screen === 'settings' ? this.L('账号与偏好', 'Account & preferences') : (activeProject ? activeProject.name : this.L('未归类', 'Unsorted')),
+      confirmName: confirmProject ? confirmProject.name : '',
+      cancelDelete: () => this.setState({ confirmP: null }),
+      confirmDelete: () => this.setState(s => ({
+        confirmP: null, projects: s.projects.filter(p => p.id !== s.confirmP)
+      })),
+
+      renameValue: st.renameValue,
+      onRenameChange: e => this.setState({ renameValue: e.target.value }),
+      onRenameKey: e => { if (e.key === 'Enter') this.commitRename(); if (e.key === 'Escape') this.setState({ renamingP: null }); },
+      commitRename: () => this.commitRename(),
+
+      draftOpen: st.draftOpen,
+      draftName: st.draftName,
+      startNewProject: () => this.setState({ draftOpen: true, draftName: '' }),
+      onDraftChange: e => this.setState({ draftName: e.target.value }),
+      onDraftKey: e => { if (e.key === 'Enter') this.commitDraft(); if (e.key === 'Escape') this.setState({ draftOpen: false }); },
+      commitDraft: () => this.commitDraft(),
+      newChatHere: () => this.setState(s => {
+        const id = 'c' + s.seq;
+        const pid = s.projects.some(p => p.id === s.activeP) ? s.activeP : (s.projects[0] || {}).id;
+        return {
+          seq: s.seq + 1, screen: 'empty', activeC: id, activeP: pid, draftMedia: [], lb: null,
+          projects: s.projects.map(x => x.id === pid
+            ? { ...x, expanded: true, convos: [{ id, title: '未命名对话' }, ...x.convos] } : x)
+        };
+      }),
+      isAppearance: st.settingsTab === '外观',
+      hasRows: st.settingsTab !== '外观',
+      langs: [
+        { id: '中文', label: '简体中文', hint: this.L('当前', 'Chinese') },
+        { id: 'English', label: 'English', hint: this.L('英文', 'Current') }
+      ].map(g => ({
+        label: g.label, hint: g.hint,
+        cardStyle: {
+          display: 'flex', flexDirection: 'column', gap: 4, padding: '14px 16px',
+          borderRadius: 14, cursor: 'default', background: 'var(--card)',
+          border: st.lang === g.id ? '1.5px solid var(--color-text)' : '1px solid var(--hair)'
+        },
+        onPick: () => this.setState({ lang: g.id })
+      })),
+      themes: Object.keys(this.themeDefs()).map(k => {
+        const t = this.themeDefs()[k];
+        const on = st.theme === k;
+        return {
+          name: k === 'default' ? this.L('默认', 'Default') : t.name, temp: t.temp,
+          cardStyle: {
+            display: 'flex', flexDirection: 'column', gap: 14, padding: '12px 14px 14px',
+            borderRadius: 14, cursor: 'default', background: on ? t.soft : 'var(--card)',
+            border: on ? '1.5px solid var(--color-text)' : '1px solid var(--hair)'
+          },
+          badgeStyle: {
+            padding: '2px 8px', borderRadius: 999, fontSize: 11,
+            background: 'var(--color-neutral-200)', color: 'var(--color-neutral-700)'
+          },
+          nameStyle: { fontSize: 15, fontWeight: 500, letterSpacing: '-0.01em' },
+          swatches: [t.pills[0], t.pills[1], t.n300, t.hair].map(c => ({
+            style: { width: 7, height: 20, borderRadius: 999, background: c }
+          })),
+          onPick: () => this.setState({ theme: k }, () => this.applyTokens())
+        };
+      }),
+      modes: [
+        { id: 'light', label: this.L('浅色', 'Light'), glyph: '☀' },
+        { id: 'system', label: this.L('跟随系统', 'System'), glyph: '▢' },
+        { id: 'dark', label: this.L('深色', 'Dark'), glyph: '☽' }
+      ].map(m => {
+        const on = st.mode === m.id;
+        return {
+          label: m.label, glyph: m.glyph, isSystem: m.id === 'system',
+          cardStyle: {
+            position: 'relative', overflow: 'hidden', height: 62, borderRadius: 14,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'default',
+            background: m.id === 'dark' ? '#1b1a18' : 'var(--card)',
+            border: on ? '1.5px solid var(--color-text)' : '1px solid var(--hair)'
+          },
+          labelStyle: {
+            position: 'relative', fontSize: 13.5,
+            color: m.id === 'dark' ? '#f3f1ec' : 'var(--color-text)'
+          },
+          onPick: () => this.setState({ mode: m.id }, () => this.applyTokens())
+        };
+      }),
+      t: this.strings(),
+      planLine: this.L('Pro · 剩 2,480 积分', 'Pro · 2,480 credits left'),
+      ctxLine: this.L('3 个文件 · 12.4k tokens', '3 files · 12.4k tokens'),
+      greeting: this.L('晚上好，何遇。', 'Good evening, He Yu.'),
+      emptyHint: this.L('这条对话会存在「' + (activeProject ? activeProject.name : '未归类') + '」下。丢一份文件，或者直接说你想弄清楚什么。',
+        'This chat will live under “' + (activeProject ? activeProject.name : 'Unsorted') + '”. Drop a file, or just say what you want to figure out.'),
+      delTitle: this.L('删除「' + (confirmProject ? confirmProject.name : '') + '」？',
+        'Delete “' + (confirmProject ? confirmProject.name : '') + '”?'),
+      delBody: this.L('项目下的对话会一并进入回收站，30 天内可恢复。', 'Its chats go to the trash too, recoverable for 30 days.'),
+      fontSizes: ['小号', '标准', '中号', '大号'].map((f, i) => ({
+        label: this.L(f, ['Small', 'Default', 'Medium', 'Large'][i]) + ' Aa',
+        cardStyle: {
+          display: 'flex', alignItems: 'center', justifyContent: 'center', height: 58,
+          borderRadius: 14, cursor: 'default', background: 'var(--card)',
+          fontSize: [12.5, 14, 15.5, 17.5][i],
+          border: st.fs === f ? '1.5px solid var(--color-accent)' : '1px solid var(--hair)'
+        },
+        onPick: () => this.setState({ fs: f })
+      })),
+      rootStyle: (() => {
+        const z = { '小号': 0.92, '标准': 1, '中号': 1.09, '大号': 1.2 }[st.fs] || 1;
+        return {
+          zoom: z, height: 'calc(100vh / ' + z + ')', width: '100%',
+          boxSizing: 'border-box', display: 'flex', fontFamily: 'var(--font-body)',
+          color: 'var(--color-text)', background: 'var(--color-bg)', overflow: 'hidden'
+        };
+      })(),
+      chatColStyle: {
+        width: '100%', maxWidth: 760, margin: '0 auto', display: 'flex',
+        flexDirection: 'column', gap: 34, paddingBottom: 16
+      },
+      isSettings: st.screen === 'settings',
+      backToChat: () => this.setState({ screen: 'chat' }),
+      credits: '2,480',
+      creditsCycle: this.L('3 月18 日重置', 'resets Mar 18'),
+      creditsPct: '62%',
+      userMenuOpen: !!st.userMenu,
+      toggleUserMenu: () => this.setState(x => ({ userMenu: !x.userMenu })),
+      closeUserMenu: () => this.setState({ userMenu: false }),
+      openSettings: () => this.setState({ userMenu: false, screen: 'settings' }),
+      composerWrapStyle: { flex: 'none', padding: '4px 26px 20px', display: st.screen === 'settings' ? 'none' : 'block' },
+      settingsNav: [['账号', 'Account'], ['订阅与积分', 'Plan & credits'], ['模型', 'Models'], ['工具与权限', 'Tools & permissions'], ['外观', 'Appearance']].map(pair => {
+        const s = pair[0];
+        return {
+        label: this.L(pair[0], pair[1]),
+        rowStyle: {
+          display: 'flex', alignItems: 'center', minHeight: 36, padding: '0 14px',
+          borderRadius: 999, cursor: 'default',
+          fontWeight: st.settingsTab === s ? 500 : 400,
+          background: st.settingsTab === s ? 'var(--color-neutral-300)'
+            : st.hoverSet === s ? 'var(--hair-soft)' : 'transparent'
+        },
+        onPick: () => this.setState({ settingsTab: s }),
+        onEnter: () => this.setState({ hoverSet: s }),
+        onLeave: () => this.setState(x => ({ hoverSet: x.hoverSet === s ? null : x.hoverSet }))
+        };
+      }),
+      settingsTitle: this.L(st.settingsTab, { '账号': 'Account', '订阅与积分': 'Plan & credits', '模型': 'Models', '工具与权限': 'Tools & permissions', '外观': 'Appearance' }[st.settingsTab]),
+      settingsHint: this.L({
+        '账号': '登录方式、设备和数据导出。',
+        '订阅与积分': '当前套餐、积分消耗和充值。',
+        '模型': '默认模型和各场景的选型。',
+        '工具与权限': '哪些动作可以不经确认直接执行。',
+        '外观': '语言、主题、颜色模式和字号。'
+      }[st.settingsTab], {
+        '账号': 'Sign-in methods, devices and data export.',
+        '订阅与积分': 'Current plan, credit usage and top-ups.',
+        '模型': 'Default model and per-scenario picks.',
+        '工具与权限': 'Which actions may run without confirmation.',
+        '外观': 'Language, theme, color mode and type size.'
+      }[st.settingsTab]),
+      showCredits: st.settingsTab === '订阅与积分',
+      settingsRows: ({
+        '账号': [
+          { k: 'v', label: '邮箱', hint: 'heyu@example.com · 已验证', value: '更改' },
+          { k: 'v', label: '登录设备', hint: '3 个设备在线', value: '查看' },
+          { k: 't', label: '云端同步', hint: '对话和项目在多设备间同步。' },
+          { k: 'v', label: '导出全部数据', hint: '导出为 JSON，含附件清单。', value: '导出' }
+        ],
+        '订阅与积分': [
+          { k: 'v', label: '当前套餐', hint: 'Pro · 每月 6,000 积分', value: '改套餐' },
+          { k: 'v', label: '自动充值', hint: '余额低于 500 分时自动购买 2,000 分。', value: '已开启' },
+          { k: 'v', label: '账单与发票', hint: '最近一笔：3 月 1 日 · ¥199', value: '查看' },
+          { k: 't', label: '进度邮件提醒', hint: '长任务跑完后发一封邮件。' }
+        ],
+        '模型': [
+          { k: 'v', label: '默认模型', hint: '新对话默认使用。', value: st.model },
+          { k: 'v', label: '长文档模型', hint: '超过 20 万 tokens 时切换。', value: 'Aster 3 Pro' },
+          { k: 'v', label: '图像理解', hint: '截图、手写和视频帧。', value: 'Vela 2 Vision' }
+        ],
+        '工具与权限': [
+          { k: 't', label: '终端命令免确认', hint: '允许直接执行只读命令，写操作仍需确认。' },
+          { k: 't', label: '发布前人工确认', hint: '向外发布内容前必须经你确认。' },
+          { k: 'v', label: 'MCP 服务', hint: '已连接 4 个 · sheets、notion、slack、s3', value: '管理' }
+        ],
+        '外观': []
+      }[st.settingsTab] || []).map((r, i) => {
+        const on = !!st.toggles[r.label];
+        const tr = this.rowT()[r.label] || {};
+        return {
+          label: tr.l || r.label, hint: tr.h || r.hint, value: tr.v || r.value,
+          isToggle: r.k === 't', isValue: r.k === 'v',
+          rowStyle: {
+            display: 'flex', alignItems: 'center', gap: 16, padding: '14px 20px',
+            borderTop: i === 0 ? 'none' : '1px solid var(--hair)'
+          },
+          trackStyle: {
+            flex: 'none', width: 40, height: 24, borderRadius: 999, padding: 2,
+            display: 'flex', alignItems: 'center', cursor: 'default',
+            justifyContent: on ? 'flex-end' : 'flex-start',
+            background: on ? 'var(--color-text)' : 'var(--color-neutral-300)'
+          },
+          knobStyle: {
+            width: 20, height: 20, borderRadius: 999,
+            background: on ? 'var(--color-bg)' : 'var(--card)',
+            boxShadow: 'var(--shadow-sm)'
+          },
+          onToggle: () => this.setState(x => ({ toggles: { ...x.toggles, [r.label]: !x.toggles[r.label] } }))
+        };
+      }),
+      isRunning: st.screen === 'chat',
+      activeModel: st.model,
+      modelOpen: !!st.modelOpen,
+      toggleModel: () => this.setState(x => ({ modelOpen: !x.modelOpen })),
+      models: [
+        { name: 'Aster 3', hint: '均衡' },
+        { name: 'Aster 3 Pro', hint: '深度' },
+        { name: 'Aster 3 Flash', hint: '快' },
+        { name: 'Vela 2 Vision', hint: '图像' }
+      ].map(m => ({
+        name: m.name, hint: m.hint,
+        rowStyle: {
+          display: 'flex', alignItems: 'center', gap: 10, minHeight: 34,
+          padding: '0 12px', borderRadius: 999, cursor: 'default',
+          background: st.hoverMo === m.name ? 'var(--hair-soft)' : 'transparent'
+        },
+        dotStyle: {
+          flex: 'none', width: 7, height: 7, borderRadius: 999,
+          background: st.model === m.name ? 'var(--color-text)' : 'var(--color-neutral-400)'
+        },
+        onEnter: () => this.setState({ hoverMo: m.name }),
+        onLeave: () => this.setState(x => ({ hoverMo: x.hoverMo === m.name ? null : x.hoverMo })),
+        onPick: () => this.setState({ model: m.name, modelOpen: false })
+      })),
+      composerHint: st.screen === 'chat' ? this.L('运行中，仍可插话…', 'Running — you can still chime in…') : this.L('今天想做点什么？', 'What are we doing today?'),
+
+      sEmpty: st.screen === 'empty',
+      sChat: st.screen === 'chat',
+      suggestions: [
+        { id: 'g1', title: this.L('把 Q3 明细做成一页复盘', 'Turn the Q3 sheet into a one-page review'), hint: this.L('读表 · 算同比 · 出图', 'read · compare · chart') },
+        { id: 'g2', title: this.L('帮我重构这个回调函数', 'Refactor this callback for me'), hint: this.L('贴代码即可，给可运行 diff', 'paste code, get a runnable diff') },
+        { id: 'g3', title: this.L('这三家的定价怎么比', 'How do these three price against each other'), hint: this.L('带来源，可点开原文', 'with sources you can open') }
+      ].map(g => ({
+        title: g.title, hint: g.hint,
+        rowStyle: {
+          display: 'flex', alignItems: 'center', gap: 14, minHeight: 46,
+          padding: '0 16px', borderRadius: 999, cursor: 'default',
+          background: st.hoverG === g.id ? 'var(--hair-soft)' : 'transparent'
+        },
+        onEnter: () => this.setState({ hoverG: g.id }),
+        onLeave: () => this.setState(x => ({ hoverG: x.hoverG === g.id ? null : x.hoverG })),
+        onPick: () => this.setState({ screen: 'chat' })
+      })),
+
+      thinkOpen: st.thinkOpen,
+      thinkChev: chev(st.thinkOpen),
+      toggleThink: () => this.setState(s => ({ thinkOpen: !s.thinkOpen })),
+
+      streamText: full.slice(0, cut),
+      pctWidth: pct + '%',
+      pctLabel: pct + '%',
+
+      stepCounter: this.L('第 ' + (st.steps.filter(s => s.status === 'done').length + 1) + ' / ' + st.steps.length + ' 步',
+        'Step ' + (st.steps.filter(s => s.status === 'done').length + 1) + ' of ' + st.steps.length),
+      logTail: '正在算西南区环比与合约到期影响'.slice(0, 4 + Math.floor((st.n * 0.5) % 12)),
+      steps: st.steps.map((s, i) => {
+        const running = s.status === 'running';
+        const done = s.status === 'done';
+        const ids = { s1: ['e1'], s2: ['e2', 'e3'], s3: ['e4', 'e6', 'e9'] }[s.id] || [];
+        const mine = st.entries.filter(e => ids.indexOf(e.id) > -1);
+        return {
+          id: s.id,
+          title: s.title,
+          running,
+          entries: this.mapEntries(mine),
+          showLog: mine.length > 0 && (running || st.openDone === s.id),
+          canEdit: s.status === 'pending' && st.hoverS === s.id,
+          rowStyle: {
+            display: 'flex', alignItems: 'center', gap: 12, minHeight: 32,
+            padding: '4px 10px', borderRadius: 999, fontSize: 14.5, cursor: 'default',
+            background: st.hoverS === s.id ? 'var(--hair-soft)' : 'transparent'
+          },
+          dotStyle: {
+            width: 18, height: 18, flex: 'none', borderRadius: 999, boxSizing: 'border-box',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10,
+            background: done ? 'var(--color-accent-2-600)' : 'transparent',
+            color: 'var(--color-bg)',
+            border: done ? 'none' : running ? '2.5px solid var(--color-accent)' : '2.5px solid var(--color-neutral-400)'
+          },
+          dotMark: done ? '✓' : '',
+          titleStyle: {
+            fontWeight: running ? 500 : 400,
+            color: running ? 'var(--color-text)' : done ? 'var(--color-neutral-700)' : 'var(--color-neutral-500)'
+          },
+          onEnter: () => this.setState({ hoverS: s.id }),
+          onLeave: () => this.setState(x => ({ hoverS: x.hoverS === s.id ? null : x.hoverS })),
+          onToggle: () => { if (done) this.setState(x => ({ openDone: x.openDone === s.id ? null : s.id })); },
+          onRemove: () => this.setState(x => ({ steps: x.steps.filter(y => y.id !== s.id) })),
+          onInsert: () => this.setState(x => {
+            const next = x.steps.slice();
+            next.splice(i + 1, 0, { id: 's' + x.stepSeq, status: 'pending', title: '新的一步' });
+            return { steps: next, stepSeq: x.stepSeq + 1 };
+          })
+        };
+      }),
+      addStep: () => this.setState(x => ({
+        stepSeq: x.stepSeq + 1,
+        steps: [...x.steps, { id: 's' + x.stepSeq, status: 'pending', title: '新的一步' }]
+      })),
+
+      logSummary: this.L('8 步 · 共 4.6s', '8 steps · 4.6s total'),
+      logGroupOpen: !!st.logGroupOpen,
+      logChev: chev(st.logGroupOpen),
+      toggleLogGroup: () => this.setState(x => ({ logGroupOpen: !x.logGroupOpen })),
+      doneEntries: this.mapEntries(st.entries.filter(e => !e.running)),
+
+      panelNarrow: !!st.panelNarrow,
+      panelWide: !st.panelNarrow,
+      barWide: !mainNarrow,
+
+      leftOpen: !st.leftCollapsed,
+      leftClosed: st.leftCollapsed,
+      toggleLeft: () => this.setState(x => ({ leftCollapsed: !x.leftCollapsed })),
+      leftStyle: {
+        position: 'relative', flex: 'none', width: st.leftW,
+        display: st.leftCollapsed ? 'none' : 'flex',
+        flexDirection: 'column', minHeight: 0,
+        background: 'var(--rail)'
+      },
+      leftHandleStyle: this.handle(st.leftCollapsed ? null : 'right'),
+      panelStyle: overlay
+        ? {
+            position: 'fixed', top: 10, right: 10, bottom: 10, zIndex: 40,
+            width: Math.min(st.panelW, Math.max(320, winW - (st.leftCollapsed ? 0 : st.leftW) - 30)),
+            background: 'var(--card)', borderRadius: 18,
+            border: '1px solid var(--hair)', boxShadow: 'var(--shadow-md)',
+            display: 'flex', flexDirection: 'column', minHeight: 0
+          }
+        : {
+            position: 'relative', flex: 'none', width: st.panelW, minWidth: 360,
+            background: 'var(--rail)',
+            display: 'flex', flexDirection: 'column', minHeight: 0
+          },
+      panelHandleStyle: this.handle('left'),
+      viewerStyle: {
+        flex: '1 1 auto', minWidth: 260, overflow: 'auto', padding: '16px 18px',
+        background: 'var(--card)', border: '1px solid var(--hair)', borderRadius: 16
+      },
+      treeColStyle: st.panelNarrow
+        ? { position: 'relative', flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0, background: 'var(--card)', border: '1px solid var(--hair)', borderRadius: 16 }
+        : { position: 'relative', flex: 'none', width: st.treeW, minWidth: 170, display: 'flex', flexDirection: 'column', minHeight: 0, background: 'var(--card)', border: '1px solid var(--hair)', borderRadius: 16 },
+      treeHandleStyle: this.handle(st.panelNarrow ? null : 'left'),
+      showTree: st.treeOpen,
+      showViewer: !(st.panelNarrow && st.treeOpen),
+      toggleTree: () => this.setState(x => ({ treeOpen: !x.treeOpen })),
+      startLeftDrag: e => this.beginDrag('left', e),
+      startPanelDrag: e => this.beginDrag('panel', e),
+      startTreeDrag: e => this.beginDrag('tree', e),
+      panelRef: el => {
+        if (el === this._panelEl) return;
+        if (this.ro && this._panelEl) this.ro.unobserve(this._panelEl);
+        this._panelEl = el;
+        if (this.ro && el) this.ro.observe(el);
+      },
+
+      repoName: 'codex-web',
+      panelOpen: st.panelOpen,
+      panelClosed: !st.panelOpen,
+      openReviewChip: () => this.openReview('report/q3-review.md'),
+      togglePanel: () => this.setState(x => {
+        if (x.panelOpen) return { panelOpen: false };
+        if (x.tabs.length) return { panelOpen: true };
+        const id = 't' + x.tabSeq;
+        return { panelOpen: true, tabSeq: x.tabSeq + 1, activeTab: id, tabs: [this.newTab(id, 'menu')] };
+      }),
+      addTab: () => this.setState(x => {
+        const id = 't' + x.tabSeq;
+        return { tabSeq: x.tabSeq + 1, activeTab: id, tabs: [...x.tabs, this.newTab(id, 'menu')] };
+      }),
+      tabs: st.tabs.map(t => ({
+        id: t.id, title: t.title, glyph: t.glyph,
+        style: {
+          flex: 'none', display: 'flex', alignItems: 'center', gap: 8, height: 32,
+          padding: '0 8px 0 12px', borderRadius: 999, cursor: 'default', minWidth: 0,
+          background: st.activeTab === t.id ? 'var(--card)'
+            : st.hoverT === t.id ? 'var(--hair-soft)' : 'transparent',
+          border: st.activeTab === t.id ? '1px solid var(--hair)' : '1px solid transparent'
+        },
+        glyphStyle: {
+          flex: 'none', fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+          fontSize: 11, color: 'var(--color-neutral-600)'
+        },
+        onSelect: () => this.setState({ activeTab: t.id, hoverT: t.id }),
+        onClose: e => {
+          if (e && e.stopPropagation) e.stopPropagation();
+          this.setState(x => {
+            const tabs = x.tabs.filter(y => y.id !== t.id);
+            return {
+              tabs,
+              activeTab: x.activeTab === t.id ? (tabs.length ? tabs[tabs.length - 1].id : null) : x.activeTab,
+              panelOpen: tabs.length > 0
+            };
+          });
+        }
+      })),
+      tabIsMenu: this.activeKind() === 'menu',
+      tabIsFiles: this.activeKind() === 'files',
+      tabIsTerminal: this.activeKind() === 'terminal',
+      tabIsBrowser: this.activeKind() === 'browser',
+      tabIsReview: this.activeKind() === 'review',
+      reviewAdd: '+133',
+      reviewDel: '−43',
+      reviewFiles: st.reviewData.map(r => {
+        const cut2 = r.name.lastIndexOf('/');
+        return {
+          dir: cut2 > -1 ? r.name.slice(0, cut2 + 1) : '',
+          base: cut2 > -1 ? r.name.slice(cut2 + 1) : r.name,
+          add: r.add, del: r.del, badge: r.badge, skipped: r.skipped,
+          open: st.reviewFile === r.name,
+          headStyle: {
+            display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', cursor: 'default'
+          },
+          badgeStyle: {
+            flex: 'none', width: 26, height: 20, borderRadius: 6, display: 'flex',
+            alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 600,
+            fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+            background: this.toneBg(r.tone), color: this.toneFg(r.tone)
+          },
+          lines: r.lines.map(d => ({
+            n: d.n, text: d.text,
+            mark: d.k === 'add' ? '+' : d.k === 'del' ? '−' : ' ',
+            rowStyle: {
+              display: 'flex', alignItems: 'baseline', lineHeight: 1.95,
+              background: d.k === 'add' ? '#f1f7ee' : d.k === 'del' ? '#fdf1ee' : 'transparent'
+            },
+            numStyle: {
+              flex: 'none', width: 42, paddingRight: 10, textAlign: 'right', userSelect: 'none',
+              fontFamily: 'ui-monospace, SFMono-Regular, monospace', fontSize: 12,
+              color: 'var(--color-neutral-500)'
+            },
+            markStyle: {
+              flex: 'none', width: 16, fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+              fontSize: 12.5, color: d.k === 'add' ? 'var(--color-accent-2-700)' : d.k === 'del' ? '#a4553f' : 'transparent'
+            }
+          })),
+          onSelect: () => this.setState({ reviewFile: r.name }),
+          onOpenFile: () => this.openFiles(r.base)
+        };
+      }),
+      menuItems: [
+        { kind: 'review', label: this.L('审阅', 'Review'), glyph: '±', hint: this.L('3 处待审', '3 pending') },
+        { kind: 'terminal', label: this.L('终端', 'Terminal'), glyph: '›_', hint: this.L('1 个进程', '1 process') },
+        { kind: 'browser', label: this.L('浏览器', 'Browser'), glyph: '⊕', hint: '' },
+        { kind: 'files', label: this.L('文件', 'Files'), glyph: '▤', hint: 'codex-web' }
+      ].map(m => ({
+        label: m.label, glyph: m.glyph, hint: m.hint,
+        rowStyle: {
+          display: 'flex', alignItems: 'center', gap: 12, minHeight: 46,
+          padding: '0 14px', borderRadius: 999, cursor: 'default',
+          background: st.hoverM === m.kind ? 'var(--hair-soft)' : 'transparent'
+        },
+        glyphStyle: {
+          flex: 'none', width: 28, height: 28, borderRadius: 999,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontFamily: 'ui-monospace, SFMono-Regular, monospace', fontSize: 12,
+          color: 'var(--color-neutral-700)', border: '1px solid var(--hair)'
+        },
+        onEnter: () => this.setState({ hoverM: m.kind }),
+        onLeave: () => this.setState(x => ({ hoverM: x.hoverM === m.kind ? null : x.hoverM })),
+        onOpen: () => this.setState(x => ({
+          tabs: x.tabs.map(t => t.id === x.activeTab ? this.newTab(t.id, m.kind) : t)
+        }))
+      })),
+
+      openFileName: st.openFile,
+      openIsDoc: !!(this.currentFile() || {}).doc,
+      openIsCode: !!(this.currentFile() || {}).code,
+      openBlocks: ((this.currentFile() || {}).doc || []).map(b => ({ text: b.text, style: this.docStyle(b.k) })),
+      openLines: ((this.currentFile() || {}).code || []).map((t, i) => ({ n: i + 1, spans: this.tokenize(t) })),
+
+      tree: st.dirs.map(d => ({
+        name: d, isDir: true, isFile: false, badge: '', badgeStyle: {},
+        rowStyle: this.fileRow(false, st.hoverF === d),
+        nameStyle: { flex: 1, minWidth: 0, fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--color-neutral-800)' },
+        chevStyle: { flex: 'none', display: 'flex', color: 'var(--color-neutral-500)' },
+        onEnter: () => this.setState({ hoverF: d }),
+        onLeave: () => this.setState(x => ({ hoverF: x.hoverF === d ? null : x.hoverF })),
+        onClick: () => {}
+      })).concat(st.files.map(f => ({
+        name: f.name, isDir: false, isFile: true, badge: f.badge,
+        badgeStyle: {
+          flex: 'none', width: 22, height: 18, borderRadius: 5, display: 'flex',
+          alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 600,
+          fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+          background: this.toneBg(f.tone), color: this.toneFg(f.tone)
+        },
+        rowStyle: this.fileRow(st.openFile === f.name, st.hoverF === f.name),
+        nameStyle: {
+          flex: 1, minWidth: 0, fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          fontWeight: st.openFile === f.name ? 500 : 400
+        },
+        chevStyle: {},
+        onEnter: () => this.setState({ hoverF: f.name }),
+        onLeave: () => this.setState(x => ({ hoverF: x.hoverF === f.name ? null : x.hoverF })),
+        onClick: () => this.setState({ openFile: f.name })
+      })))
+    };
+  }
+
+  commitRename() {
+    const { renamingP, renameValue } = this.state;
+    if (!renamingP) return;
+    const name = renameValue.trim();
+    if (name) this.patch(renamingP, p => ({ ...p, name }));
+    this.setState({ renamingP: null });
+  }
+
+  commitDraft() {
+    const name = this.state.draftName.trim();
+    this.setState(s => ({
+      draftOpen: false, draftName: '', seq: s.seq + 1,
+      projects: name
+        ? [{ id: 'p' + s.seq, name, expanded: true, convos: [] }, ...s.projects]
+        : s.projects
+    }));
+  }
+}
+
+</script>
+</body>
+</html>
