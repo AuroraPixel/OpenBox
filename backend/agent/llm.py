@@ -211,6 +211,12 @@ def _get_default_thinking_kwargs(model_id: str) -> dict:
     model_lower = model_id.lower()
 
     if provider == "openai":
+        # Gemini via proxy: the proxy accepts the Anthropic-style thinking
+        # param and maps it to thinkingConfig with includeThoughts, so thought
+        # summaries stream back as reasoning_content. reasoning_effort alone
+        # does NOT bring thoughts back (verified against the live proxy).
+        if "gemini" in model_lower:
+            return {"thinking": {"type": "enabled", "budget_tokens": 16000}}
         # Claude 4.6 via proxy: enable reasoning
         if any(x in model_lower for x in ("opus-4-6", "opus-4.6", "sonnet-4-6", "sonnet-4.6")):
             return {"reasoning_effort": "medium"}
@@ -261,6 +267,12 @@ def _get_variant_kwargs(model_id: str, variant: str | None) -> dict:
     model_lower = model_id.lower()
 
     if provider == "openai":
+        # Gemini via proxy: thinking budget, same shape as the default kwargs.
+        if "gemini" in model_lower:
+            budget = {"low": 4096, "medium": 16000, "high": 24576}.get(variant)
+            if budget:
+                return {"thinking": {"type": "enabled", "budget_tokens": budget}}
+            return {}
         # Map "max" → "xhigh" for models that support it
         effort = variant
         if variant == "max" and any(x in model_lower for x in ("gpt-5.4", "gpt-5.2")):

@@ -307,6 +307,10 @@ async def process_step(
                 tool_part.output = result.output
                 tool_part.title = result.title
                 tool_part.error = result.output if result.metadata.get("error") else None
+                tool_part.metadata = {
+                    k: v for k, v in (result.metadata or {}).items()
+                    if k in ("exit_code", "blocked", "truncated", "count", "duration")
+                }
                 await save_part(tool_part, user_id=user_id)
 
                 # Track for doom loop detection (across steps)

@@ -28,7 +28,7 @@ from bus.events import (
 from session.compaction import filter_compacted
 from models.message import (
     SessionStatus, MessageWithParts, TextPart, ReasoningPart, ToolPartData, ToolStatus,
-    StepStartPart, StepFinishPart, TokenUsage, PlanPart,
+    StepStartPart, StepFinishPart, TokenUsage, PlanPart, PatchPart, PatchFile,
 )
 from session.session import (
     get_session, update_session, set_session_status, set_session_title,
@@ -433,8 +433,9 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
                 log.warning(f"Session {session_id} exceeded max steps")
                 break
 
-            # Generate title once — only if still default title
-            if step == 1 and session.title and session.title.startswith("New session"):
+            # Generate title once — only if the user hasn't named it yet
+            # (empty, or the legacy "New session - <iso>" default)
+            if step == 1 and (not session.title or session.title.startswith("New session")):
                 asyncio.create_task(_ensure_title(session_id, last_user, user_id=user_id))
 
             # Get agent definition (copy to avoid mutating global)
@@ -566,7 +567,7 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
                 message_id=assistant_info.id,
                 snapshot=start_snapshot,
             )
-            await save_part(step_start, user_id=user_id)
+            await save_part(step_start, is_new=True, user_id=user_id)
 
             # Stream LLM response
             # Track consecutive compaction failures to prevent infinite loops
@@ -663,11 +664,41 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
                 message_id=assistant_info.id,
                 snapshot=end_snapshot,
             )
-            await save_part(step_finish, user_id=user_id)
+            await save_part(step_finish, is_new=True, user_id=user_id)
 
-            # Notify frontend of file changes if snapshots differ
+            # Notify frontend of file changes if snapshots differ, and record
+            # which files this step touched as a patch part so the chat can
+            # show a per-turn change card (the session diff alone can't say
+            # which turn made a change).
             if start_snapshot and end_snapshot and start_snapshot != end_snapshot:
                 bus.publish(SESSION_DIFF, {"userId": user_id, "sessionId": session_id})
+                try:
+                    changed = await snapshot.diff(
+                        start_snapshot, end_snapshot, sandbox, session_id=session_id
+                    )
+                    if changed:
+                        await save_part(
+                            PatchPart(
+                                id=ascending("part"),
+                                files=[
+                                    PatchFile(
+                                        path=f.path,
+                                        additions=f.additions,
+                                        deletions=f.deletions,
+                                        status=f.status,
+                                    )
+                                    for f in changed
+                                ],
+                                session_id=session_id,
+                                message_id=assistant_info.id,
+                                from_snapshot=start_snapshot,
+                                to_snapshot=end_snapshot,
+                            ),
+                            is_new=True,
+                            user_id=user_id,
+                        )
+                except Exception as e:
+                    log.warning(f"Failed to record patch part: {e}")
 
             # Upsert PlanPart when plan agent is active
             if agent_name == "plan":

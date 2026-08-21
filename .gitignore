@@ -46,3 +46,7 @@ credentials/
 gmail_*.json
 secrets.yaml
 aks-secrets.yaml
+
+# Test artifacts
+test-results/
+playwright-report/

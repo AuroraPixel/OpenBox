@@ -130,7 +130,12 @@ async def get_session(session_id: str, current_user: dict = Depends(get_current_
     session = await session_mod.get_session(session_id, user_id=user_id)
     if not session:
         raise HTTPException(404, "Session not found")
-    return session.model_dump()
+    from project.workspace import workdir_for_session
+    data = session.model_dump()
+    # The project directory this session's tools run in (/workspace/<slug>).
+    # The files panel scopes its tree here rather than to the whole sandbox.
+    data["directory"] = await workdir_for_session(session)
+    return data
 
 
 @router.delete("/session/{session_id}")
@@ -255,6 +260,45 @@ async def send_message_async(
 
 class ForkBody(BaseModel):
     message_id: str | None = None
+
+
+class ReactionBody(BaseModel):
+    reaction: str | None = None  # "up" | "down" | null to clear
+
+
+@router.get("/session/{session_id}/diff/step")
+async def get_step_diff(
+    session_id: str,
+    from_snapshot: str,
+    to_snapshot: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Line-level diff for one step's snapshot range.
+
+    The session diff is cumulative (first snapshot → last); a per-turn change
+    card needs exactly what that step touched, which is this.
+    """
+    from snapshot import snapshot
+    await _require_session_owned(session_id, current_user["user_id"])
+    if not from_snapshot or not to_snapshot or from_snapshot == to_snapshot:
+        return []
+    return await snapshot.diff_full(from_snapshot, to_snapshot, session_id=session_id)
+
+
+@router.post("/session/{session_id}/message/{message_id}/reaction")
+async def set_message_reaction(
+    session_id: str,
+    message_id: str,
+    body: ReactionBody,
+    current_user: dict = Depends(get_current_user),
+):
+    """Thumbs up / down on an assistant reply (frontend-v2 message meta bar)."""
+    user_id = current_user["user_id"]
+    await _require_session_owned(session_id, user_id)
+    if body.reaction not in (None, "up", "down"):
+        raise HTTPException(400, "reaction must be 'up', 'down' or null")
+    await session_mod.set_message_reaction(message_id, session_id, body.reaction)
+    return {"ok": True, "reaction": body.reaction}
 
 
 @router.post("/session/{session_id}/fork")

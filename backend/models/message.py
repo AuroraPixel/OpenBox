@@ -107,6 +107,9 @@ class ToolPartData(BaseModel):
     title: str | None = None
     call_id: str = ""  # LLM's original tool_call_id (e.g. "call_xxx" for OpenAI, "functions.name:0" for Kimi)
     duration: float | None = None
+    # Tool-reported extras the UI renders (exit_code, blocked, …). Kept small:
+    # the agent loop uses metadata for control flow too, so only public keys ship.
+    metadata: dict[str, Any] | None = None
     session_id: str = ""
     message_id: str = ""
     state: ToolState | None = None
@@ -168,6 +171,10 @@ class PatchPart(BaseModel):
     type: Literal["patch"] = "patch"
     id: str = Field(default_factory=lambda: ascending("part"))
     files: list[PatchFile] = []
+    # Snapshot range this patch describes, so the UI can fetch exactly this
+    # step's line-level diff instead of the session's cumulative one.
+    from_snapshot: str | None = None
+    to_snapshot: str | None = None
     session_id: str = ""
     message_id: str = ""
 
@@ -273,6 +280,7 @@ class MessageWithParts(BaseModel):
     summary: bool | None = None
     tokens: TokenUsage | None = None
     error: dict | None = None
+    reaction: str | None = None  # "up" | "down" — user feedback on an answer
     # Structured output: the schema the user asked for, and what came back.
     format: dict | str | None = None
     structured: dict | None = None
