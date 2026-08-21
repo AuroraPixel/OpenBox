@@ -68,6 +68,48 @@ class StepResult:
     duration: float = 0.0
 
 
+async def _iter_until_abort(stream, abort: asyncio.Event):
+    """Yield stream events until exhaustion OR abort — whichever comes first.
+
+    The old `async for … if abort.is_set(): break` pattern only noticed an
+    abort after the NEXT chunk arrived, so a model silently composing a long
+    tool call ignored the stop button for the whole silence. Racing each
+    __anext__ against abort.wait() reacts immediately, and closing the
+    generator tears down the provider's HTTP stream — opencode's AbortSignal
+    semantics (its abort cancels the in-flight request, not just a flag).
+    """
+    import contextlib
+
+    if abort.is_set():
+        await stream.aclose()
+        return
+    abort_task = asyncio.create_task(abort.wait())
+    try:
+        while True:
+            next_task = asyncio.create_task(anext(stream))
+            done, _ = await asyncio.wait({next_task, abort_task}, return_when=asyncio.FIRST_COMPLETED)
+            if next_task not in done:
+                next_task.cancel()
+                with contextlib.suppress(BaseException):
+                    await next_task
+                with contextlib.suppress(BaseException):
+                    await stream.aclose()
+                return
+            try:
+                event = next_task.result()
+            except StopAsyncIteration:
+                return
+            yield event
+            if abort.is_set():
+                with contextlib.suppress(BaseException):
+                    await stream.aclose()
+                return
+    finally:
+        abort_task.cancel()
+        with contextlib.suppress(BaseException):
+            await abort_task
+
+
 async def _history_for_compaction(session_id: str) -> list:
     """History for sizing the preserved tail. Best effort — losing the tail is
     much better than losing the compaction that keeps the session alive."""
@@ -115,7 +157,7 @@ async def process_step(
     step_start_time = time.time()
 
     try:
-        async for event in stream_llm(
+        llm_stream = stream_llm(
             agent_def=agent_def,
             system=system,
             messages=llm_messages,
@@ -125,10 +167,8 @@ async def process_step(
             hooks=hooks,
             variant=user_variant,
             tool_choice=tool_choice,
-        ):
-            if abort.is_set():
-                break
-
+        )
+        async for event in _iter_until_abort(llm_stream, abort):
             if event["type"] == "reasoning_delta":
                 text = event["text"]
                 collected_reasoning += text
@@ -280,13 +320,26 @@ async def process_step(
                 await save_part(tool_part, user_id=user_id)
                 continue
 
-            # Execute via hooks (passes part_id for SSE events)
+            # Execute via hooks (passes part_id for SSE events). Raced against
+            # abort so the stop button interrupts a running command instead of
+            # waiting it out — the abandoned part is finalised as interrupted
+            # by the loop's cleanup, mirroring opencode.
             tool_info = tools.get(tool_name)
             if tool_info:
-                result = await hooks.wrap_execute(
-                    tool_name, tool_info.execute, tool_args, ctx,
-                    part_id=tool_part.id,
+                exec_task = asyncio.create_task(
+                    hooks.wrap_execute(tool_name, tool_info.execute, tool_args, ctx, part_id=tool_part.id)
                 )
+                abort_task = asyncio.create_task(abort.wait())
+                done, _ = await asyncio.wait({exec_task, abort_task}, return_when=asyncio.FIRST_COMPLETED)
+                abort_task.cancel()
+                if exec_task not in done:
+                    exec_task.cancel()
+                    try:
+                        await exec_task
+                    except (asyncio.CancelledError, Exception):
+                        pass
+                    break
+                result = exec_task.result()
 
                 # Check for agent_switch metadata
                 agent_switch = result.metadata.get("agent_switch")

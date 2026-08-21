@@ -384,7 +384,16 @@ async def _stream_responses_api(
                     "arguments": tc.get("function", {}).get("arguments", "{}"),
                 })
         else:
-            input_messages.append({"role": role, "content": content})
+            # Responses API image form differs from Chat Completions.
+            images = msg.get("_images") or []
+            if role == "user" and images:
+                parts: list[dict] = []
+                if isinstance(content, str) and content:
+                    parts.append({"type": "input_text", "text": content})
+                parts.extend({"type": "input_image", "image_url": u} for u in images)
+                input_messages.append({"role": role, "content": parts})
+            else:
+                input_messages.append({"role": role, "content": content})
 
     # Build tool definitions for Responses API
     api_tools = []
@@ -748,6 +757,23 @@ def _extract_chunk_usage_from_obj(usage: Any, target: dict) -> None:
         target["cache"] = _extract_cache_tokens(usage) if not isinstance(usage, dict) else (usage.get("cache_read_input_tokens", 0) or 0) + (usage.get("cache_creation_input_tokens", 0) or 0)
 
 
+def _finalize_message(msg: dict) -> dict:
+    """Strip loop-internal keys; expand `_images` into multimodal content."""
+    internal = {"_images", "_synthetic", "_ignored", "_transient_images"}
+    if not any(k in msg for k in internal):
+        return msg
+    out = {k: v for k, v in msg.items() if k not in internal}
+    images = msg.get("_images") or []
+    if images:
+        parts: list[dict] = []
+        text = out.get("content")
+        if isinstance(text, str) and text:
+            parts.append({"type": "text", "text": text})
+        parts.extend({"type": "image_url", "image_url": {"url": u}} for u in images)
+        out["content"] = parts
+    return out
+
+
 async def _stream_litellm_direct(
     model_id: str,
     system: list[str],
@@ -781,6 +807,11 @@ async def _stream_litellm_direct(
         if system:
             llm_messages.append({"role": "system", "content": "\n\n".join(system)})
         llm_messages.extend(messages)
+
+        # Multimodal: messages carry image URLs out-of-band (_images) so every
+        # earlier pass works on plain strings. Convert to OpenAI-style content
+        # arrays here, at the last moment, and drop loop-internal keys.
+        llm_messages = [_finalize_message(m) for m in llm_messages]
 
         # Some providers (OpenAI-compatible proxies) reject conversations ending
         # with an assistant message ("assistant prefill not supported").
