@@ -1,13 +1,37 @@
 """Session-level todo list storage.
 
-Uses full-replacement semantics (like opencode): the LLM provides the
-complete todo list on every call, and the backend atomically replaces
-all items.  This makes duplicate items structurally impossible.
+The model rewrites the whole list on every ``todo_write`` (opencode's
+full-replacement semantics), which makes duplicate items structurally
+impossible. But the list has a second author — the user, who can add and
+cancel items from the card — and a blind replacement would throw their
+edits away every time the model spoke. So a write is a *merge*, not an
+overwrite: see :func:`merge_todos` for what survives and why.
 """
+import asyncio
+from datetime import datetime, timezone
+
 from bus import bus
 from bus.events import TODO_UPDATED
 from models.message import TodoItem, TodoList
 from storage import storage
+
+#: One lock per session, so that a model write and a user edit cannot
+#: interleave their read-merge-write. Same shape as snapshot.py's per-gitdir
+#: locks; there is no session-wide lock in this codebase to borrow.
+_locks: dict[str, asyncio.Lock] = {}
+
+
+def session_lock(session_id: str) -> asyncio.Lock:
+    """The write lock for one session's todo list.
+
+    Every path that reads-then-writes the list must hold this, or the last
+    writer silently wins and one side's edit disappears.
+    """
+    lock = _locks.get(session_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        _locks[session_id] = lock
+    return lock
 
 
 async def get_todo(session_id: str) -> TodoList:
@@ -21,11 +45,156 @@ async def get_todo(session_id: str) -> TodoList:
 async def save_todo(session_id: str, todo: TodoList, user_id: str = "default") -> None:
     """Save todo list and broadcast update."""
     await storage.write(["todo", session_id], todo.model_dump())
-    bus.publish(TODO_UPDATED, {"userId": user_id, "sessionId": session_id})
+    bus.publish(
+        TODO_UPDATED,
+        {
+            "userId": user_id,
+            "sessionId": session_id,
+            # Carried so the card can render straight from the event. Without
+            # it every change costs a round-trip, and the list visibly lags
+            # the tool rows that belong under it.
+            "items": [item.model_dump() for item in todo.items],
+        },
+    )
 
 
-async def replace_todos(session_id: str, items: list[TodoItem], user_id: str = "default") -> TodoList:
-    """Atomically replace the entire todo list for a session."""
-    todo = TodoList(items=items)
-    await save_todo(session_id, todo, user_id=user_id)
-    return todo
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def merge_todos(previous: list[TodoItem], incoming: list[TodoItem]) -> list[TodoItem]:
+    """Fold the model's new list into what the session already had.
+
+    The model does not know about ids, and it does not know what the user
+    changed behind its back. Four things therefore survive a replacement:
+
+    * **Identity.** An item matched to an existing one keeps its id, so the
+      UI's expand state and progress bar stay attached to the same row
+      instead of resetting on every write.
+    * **Start time.** ``started_at`` is stamped once, when an item first
+      becomes in_progress, and then carried forward.
+    * **User items.** Anything the user added stays on the list even though
+      the model's replacement omits it — it has no idea it exists yet.
+    * **Cancellations.** An item the user cancelled stays cancelled, even
+      when the model's list still has it as pending or in_progress. The
+      model is working from a stale copy; the user's veto wins until the
+      model drops the item entirely.
+
+    Matching is by subject, falling back to position — the model does not
+    echo ids back, so there is nothing sturdier to match on. Rewording a
+    task therefore reads as a new item; that is documented, not fixed.
+    """
+    by_subject: dict[str, list[TodoItem]] = {}
+    for item in previous:
+        by_subject.setdefault(item.subject, []).append(item)
+
+    claimed: set[str] = set()
+    matches: list[TodoItem | None] = []
+
+    # Pass 1 — exact subject. Done for the whole list before any positional
+    # guess, so a later item's real match is never stolen by an earlier
+    # item's fallback.
+    for item in incoming:
+        old = next(
+            (c for c in by_subject.get(item.subject, []) if c.id not in claimed), None
+        )
+        if old is not None:
+            claimed.add(old.id)
+        matches.append(old)
+
+    # Pass 2 — same slot, reworded. Only unclaimed items are still available,
+    # so this can only ever pick up an item nothing else wanted.
+    for index, old in enumerate(matches):
+        if old is not None or index >= len(previous):
+            continue
+        positional = previous[index]
+        if positional.id in claimed:
+            continue
+        claimed.add(positional.id)
+        matches[index] = positional
+
+    merged: list[TodoItem] = []
+    for item, old in zip(incoming, matches):
+        if old is None:
+            merged.append(
+                item.model_copy(
+                    update={"started_at": _now() if item.status == "in_progress" else None}
+                )
+            )
+            continue
+        status = "cancelled" if old.status == "cancelled" else item.status
+        started_at = old.started_at
+        if status == "in_progress" and not started_at:
+            started_at = _now()
+        merged.append(
+            item.model_copy(
+                update={
+                    "id": old.id,
+                    "status": status,
+                    "source": old.source,
+                    "started_at": started_at,
+                }
+            )
+        )
+
+    # User items the model never saw. Kept in their original relative order,
+    # appended after the model's list — inserting them mid-list would fight
+    # with the ordering the model just expressed.
+    survivors = [
+        item for item in previous if item.source == "user" and item.id not in claimed
+    ]
+    return merged + survivors
+
+
+async def replace_todos(
+    session_id: str, items: list[TodoItem], user_id: str = "default"
+) -> TodoList:
+    """Apply the model's full-replacement write, merged with what exists."""
+    async with session_lock(session_id):
+        previous = await get_todo(session_id)
+        todo = TodoList(items=merge_todos(previous.items, items))
+        await save_todo(session_id, todo, user_id=user_id)
+        return todo
+
+
+async def add_todo_item(
+    session_id: str,
+    subject: str,
+    after_id: str | None = None,
+    user_id: str = "default",
+) -> TodoList:
+    """Add a task the user typed, optionally right after an existing one."""
+    async with session_lock(session_id):
+        todo = await get_todo(session_id)
+        item = TodoItem(subject=subject, source="user")
+        items = list(todo.items)
+        index = next((i for i, t in enumerate(items) if t.id == after_id), None)
+        if index is None:
+            items.append(item)
+        else:
+            items.insert(index + 1, item)
+        merged = TodoList(items=items)
+        await save_todo(session_id, merged, user_id=user_id)
+        return merged
+
+
+async def remove_todo_item(
+    session_id: str, item_id: str, user_id: str = "default"
+) -> TodoList:
+    """Drop a task the user dismissed.
+
+    A task the user added is removed outright. A task the *model* planned is
+    marked cancelled instead, so the card keeps a struck-through trace of the
+    refusal and the model can see its plan was overruled.
+    """
+    async with session_lock(session_id):
+        todo = await get_todo(session_id)
+        items: list[TodoItem] = []
+        for item in todo.items:
+            if item.id != item_id:
+                items.append(item)
+            elif item.source == "model":
+                items.append(item.model_copy(update={"status": "cancelled"}))
+        merged = TodoList(items=items)
+        await save_todo(session_id, merged, user_id=user_id)
+        return merged

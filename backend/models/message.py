@@ -231,6 +231,51 @@ class PlanPart(BaseModel):
     message_id: str = ""
 
 
+# ─── Todo Types ───
+TodoStatus = Literal["pending", "in_progress", "completed", "cancelled"]
+
+
+class TodoItem(BaseModel):
+    id: str = Field(default_factory=lambda: ascending("todo"))
+    subject: str = ""
+    description: str | None = None
+    status: TodoStatus = "pending"
+    #: Present-tense wording for the task being worked on ("Computing the
+    #: year-on-year split"), which the UI uses as the card's heading.
+    active_form: str | None = None
+    priority: Literal["high", "medium", "low"] = "medium"
+    #: Who put this item on the list. The model replaces the whole list on
+    #: every write, so an item the *user* added has to be recognised and kept
+    #: — see session.todo.replace_todos.
+    source: Literal["model", "user"] = "model"
+    #: When this item first became in_progress, ISO-8601. The UI's progress
+    #: bar is a function of elapsed time, so this has to survive a reload —
+    #: nothing else in the part stream records when a task started.
+    started_at: str | None = None
+
+
+class TodoList(BaseModel):
+    items: list[TodoItem] = []
+
+
+class TodoPart(BaseModel):
+    """One snapshot of the todo list, at the point it changed.
+
+    Appended (never updated in place) on every change, so the part stream
+    carries the full history: which task was running when a tool ran, and
+    what the list looked like at each step. The card is rebuilt from these
+    alone — the todo *store* keeps only the latest list and cannot answer
+    "what was in progress when this command ran".
+    """
+    type: Literal["todo"] = "todo"
+    id: str = Field(default_factory=lambda: ascending("part"))
+    items: list[TodoItem] = []
+    #: What caused this snapshot: the model's todo_write, or a user edit.
+    source: Literal["model", "user"] = "model"
+    session_id: str = ""
+    message_id: str = ""
+
+
 # Union of all part types
 MessagePart = Union[
     TextPart,
@@ -245,6 +290,7 @@ MessagePart = Union[
     AgentSwitchPart,
     RetryPart,
     PlanPart,
+    TodoPart,
 ]
 
 
@@ -326,19 +372,6 @@ class DiffEntry(BaseModel):
     deletions: int = 0
     status: Literal["added", "modified", "deleted"] = "modified"
     hunks: list[DiffHunk] = []
-
-
-# ─── Todo Types ───
-class TodoItem(BaseModel):
-    id: str = Field(default_factory=lambda: ascending("todo"))
-    subject: str = ""
-    description: str | None = None
-    status: Literal["pending", "in_progress", "completed"] = "pending"
-    active_form: str | None = None
-
-
-class TodoList(BaseModel):
-    items: list[TodoItem] = []
 
 
 # ─── Conversion Functions ───

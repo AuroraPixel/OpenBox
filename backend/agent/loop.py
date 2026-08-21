@@ -206,6 +206,23 @@ async def _has_pending_todos(session_id: str) -> bool:
     return any(item.status in ("pending", "in_progress") for item in todo.items)
 
 
+async def _unnudged_user_todos(session_id: str, already: set[str]) -> list:
+    """Tasks the user added that are still waiting and not yet raised.
+
+    Used once per run, at the point the loop would otherwise finish. See the
+    call site for why these do not share the ordinary nudge budget.
+    """
+    from session.todo import get_todo
+    todo = await get_todo(session_id)
+    return [
+        item
+        for item in todo.items
+        if item.source == "user"
+        and item.status in ("pending", "in_progress")
+        and item.id not in already
+    ]
+
+
 
 async def _upsert_plan_part(
     session_id: str,
@@ -345,6 +362,12 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
         MAX_LLM_RETRIES = 5
         todo_nudge_count = 0  # How many times we've nudged for pending todos
         max_todo_nudges = 0
+        # Todo items the user added mid-run that we have already pointed the
+        # model at. Tracked separately from todo_nudge_count: the ordinary
+        # nudge budget guards against a model that plans and stops, but a task
+        # the *user* typed was never the model's to skip, so it gets its own
+        # one-shot regardless of how much of that budget is left.
+        nudged_user_todos: set[str] = set()
         last_assistant_msg = None
         last_finished = None  # Last assistant with a finish field (from message scan)
         last_finished_tokens = None  # Track last token usage for proactive overflow
@@ -759,6 +782,26 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
                         session_id,
                         "You have pending tasks in your todo list. "
                         "Continue working on the next pending task now.",
+                        synthetic=True,
+                        user_id=user_id,
+                    )
+                    continue
+
+                # Last look before the run ends: did the user add a task while
+                # this was running? Their edit reaches the model as a reminder
+                # on the next step, so a task added during the final step would
+                # otherwise be recorded and never acted on.
+                fresh = await _unnudged_user_todos(session_id, nudged_user_todos)
+                if fresh:
+                    nudged_user_todos.update(item.id for item in fresh)
+                    subjects = "\n".join(f"- {item.subject}" for item in fresh)
+                    log.info(f"Session {session_id}: {len(fresh)} user-added todo(s) still pending, continuing")
+                    from session.session import create_user_message
+                    await create_user_message(
+                        session_id,
+                        "The user added these tasks to the todo list:\n"
+                        f"{subjects}\n\n"
+                        "Work on them now, and keep them in your todo list.",
                         synthetic=True,
                         user_id=user_id,
                     )
