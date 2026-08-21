@@ -8,4 +8,5 @@ export const settingsKeys = {
   mcp: (userId: string) => ["mcp", userId] as const,
   prefs: (userId: string) => ["prefs", userId] as const,
   sessions: (userId: string) => ["sessions", userId] as const,
+  browser: (userId: string) => ["browser-status", userId] as const,
 }

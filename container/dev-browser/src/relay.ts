@@ -18,6 +18,17 @@ import type { WSContext } from "hono/ws";
 export interface RelayOptions {
   port?: number;
   host?: string;
+  /**
+   * How the relay drives a browser:
+   *  - "extension": bridge CDP to the user's Chrome via the extension (default legacy behaviour)
+   *  - "local": point clients straight at a local Chrome's native CDP endpoint (zero relay hops)
+   *  - "auto": prefer the extension while one is connected, otherwise fall back to local
+   */
+  mode?: "extension" | "local" | "auto";
+  /** Local mode: port of the local Chrome's --remote-debugging-port (default 9333) */
+  chromePort?: number;
+  /** Local mode: host of the local Chrome's CDP endpoint (default 127.0.0.1) */
+  chromeHost?: string;
 }
 
 export interface RelayServer {
@@ -38,6 +49,15 @@ interface ConnectedTarget {
   sessionId: string;
   targetId: string;
   targetInfo: TargetInfo;
+}
+
+// Shape of a target as returned by Chrome's /json/* HTTP endpoints (local mode)
+interface ChromeTarget {
+  id: string;
+  type?: string;
+  title?: string;
+  url: string;
+  webSocketDebuggerUrl?: string;
 }
 
 interface PlaywrightClient {
@@ -105,12 +125,22 @@ interface CDPEvent {
 export async function serveRelay(options: RelayOptions = {}): Promise<RelayServer> {
   const port = options.port ?? 9222;
   const host = options.host ?? "127.0.0.1";
+  const configuredMode = options.mode ?? "auto";
+  const chromePort = options.chromePort ?? 9333;
+  const chromeHost = options.chromeHost ?? "127.0.0.1";
+  const chromeBase = `http://${chromeHost}:${chromePort}`;
 
   // State
   const connectedTargets = new Map<string, ConnectedTarget>();
-  const namedPages = new Map<string, string>(); // name -> sessionId
+  const namedPages = new Map<string, string>(); // name -> sessionId (extension mode)
+  const localNamedPages = new Map<string, string>(); // name -> Chrome targetId (local mode)
   const playwrightClients = new Map<string, PlaywrightClient>();
   let extensionWs: WSContext | null = null;
+
+  // Cached Chrome CDP endpoint for local mode. It embeds a per-launch GUID that
+  // changes when Chrome restarts, so discovery always re-fetches rather than
+  // trusting this value blindly (see discoverChromeWsEndpoint).
+  let cachedChromeWsEndpoint: string | null = null;
 
   // Pending requests to extension
   const extensionPendingRequests = new Map<
@@ -128,6 +158,126 @@ export async function serveRelay(options: RelayOptions = {}): Promise<RelayServe
 
   function log(...args: unknown[]) {
     console.log("[relay]", ...args);
+  }
+
+  /**
+   * Resolve the effective mode for the current request. In "auto" this is
+   * evaluated live: prefer the extension while one is connected, otherwise fall
+   * back to local. This is what makes auto keep working after the extension
+   * disconnects (extensionWs becomes null, so subsequent requests use local).
+   */
+  function effectiveMode(): "extension" | "local" {
+    if (configuredMode === "extension") return "extension";
+    if (configuredMode === "local") return "local";
+    return extensionWs !== null ? "extension" : "local";
+  }
+
+  /**
+   * Discover the local Chrome's native CDP websocket via /json/version. Never
+   * throws: callers (e.g. GET /) need a machine-readable "chrome down" answer
+   * instead of a 500 so the client can produce a good error message.
+   */
+  async function discoverChromeWsEndpoint(): Promise<
+    | { chromeAvailable: true; wsEndpoint: string }
+    | { chromeAvailable: false; error: string }
+  > {
+    try {
+      const res = await fetch(`${chromeBase}/json/version`);
+      if (!res.ok) {
+        return {
+          chromeAvailable: false,
+          error: `Chrome at ${chromeBase} returned ${res.status} for /json/version`,
+        };
+      }
+      const data = (await res.json()) as { webSocketDebuggerUrl?: string };
+      if (!data.webSocketDebuggerUrl) {
+        return {
+          chromeAvailable: false,
+          error: `Chrome /json/version response missing webSocketDebuggerUrl`,
+        };
+      }
+      // The URL changes when Chrome restarts; surface that so a stale cached
+      // endpoint elsewhere is easy to reason about.
+      if (cachedChromeWsEndpoint && cachedChromeWsEndpoint !== data.webSocketDebuggerUrl) {
+        log("Chrome restarted; CDP endpoint changed");
+      }
+      cachedChromeWsEndpoint = data.webSocketDebuggerUrl;
+      return { chromeAvailable: true, wsEndpoint: data.webSocketDebuggerUrl };
+    } catch (err) {
+      return {
+        chromeAvailable: false,
+        error: `Chrome not reachable at ${chromeBase}: ${(err as Error).message}`,
+      };
+    }
+  }
+
+  async function chromeJsonList(): Promise<ChromeTarget[]> {
+    const res = await fetch(`${chromeBase}/json/list`);
+    if (!res.ok) {
+      throw new Error(`Chrome /json/list returned ${res.status}`);
+    }
+    return (await res.json()) as ChromeTarget[];
+  }
+
+  async function chromeJsonNew(url = "about:blank"): Promise<ChromeTarget> {
+    // Newer Chrome only allows PUT for /json/new; older builds still accept GET.
+    const target = `${chromeBase}/json/new?url=${encodeURIComponent(url)}`;
+    let res = await fetch(target, { method: "PUT" });
+    if (res.status === 405) {
+      res = await fetch(target, { method: "GET" });
+    }
+    if (!res.ok) {
+      throw new Error(`Chrome /json/new returned ${res.status}`);
+    }
+    return (await res.json()) as ChromeTarget;
+  }
+
+  async function chromeJsonClose(targetId: string): Promise<void> {
+    const res = await fetch(`${chromeBase}/json/close/${targetId}`);
+    // 404 means the target is already gone, which is fine for a close.
+    if (!res.ok && res.status !== 404) {
+      throw new Error(`Chrome /json/close returned ${res.status}`);
+    }
+  }
+
+  /**
+   * Local-mode equivalent of the extension "get or create named page" flow.
+   * Maps a page name to a Chrome target, reusing the mapping when the target is
+   * still alive and creating a fresh target otherwise. Returns the same shape as
+   * extension mode so client.ts does not care which mode produced it.
+   *
+   * Note: any requested viewport is intentionally ignored here. In local mode
+   * the client owns a real Chrome and can set the viewport through Playwright,
+   * so there is no need to round-trip a CDP call to the browser from the relay.
+   */
+  async function getOrCreateLocalPage(name: string): Promise<{
+    wsEndpoint: string;
+    name: string;
+    targetId: string;
+    url: string;
+  }> {
+    const discovery = await discoverChromeWsEndpoint();
+    if (!discovery.chromeAvailable) {
+      throw new Error(discovery.error);
+    }
+    const wsEndpoint = discovery.wsEndpoint;
+
+    const targets = await chromeJsonList();
+
+    // Reuse the mapped target if it still exists; if the tab was closed out from
+    // under us the mapping is stale, so drop it and create a fresh target.
+    const existingId = localNamedPages.get(name);
+    if (existingId) {
+      const existing = targets.find((t) => t.id === existingId);
+      if (existing) {
+        return { wsEndpoint, name, targetId: existing.id, url: existing.url };
+      }
+      localNamedPages.delete(name);
+    }
+
+    const created = await chromeJsonNew();
+    localNamedPages.set(name, created.id);
+    return { wsEndpoint, name, targetId: created.id, url: created.url };
   }
 
   function sendToPlaywright(message: CDPResponse | CDPEvent, clientId?: string) {
@@ -332,18 +482,44 @@ export async function serveRelay(options: RelayOptions = {}): Promise<RelayServe
   const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
 
   // Health check / server info
-  app.get("/", (c) => {
+  app.get("/", async (c) => {
+    const mode = effectiveMode();
+    const extensionConnected = extensionWs !== null;
+
+    if (mode === "local") {
+      const discovery = await discoverChromeWsEndpoint();
+      if (!discovery.chromeAvailable) {
+        return c.json({
+          mode: "local",
+          configuredMode,
+          wsEndpoint: null,
+          extensionConnected,
+          chromeAvailable: false,
+          error: discovery.error,
+        });
+      }
+      return c.json({
+        mode: "local",
+        configuredMode,
+        wsEndpoint: discovery.wsEndpoint,
+        extensionConnected,
+        chromeAvailable: true,
+      });
+    }
+
     return c.json({
-      wsEndpoint: `ws://${host}:${port}/cdp`,
-      extensionConnected: extensionWs !== null,
       mode: "extension",
+      configuredMode,
+      wsEndpoint: `ws://${host}:${port}/cdp`,
+      extensionConnected,
     });
   });
 
   // List named pages
   app.get("/pages", (c) => {
+    const names = effectiveMode() === "local" ? localNamedPages.keys() : namedPages.keys();
     return c.json({
-      pages: Array.from(namedPages.keys()),
+      pages: Array.from(names),
     });
   });
 
@@ -354,6 +530,17 @@ export async function serveRelay(options: RelayOptions = {}): Promise<RelayServe
 
     if (!name) {
       return c.json({ error: "name is required" }, 400);
+    }
+
+    // Local mode: map the name to a real Chrome target via Chrome's own HTTP
+    // endpoints. body.viewport is intentionally ignored (see getOrCreateLocalPage).
+    if (effectiveMode() === "local") {
+      try {
+        return c.json(await getOrCreateLocalPage(name));
+      } catch (err) {
+        log("Error creating local page:", err);
+        return c.json({ error: (err as Error).message }, 503);
+      }
     }
 
     // Check if page already exists by name
@@ -406,9 +593,26 @@ export async function serveRelay(options: RelayOptions = {}): Promise<RelayServe
     }
   });
 
-  // Delete a named page (removes the name, doesn't close the tab)
-  app.delete("/pages/:name", (c) => {
+  // Delete a named page (extension mode: removes the name, doesn't close the tab)
+  app.delete("/pages/:name", async (c) => {
     const name = c.req.param("name");
+
+    if (effectiveMode() === "local") {
+      // Local mode owns a dedicated automation Chrome, so closing the tab is the
+      // right cleanup (unlike extension mode, which must never touch the user's
+      // own tabs). Best-effort: ignore if the target is already gone.
+      const targetId = localNamedPages.get(name);
+      const deleted = localNamedPages.delete(name);
+      if (targetId) {
+        try {
+          await chromeJsonClose(targetId);
+        } catch (err) {
+          log("Error closing local target:", err);
+        }
+      }
+      return c.json({ success: deleted });
+    }
+
     const deleted = namedPages.delete(name);
     return c.json({ success: deleted });
   });
@@ -691,14 +895,37 @@ export async function serveRelay(options: RelayOptions = {}): Promise<RelayServe
   const server = serve({ fetch: app.fetch, port, hostname: host });
   injectWebSocket(server);
 
-  const wsEndpoint = `ws://${host}:${port}/cdp`;
+  const relayCdpEndpoint = `ws://${host}:${port}/cdp`;
+  // Endpoint advertised on the returned handle. For local mode this is the real
+  // Chrome CDP endpoint once discovered; clients always re-fetch GET / anyway.
+  let wsEndpoint = relayCdpEndpoint;
 
-  log("CDP relay server started");
+  log("dev-browser relay server started");
+  log(`  configured mode: ${configuredMode}`);
   log(`  HTTP: http://${host}:${port}`);
-  log(`  CDP endpoint: ${wsEndpoint}`);
-  log(`  Extension endpoint: ws://${host}:${port}/extension`);
+
+  if (configuredMode === "extension" || configuredMode === "auto") {
+    log(`  CDP endpoint (extension mode): ${relayCdpEndpoint}`);
+    log(`  Extension endpoint: ws://${host}:${port}/extension`);
+  }
+
+  if (configuredMode === "local" || configuredMode === "auto") {
+    log(`  Chrome CDP source (local mode): ${chromeBase}`);
+    const discovery = await discoverChromeWsEndpoint();
+    if (discovery.chromeAvailable) {
+      log(`  Chrome CDP endpoint: ${discovery.wsEndpoint}`);
+      if (configuredMode === "local") wsEndpoint = discovery.wsEndpoint;
+    } else {
+      log(`  Chrome not reachable yet: ${discovery.error} (will retry on demand)`);
+    }
+  }
+
   log("");
-  log("Waiting for extension to connect...");
+  if (configuredMode === "local") {
+    log("Ready (local mode: driving Chrome directly).");
+  } else {
+    log("Waiting for extension to connect...");
+  }
 
   return {
     wsEndpoint,

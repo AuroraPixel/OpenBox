@@ -1101,6 +1101,35 @@ E2E stub 掉票据接口（真流需要云凭证）：断言菜单行存在、�
 
 **实测**：流式输出中途按停,后续 **0 字符增长**、按钮即时回空闲(修复前 litellm 流会跑完)。E2E `stop.spec.ts`：发出后固定 2s 按停(几乎必然处于生成期,常为静默期 —— 正是回归场景)；等内容流出再点会赶上快答案跑完、按钮消失的时序。
 
+### D.4.11 浏览器双模式:云端 CDP + 远程扩展（2026-08-21）
+
+**背景判断。** 调研后确认 `container/dev-browser` 不是 fork —— 它是自研的 **CDP relay**:把 Chrome 扩展伪装成一个 CDP 端点（监听 9222,暴露 `/cdp` 给 Playwright、`/extension` 给扩展,自己实现了 `Target.attachToTarget` 等命令转发）。这个设计押对了方向:Chrome 136+ 封了默认 profile 下的 `--remote-debugging-port` 且每次连接弹确认框,而扩展路线绕开了它,还能**保住用户真实登录态**。
+
+但它只解决了「操控用户自己电脑的浏览器」,没解决「操控无影云桌面的浏览器」——所以 agent 在云上开浏览器只能用 `computer` 一张张截图点。
+
+**本轮实现两种模式并存:**
+
+| 模式 | 驱动的浏览器 | 链路 | 有用户登录态 |
+|---|---|---|---|
+| `local` | 云桌面自己的 Chrome | Playwright → **Chrome 原生 CDP**（零 relay 跳） | 否 |
+| `remote` | 用户自己的 Chrome | Playwright → relay `/cdp` → 扩展 WS → 后端 → 隧道 | **是** |
+| `auto`（默认） | 优先远程,**掉线自动回落 local** | — | 视实际而定 |
+
+**关键设计决策:云端不装插件,直接裸 CDP。** Chrome 137+ 封杀了 `--load-extension`,企业策略装 CRX 太重;而云桌面本来就没有「用户登录态」需要保护,插件在这条路上纯是负担。local 模式下 relay 只做**页面命名簿**（name→targetId,经 Chrome 的 `/json/*` HTTP 接口）,`wsEndpoint` 直接返回 Chrome 自己的 `webSocketDebuggerUrl` —— **Playwright 直连 Chrome,relay 不在数据面上**。这正是「走 CDP」要的性能形态。
+
+云端 Chrome 用**独立 profile** `~/.config/obx-chrome` 启动:Chrome 136+ 拒绝在默认 profile 上开远程调试,独立 profile 是唯一可行解,而这里恰好没有登录态损失。
+
+**回落是产品要求,不是异常处理。** `ensure_browser()` 在 remote/auto 下发现扩展未连接时,主动拉起云端 Chrome 并把 relay 切到 local,**不抛错** —— 用户关掉浏览器不该让任务死掉。只有两条路都失败才报错。
+
+**模式选择落到配置。** 偏好存在既有的 `UserPreference.extra["browser_mode"]`（不新建表),`session/browser_pref.py` 是唯一读写口。注意**词汇分裂**:产品说 `remote`,relay 内部叫 `extension`,`relay_mode()` 是唯一翻译点,两套名字不互相泄漏。
+
+三条落地路径:
+- 设置页 UI（`GET/PUT /api/browser/preference`）
+- **AI 提问后写回配置**:新增 `browser_mode` 工具（`get`/`set`）。它跑在后端,能直接读写偏好 —— 当任务需要用户身份而当前是云端浏览器时,agent 用 `question` 问,再用 `set` 记下来,下次不用重问
+- 技能加载时注入 `<browser_mode>` 块,告诉模型**实际**跑在哪个浏览器上、以及是否发生了回落
+
+**顺带补上系统提示的缺口:** 之前 `computer` 工具没进「web_search → web_fetch → dev-browser」这个阶梯,模型会拿它去干浏览器的活（实际发生过:agent 用 6 次截图点开百度）。现在明确:页面内的事一律走 dev-browser（结构化读取,token 少一个数量级,点的是元素不是猜的像素）,`computer` 只负责页面之外——原生应用、系统对话框,以及 canvas 这类结构表达不了的东西。
+
 ### D.5 E2E 约定
 
 - 后端登录限流 5 次/分钟/IP → E2E 采用 **setup project + storageState**：一次真实表单登录（本身即登录用例），其余 spec 复用 refresh cookie 恢复会话；`workers: 1` 串行。

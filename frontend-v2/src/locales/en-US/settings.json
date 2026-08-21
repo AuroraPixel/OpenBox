@@ -1,12 +1,13 @@
 {
   "title": "Settings",
   "subtitle": "Account & preferences",
-  "nav": { "account": "Account", "usage": "Usage & cost", "models": "Models", "tools": "Tools & permissions", "appearance": "Appearance" },
+  "nav": { "account": "Account", "usage": "Usage & cost", "models": "Models", "tools": "Tools & permissions", "browser": "Browser", "appearance": "Appearance" },
   "hint": {
     "account": "Sign-in identity and session.",
     "usage": "Token consumption and cost per chat.",
     "models": "Default model and agent picks.",
     "tools": "Which actions may run without confirmation.",
+    "browser": "Choose which browser the agent uses to open web pages.",
     "appearance": "Language, theme, color mode and type size."
   },
   "account": {
@@ -39,6 +40,24 @@
     "mcpHint": "{{count}} connected",
     "mcpNone": "No MCP servers connected",
     "permissionNote": "Tool permissions are confirmed per action in chat; enforcement happens on the backend."
+  },
+  "browser": {
+    "mode": { "auto": "Auto", "local": "Cloud browser", "remote": "My browser" },
+    "desc": {
+      "auto": "Prefer your own browser, and fall back to the cloud browser when it isn't connected.",
+      "local": "Always use Chrome on the cloud desktop — no extension needed, but without your logins.",
+      "remote": "Use Chrome on your own computer through the extension, with your logins; keep the extension connected."
+    },
+    "status": {
+      "title": "Current status",
+      "remote": "My browser",
+      "local": "Cloud browser",
+      "connected": "Connected",
+      "disconnected": "Not connected",
+      "available": "Available",
+      "unavailable": "Unavailable"
+    },
+    "fallbackHint": "The extension isn't connected yet — the cloud browser will be used until it connects."
   },
   "appearance": {
     "language": "语言 / Language",

@@ -106,6 +106,13 @@ class OpenBoxConfig(BaseModel):
     wuying_region_id: str = "cn-hangzhou"           # region the desktop lives in
     wuying_end_user_id: str = ""                    # Wuying end user the web view logs in as
 
+    # -- Browser automation on the cloud desktop --
+    # local=drive a headed Chrome on the cloud desktop over CDP; extension=drive
+    # the user's own browser through the dev-browser relay; auto=prefer the
+    # user's browser but fall back to the cloud one when it disconnects.
+    browser_mode: str = "auto"
+    browser_chrome_port: int = 9333                 # remote-debugging port of the desktop-local Chrome
+
     # -- OSS asset transfer (browser -> OSS -> cloud desktop) --
     oss_bucket: str = ""                            # empty = OSS transfer disabled
     oss_region: str = "cn-hangzhou"
@@ -302,6 +309,8 @@ def _apply_env_overrides(data: dict) -> dict:
         "wuying_desktop_id": "WUYING_DESKTOP_ID",
         "wuying_region_id": "WUYING_REGION_ID",
         "wuying_end_user_id": "WUYING_END_USER_ID",
+        "browser_mode": "BROWSER_MODE",
+        "browser_chrome_port": "BROWSER_CHROME_PORT",
         "oss_bucket": "OSS_BUCKET",
         "oss_region": "OSS_REGION",
         "oss_endpoint": "OSS_ENDPOINT",
@@ -340,7 +349,7 @@ def _apply_env_overrides(data: dict) -> dict:
                 data[field_name] = int(value)
             elif field_name in {"db_pool_size", "db_pool_overflow", "jwt_access_expire_minutes",
                                 "jwt_refresh_expire_days", "max_containers_per_user", "max_sessions_per_user",
-                                "max_concurrent_agents"}:
+                                "max_concurrent_agents", "browser_chrome_port"}:
                 data[field_name] = int(value)
             elif field_name == "monthly_cost_limit":
                 data[field_name] = float(value)

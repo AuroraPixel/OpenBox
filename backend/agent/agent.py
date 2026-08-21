@@ -114,7 +114,7 @@ AGENTS: dict[str, AgentDef] = {
             "bash", "read", "write", "edit", "multiedit", "apply_patch", "glob", "grep",
             "task", "batch", "question", "todo_write", "todo_read",
             "plan_enter", "skill", "web_fetch", "web_search", "cron", "view_image",
-            "computer",
+            "computer", "browser_mode",
         ],
         max_steps=200,
         # prompt is None — dynamically selected based on model_id
@@ -131,7 +131,7 @@ AGENTS: dict[str, AgentDef] = {
         tools=[
             "bash", "read", "write", "edit", "multiedit", "apply_patch", "glob", "grep",
             "task", "batch", "question", "plan_exit",
-            "web_fetch", "web_search", "view_image",
+            "web_fetch", "web_search", "view_image", "browser_mode",
         ],
         permission=[
             # Override defaults: plan agent can ask questions and exit plan mode
@@ -164,7 +164,7 @@ AGENTS: dict[str, AgentDef] = {
         description="General-purpose agent for researching complex questions and executing multi-step tasks. Use this agent to execute multiple units of work in parallel.",
         tools=[
             "bash", "read", "write", "edit", "multiedit", "glob", "grep",
-            "web_fetch", "web_search", "view_image", "computer",
+            "web_fetch", "web_search", "view_image", "computer", "browser_mode",
         ],
         max_steps=100,
         mode="subagent",

@@ -140,6 +140,26 @@ async def has_display(client) -> bool:
 def invalidate(container_key: str) -> None:
     """Forget that a sandbox was prepared (it was recreated under us)."""
     _ready.discard(container_key)
+    _x_ready.discard(container_key)
+
+
+#: Containers that have `obx-x` alone, without the screenshot toolchain.
+_x_ready: set[str] = set()
+
+
+async def ensure_x_helper(client, container_key: str) -> None:
+    """Install just `obx-x` — the X-session finder.
+
+    Launching a browser needs the desktop's DISPLAY/XAUTHORITY and nothing
+    else; making that path wait on the screenshot toolchain's apt install
+    would put minutes of unrelated setup in front of the first page load.
+    """
+    if container_key in _ready or container_key in _x_ready:
+        return
+    result = await client.execute(_install_script("obx-x", OBX_X_SCRIPT), timeout=30)
+    if result.exit_code != 0:
+        raise RuntimeError(f"obx-x install failed: {result.stderr[:200]}")
+    _x_ready.add(container_key)
 
 
 async def ensure_desktop_tools(client, container_key: str) -> None:

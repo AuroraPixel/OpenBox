@@ -13,19 +13,46 @@ Browser automation that controls the user's real Chrome browser through the Open
 - **Unknown page layouts**: Use `getAISnapshot()` to discover elements and `selectSnapshotRef()` to interact with them
 - **Visual feedback**: Take screenshots to see what the user sees
 
+## Two browsers, and why it matters
+
+This skill drives one of two browsers. They are not interchangeable:
+
+| Mode | Which browser | Has the user's logins |
+|---|---|---|
+| `local` | Chrome on this cloud desktop | **No** |
+| `extension` | The user's OWN Chrome, via the Dev Browser extension | **Yes** |
+
+`auto` (the default) prefers the user's own browser and **falls back to the cloud
+desktop's Chrome whenever the extension is not connected**, so automation keeps working
+when the user closes their browser.
+
+Local mode talks to Chrome's native CDP endpoint directly — no extension, no bridging,
+fewer hops. Prefer it for anything that does not need the user's identity.
+
+**Check which one you got before doing anything identity-dependent:**
+
+```bash
+curl -s http://localhost:9222/ | head -c 300
+```
+
+`mode` is the effective mode, `configuredMode` is what was requested. If a task needs a
+site the user is logged into and `mode` is `local`, stop and ask the user — either they
+connect their own browser, or they accept logging in on the cloud one.
+
 ## Setup
 
-This skill connects to the user's Chrome browser via the Dev Browser Chrome Extension. The relay server runs inside this sandbox and the user's extension connects through the OpenBox backend.
-
-**Start the relay server:**
+**Start the relay server** (mode comes from the user's setting; override with
+`DEV_BROWSER_MODE=local|extension|auto`):
 
 ```bash
 cd /opt/openbox/skills/dev-browser && npm run start-relay &
 ```
 
-Wait for `Waiting for extension to connect...` followed by `Extension connected` in the console before running scripts.
+Wait until the relay logs the mode it resolved to. In `local` mode it also needs Chrome
+running with remote debugging on port 9333 — the backend starts that for you; if
+`chromeAvailable` is `false` in the server info, say so rather than retrying blindly.
 
-**If the extension hasn't connected yet**, tell the user to:
+**If you need the user's own browser and the extension is not connected**, tell them to:
 1. Open the Browser tab in the OpenBox frontend
 2. Click "Enable Dev Browser" and follow the setup instructions
 3. Configure and activate the Chrome extension

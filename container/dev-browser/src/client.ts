@@ -209,9 +209,15 @@ async function getPageLoadState(page: Page): Promise<PageLoadState> {
 
 /** Server mode information */
 export interface ServerInfo {
-  wsEndpoint: string;
-  mode: "launch" | "extension";
+  wsEndpoint: string | null;
+  mode: "launch" | "extension" | "local";
+  /** Mode originally requested on the server (may still be "auto"). */
+  configuredMode?: "extension" | "local" | "auto";
   extensionConnected?: boolean;
+  /** Local mode: whether the server could reach Chrome's CDP endpoint. */
+  chromeAvailable?: boolean;
+  /** Human-readable error, set when chromeAvailable is false. */
+  error?: string;
 }
 
 /**
@@ -269,6 +275,18 @@ export async function connect(serverUrl = "http://localhost:9222"): Promise<DevB
           throw new Error(`Server returned ${res.status}: ${await res.text()}`);
         }
         const info = (await res.json()) as ServerInfoResponse;
+
+        // Local mode with Chrome down: surface a clear, actionable message
+        // instead of a confusing CDP connection failure.
+        if (info.chromeAvailable === false) {
+          throw new Error(
+            `Chrome is not reachable in local mode: ${info.error ?? "unknown error"}. ` +
+              `Ensure Chrome is running with --remote-debugging-port.`
+          );
+        }
+        if (!info.wsEndpoint) {
+          throw new Error("Server did not provide a wsEndpoint");
+        }
         wsEndpoint = info.wsEndpoint;
 
         // Connect to the browser via CDP
@@ -332,9 +350,19 @@ export async function connect(serverUrl = "http://localhost:9222"): Promise<DevB
     // Connect to browser
     const b = await ensureConnected();
 
-    // Check if we're in extension mode
+    // Determine the effective mode. Only extension mode needs the special
+    // page-lookup path; local and launch modes drive a real Chrome where the
+    // targetId-based lookup is correct.
     const infoRes = await fetch(serverUrl);
-    const info = (await infoRes.json()) as { mode?: string };
+    const info = (await infoRes.json()) as ServerInfoResponse;
+
+    if (info.chromeAvailable === false) {
+      throw new Error(
+        `Chrome is not reachable in local mode: ${info.error ?? "unknown error"}. ` +
+          `Ensure Chrome is running with --remote-debugging-port.`
+      );
+    }
+
     const isExtensionMode = info.mode === "extension";
 
     if (isExtensionMode) {
@@ -365,7 +393,8 @@ export async function connect(serverUrl = "http://localhost:9222"): Promise<DevB
       return allPages[0];
     }
 
-    // In launch mode, use the original targetId-based lookup
+    // In local (and launch) mode a real Chrome is driven directly, so the
+    // targetId-based lookup is correct and does not corrupt page state.
     const page = await findPageByTargetId(b, targetId);
     if (!page) {
       throw new Error(`Page "${name}" not found in browser contexts`);
@@ -459,15 +488,14 @@ export async function connect(serverUrl = "http://localhost:9222"): Promise<DevB
       if (!res.ok) {
         throw new Error(`Server returned ${res.status}: ${await res.text()}`);
       }
-      const info = (await res.json()) as {
-        wsEndpoint: string;
-        mode?: string;
-        extensionConnected?: boolean;
-      };
+      const info = (await res.json()) as ServerInfoResponse;
       return {
         wsEndpoint: info.wsEndpoint,
-        mode: (info.mode as "launch" | "extension") ?? "launch",
+        mode: (info.mode as "launch" | "extension" | "local") ?? "launch",
+        configuredMode: info.configuredMode,
         extensionConnected: info.extensionConnected,
+        chromeAvailable: info.chromeAvailable,
+        error: info.error,
       };
     },
   };
