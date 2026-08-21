@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import hashlib as _hashlib
 import json as _json
+import re as _re
 from typing import Any, AsyncIterator
 
 from agent.agent import AgentDef
@@ -367,18 +368,25 @@ async def _stream_responses_api(
     #: rejection reads as "Invalid 'input[N].id': string too long", giving no
     #: hint that the cause is a conversation that changed providers.
     _FC_ID_MAX = 64
+    _FC_ID_SAFE = _re.compile(r"[A-Za-z0-9_-]+")
 
     def _ensure_fc_id(raw_id: str) -> str:
         """A stable, Responses-API-legal id for a function call.
 
+        The API constrains ids two ways — at most 64 characters, and only
+        letters, digits, underscore and dash. Gemini's embedded signature
+        violates both: it is kilobytes long AND base64, so it carries `+` and
+        `/`. Shortening alone left the illegal characters behind and the same
+        turn failed again with a different message.
+
         Must be a pure function of `raw_id`: the same call reaches this twice —
         once as the assistant's function_call and once as its
-        function_call_output — and the API pairs them by id. Hashing an
-        over-long id keeps that pairing intact where truncation would collide
-        (Gemini's long ids share a common prefix).
+        function_call_output — and the API pairs them by id. Hashing keeps that
+        pairing intact where truncation would collide, since Gemini's ids share
+        a long common prefix.
         """
         fc_id = raw_id if raw_id.startswith("fc_") else f"fc_{raw_id.replace('call_', '')}"
-        if len(fc_id) <= _FC_ID_MAX:
+        if len(fc_id) <= _FC_ID_MAX and _FC_ID_SAFE.fullmatch(fc_id):
             return fc_id
         digest = _hashlib.sha256(raw_id.encode()).hexdigest()[:32]
         return f"fc_{digest}"

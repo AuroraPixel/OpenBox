@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
 from dataclasses import dataclass, field
 from enum import Enum
@@ -40,10 +41,24 @@ from tool.tool import ToolContext
 
 log = create_logger("agent.processor")
 
-#: Longest tool-call id we persist. OpenAI's Responses API rejects ids over 64
-#: characters, and history is replayed to whichever provider is configured now,
-#: not the one that produced it.
+#: Tool-call ids we persist are bounded and sanitised. OpenAI's Responses API
+#: accepts at most 64 characters and only letters, digits, underscore and dash;
+#: history is replayed to whichever provider is configured now, not the one
+#: that produced it. Gemini's ids violate both rules — a kilobytes-long base64
+#: thought signature — so an unfiltered id poisons the conversation for every
+#: later provider.
 MAX_CALL_ID = 64
+_CALL_ID_ILLEGAL = re.compile(r"[^A-Za-z0-9_-]")
+
+
+def sanitize_call_id(raw: str) -> str:
+    """A provider-portable form of a tool-call id.
+
+    Only has to stay unique within one assistant turn, so replacing illegal
+    characters and clipping is enough — and it must stay deterministic, since
+    the id is what pairs a call with its result.
+    """
+    return _CALL_ID_ILLEGAL.sub("_", raw or "")[:MAX_CALL_ID]
 
 
 class StepOutcome(str, Enum):
@@ -285,7 +300,7 @@ async def process_step(
             # API rejects any id over 64 characters, so an unbounded id poisons
             # the conversation for every future provider. The id only has to be
             # unique within one assistant turn, so the head is enough.
-            llm_call_id = (tc_event.get("call_id", "") or "")[:MAX_CALL_ID]
+            llm_call_id = sanitize_call_id(tc_event.get("call_id", ""))
 
             # Reuse the streaming part_id if we already created one during
             # LLM streaming, otherwise create a new part.
