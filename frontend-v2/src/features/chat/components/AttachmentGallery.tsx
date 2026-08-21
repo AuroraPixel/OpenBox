@@ -123,8 +123,13 @@ export function AttachmentGallery({ parts, className }: { parts: FilePart[]; cla
   const close = useCallback(() => setOpenIndex(null), [])
 
   if (parts.length === 0) return null
-  const shown = expanded ? parts : parts.slice(0, VISIBLE_BY_DEFAULT)
-  const hidden = parts.length - shown.length
+  // Newest first. A computer-use turn appends a screenshot per action, so the
+  // last one is the current state of the screen and the early ones are
+  // history — showing the oldest six and folding the rest away hid exactly
+  // the frame worth looking at.
+  const ordered = [...parts].reverse()
+  const shown = expanded ? ordered : ordered.slice(0, VISIBLE_BY_DEFAULT)
+  const hidden = ordered.length - shown.length
   // One or two images are the subject, not a contact sheet — don't shrink
   // them into a third of the column just to keep the grid uniform.
   const columns = parts.length === 1 ? "grid-cols-1" : parts.length === 2 ? "grid-cols-2" : "grid-cols-3"
@@ -146,8 +151,10 @@ export function AttachmentGallery({ parts, className }: { parts: FilePart[]; cla
           {expanded ? t("gallery.less") : t("gallery.more", { count: hidden })}
         </button>
       )}
-      {openIndex !== null && parts[openIndex] && (
-        <Lightbox part={parts[openIndex]} onClose={close} />
+      {/* Indexes address `ordered`, not `parts` — opening the first thumbnail
+          must show the newest image, not the oldest. */}
+      {openIndex !== null && ordered[openIndex] && (
+        <Lightbox part={ordered[openIndex]} onClose={close} />
       )}
     </div>
   )
