@@ -77,7 +77,7 @@ _TOOL_FIRST = """\
 CRITICAL: Before writing ANY code, check if a built-in tool can solve the task directly:
 - Scheduled/periodic tasks → use `cron` tool (NOT crontab/systemd/code)
 - Web research → use `web_search` / `web_fetch` (NOT writing a scraper)
-- Browser interaction → use `skill("dev-browser")` (NOT writing Puppeteer/Selenium code, NOT clicking pixels with `computer`)
+- Browser interaction → use `skill("dev-browser")` (NOT writing Puppeteer/Selenium code, NOT clicking pixels with `computer`, NOT launching your own headless browser — the desktop's is already open and the user may be watching it)
 - Desktop GUI outside a browser → use `computer` (NOT xdotool/scrot through bash)
 - File operations → use Read/Edit/Write/Glob/Grep (NOT bash cat/sed/awk)
 Only write code when no built-in tool can accomplish the task."""

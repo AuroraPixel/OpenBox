@@ -89,6 +89,31 @@ EOF
 4. **Disconnect to exit**: `await client.disconnect()` - pages persist on server
 5. **Plain JS in evaluate**: `page.evaluate()` runs in browser - no TypeScript syntax
 
+### Always `connect()` — never launch your own browser
+
+```ts
+const client = await connect();          // ✅ the visible browser on the desktop
+const page = await client.page("work");
+```
+
+```ts
+import { chromium } from "playwright";
+const browser = await chromium.launch(); // ❌ silently headless, and invisible
+```
+
+`chromium.launch()` defaults to **headless**, so a browser started that way:
+
+- cannot be seen by the user, who often wants to watch what you are doing
+- cannot be reached by the `computer` tool, so a native dialog stops the run
+  with no way out (see the handoff section below)
+- has none of the profile, policy, or extension setup this browser has
+- is a *second* browser, so its pages are invisible to `client.page()`
+
+The browser `connect()` gives you is already running, visible, and configured.
+Use it. Only launch a separate headless browser when the user explicitly asks
+for headless — and say so in your answer when you do, because it means they
+cannot watch and you cannot recover from a native dialog.
+
 ## Workflow Loop
 
 Follow this pattern for complex tasks:

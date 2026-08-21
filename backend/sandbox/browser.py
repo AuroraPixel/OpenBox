@@ -215,7 +215,8 @@ BIN={CHROME_FOR_TESTING}
 [ -n "$BIN" ] || {{ echo "no chrome binary found" >&2; exit 3; }}
 EXT=""
 if [ -f {EXTENSION_DIR}/manifest.json ]; then EXT="--load-extension={EXTENSION_DIR}"; fi
-( setsid sudo -u "$U" -H env DISPLAY="$DISPLAY" XAUTHORITY="$XAUTHORITY" \\
+( setsid sudo -u "$U" -H env -u CHROME_HEADLESS -u PLAYWRIGHT_HEADLESS -u PUPPETEER_HEADLESS \\
+  DISPLAY="$DISPLAY" XAUTHORITY="$XAUTHORITY" \\
   "$BIN" \\
   --remote-debugging-port={CHROME_PORT} \\
   --remote-debugging-address=127.0.0.1 \\
@@ -232,6 +233,7 @@ if [ -f {EXTENSION_DIR}/manifest.json ]; then EXT="--load-extension={EXTENSION_D
   --no-service-autorun \\
   --password-store=basic \\
   --use-mock-keychain \\
+  --start-maximized \\
   about:blank \\
   >{CHROME_LOG} 2>&1 </dev/null & ) >/dev/null 2>&1 </dev/null
 exit 0
