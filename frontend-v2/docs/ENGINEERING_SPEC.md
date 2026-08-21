@@ -1130,6 +1130,229 @@ E2E stub 掉票据接口（真流需要云凭证）：断言菜单行存在、�
 
 **顺带补上系统提示的缺口:** 之前 `computer` 工具没进「web_search → web_fetch → dev-browser」这个阶梯,模型会拿它去干浏览器的活（实际发生过:agent 用 6 次截图点开百度）。现在明确:页面内的事一律走 dev-browser（结构化读取,token 少一个数量级,点的是元素不是猜的像素）,`computer` 只负责页面之外——原生应用、系统对话框,以及 canvas 这类结构表达不了的东西。
 
+### D.4.12 上下文环 / 厂商标识 / 模型能力（2026-08-21）
+
+**四项 UI 诉求 + 一个截图里暴露的真 bug。**
+
+| 诉求 | 落地 |
+|---|---|
+| 左右侧栏加淡边框 | `Sidebar` 加 `border-e`、`WorkbenchPanel` 非浮层态加 `border-s`,都用 `--t-hair`(1px `#eeece9`)。用逻辑属性而非 `border-r/l`,RTL 下自动翻面 |
+| 模型名不要 `openai/` 前缀 | 见下「前缀不是作者」 |
+| 每个模型配真实上下文上限 | `ModelConfig.context_limit` 原本就有但全空;补齐 20 个模型,并把 `/api/agent/config` 改为**后端解析后再下发**(`get_model_context_limit`),前端不再从 id 猜 |
+| 顶栏 token 挪到输入框旁做成圆环 | 新 `ContextRing`,悬浮出详情 |
+
+**前缀不是作者。** 网关是 OpenAI 兼容的,于是**所有**模型 id 都是 `openai/` 开头 —— Claude、DeepSeek、Gemini 一律如此。消息徽章直接渲染 `session.model`,于是出现 `openai/deepseek-v4-flash` 这种自相矛盾的字样。三处修:
+
+- `modelLabel(id, models)`:优先用配置里的显示名;配置里没有(会话钉在已下线模型上)则取 id 末段,至少去掉前缀
+- `ModelPicker` 同样修 —— 只修徽章会漏,选择器上的 id 更显眼
+- `ModelLogo` 按**模型名**取厂商标(lobehub/icons MIT 单色集,verbatim 内联)。**关键在于先剥掉 provider 前缀再匹配**:否则 `openai` 这个词命中的是网关前缀,任何没被识别的模型都会被盖上 OpenAI 的标 —— 单测 `model.test.ts` 专门锁住这条
+- 下拉列表里那列 `provider` 每行都写着 `openai`,信息量为零且误导,换成选中态对勾
+
+**ContextRing:圆环量的是「离压缩还有多远」。** 顶栏那句 `14.5k tokens` 要读懂得先记住当前模型的窗口 —— 而窗口会随旁边的选择器一起变。所以环放在模型名边上,`used/limit` 画成弧,详情(已用/上限/剩余/临近压缩提示)进 tooltip,中英文都有。上限取**选中模型**的 `context_limit`,取不到再退回 `token_usage.limit`(该会话上次真实跑用的窗口),两者都没有才隐藏。`formatTokens` 顺带补 M 档 —— `1,000k` 比 `1M` 难读。
+
+**截图里的真 bug:`This model does not support image`。** DeepSeek 基础版是纯文本的,视觉是另一个 `-vision-*` 模型。而对话**比模型活得久**:在视觉模型上截的图会一直留在历史里,用户切到 DeepSeek 后照样发过去,换来一个网关 400 打死整轮。新增 `agent/vision.py`:
+
+- `supports_vision(id)`:配置 `vision` 字段优先,其次家族启发式(`deepseek`/`qwq` 纯文本,`-vision`/`-vl` 例外);**未知模型默认视为多模态** —— 静默丢图比报错更坏,那会让模型煞有介事地描述一块它没看见的屏幕(这个坑之前踩过)
+- `resolve_images(messages, model_id)`:模型看不了图就**根本不去 OSS 取**,直接换成一条告诉模型「有图被扣下了,别猜」的说明
+
+> 这是老对手的第 8 个变体:**存进去的东西比供应商活得久**(模型名、tool-call id、推理变体、图片引用,现在是图片本身)。老规矩 —— 落库时归一,发送前再兜一次底。
+
+**上下文数字别信二手资料。** 研究 agent 给 GPT 系列报了 1,050,000(还附了"官方"链接),用户一句「我用的是 codex 供应的,只有 256k」直接证伪 —— 而最初那次网页搜索里其实就写着 256K。改用**让网关自己说**:发一个必定超限的请求(1.3M tokens),被拒不计费,而报错原文会直接给出真实上限:
+
+```
+prompt is too long: 1300080 tokens > 1000000 maximum         # claude-opus-5 等 6 个
+This model's maximum context length is 1048576 tokens...     # deepseek 全部 4 个
+```
+
+实测把二手资料又修掉两处:**DeepSeek 全线 1,048,576**(含被文档标成 128k 的两个 legacy id),Claude 全线 **1,000,000** —— 后者与研究一致,前者不是。
+
+顺带用小请求把 20 个模型过了一遍连通性,结果值得记一笔:6 个 GPT 与 4 个 DeepSeek 正常;`gpt-5.2` / `gpt-5.3-codex` 返回「Codex + ChatGPT 账号不支持此模型」(账号层面,不是抖动)—— 已从配置移除;8 个 Claude 全部 `503 无可用渠道`(供应商侧额度/渠道问题,与代码无关)—— **保留**,因为这类是可恢复的,而运行时早有 `model_resolve` 兜底。
+
+启发式(`_heuristic_context_limit`)只在配置没写时兜底,规则表是**有序**的 —— `gpt-5.4-mini` 里含 `gpt-5.4`,顺序错了就会给 400k 的模型配 1M 预算,压缩永不触发、每次长跑都死在供应商 400 上。未知模型一律给保守的 200k:猜大才是会出事的那个方向。
+
+### D.4.13 tool-call id 的第三条规则（2026-08-21）
+
+切换模型后报 `Responses API 400: Invalid 'input[25].id': 'fc_2126559__thought__..._JuxL_'. Expected an ID that contains letters, numbers, underscores, or dashes, but this value contained additional characters.`
+
+**报错信息是错的。** 那个 id 62 字符、只有字母数字下划线 —— 长度和字符集两条既有防线都放行。用二分法向真实 API 逼问,真正的规则是**结尾不能是 `_`**:
+
+| 通过 | 拒绝 |
+|---|---|
+| `fc_abcDEF` `fc_abcDEF9` | `fc_abcDEF_` |
+| `fc_abcDEF-`（短横可以） | `fc_abcDEF__` |
+| `fc__abcDEF`（前缀后紧跟下划线可以） | `fc_`（它本身也以 `_` 收尾） |
+| `fc_` + 61 字符（总长 64） | 总长 65+ |
+
+**而 `sanitize_call_id` 自己就是这种 id 的生产者** —— 它把 `/`、`+` 替换成 `_`,再截断到 64,两个动作都可能让 id 停在 `_` 上。Gemini 的 URL-safe base64 签名本来也带 `_`。
+
+修复不再逐条追加"已知的坏情况",改成**正向白名单**:
+
+```python
+_FC_ID_OK = re.compile(r"fc_[A-Za-z0-9_-]{0,60}[A-Za-z0-9]")   # 总长 4..64,末位必须字母数字
+```
+
+不匹配就整体替换成 `fc_` + `sha256(raw)[:32]`（hex 天然满足末位约束）。必须是**纯函数** —— 同一个 id 会到达两次（`function_call` 与 `function_call_output`），API 靠 id 配对。写入侧 `sanitize_call_id` 补 `.rstrip("_-")`,并给全分隔符的输入兜底成 `"call"`（空 id 会把调用配到别人的结果上）。
+
+**实测那条出问题的会话**（54 条消息 / 70 个 call id / 35 对）：修复前 4 个会原样发出触发 400,修复后 0 个非法,35 个唯一 id 归一后仍是 35 个 —— 无碰撞,配对完好。历史数据不需要迁移,发送前的兜底是确定性的。
+
+> **让这个 bug 绿灯上线的元凶**:`test_call_id_compat.py` 里有一份 `ensure_fc_id` 的**手抄副本**（`"""Mirror of the normaliser in agent.llm"""`）。测试测的是副本,真实实现怎么漂移它都不知道。已改为 `from agent.llm import ensure_fc_id` —— 并把该函数从 `_stream_responses_api` 内部提到模块级,就是为了能被导入。
+
+### D.4.14 重新生成（2026-08-21）
+
+**出错的那一轮，用户手里没有任何可点的东西。** 报错卡片本身没有按钮，而下面的操作行在桌面端是 `md:opacity-0`、悬浮才显形 —— 一轮只产出错误卡片时，唯一的出路是重新打一遍 prompt。
+
+先查了"刷新就消失"这个说法：**没能复现**。错误确实落库（`assistant_info.error` → `messages.error` 列 → `get_messages` 返回 → `InlineErrorCard`），实测造一个失败轮次再刷新，卡片还在。真正成立的是另一条：`mergeTurns` 里 `last.meta = metaOf(m)` **无条件**用最新消息的 meta 覆盖整个 turn，同一 turn 内后续消息会把 error 抹掉。已改为 `error: m.error ?? last.meta.error` —— 带 error 的消息在现行 loop 里必然是本轮最后一条（`StepOutcome.ERROR` 直接终止），所以这更像防御，但覆盖语义本身是错的。
+
+**后端 `POST /session/{sid}/regenerate/{message_id}`**：删掉该 assistant 消息**及其之后的所有消息**，保留触发它的 user 消息 —— 这正好是 `run_loop` 期待的状态（它找最后一条 user 消息作答），所以不新建 user 消息、prompt 不会重复。
+
+- 硬删而非 `superseded` 标记：软删会留在**每一次**历史读取里（压缩、token 计数、模型自己的上下文），除非所有读取路径都学会过滤，而漏掉一处就是静默的上下文 bug。
+- BUSY 时按 `prompt_async` 的同一约定处理：`trigger_abort` 掐掉在跑的 loop 再删。**在活跃 loop 脚下删消息是唯一绝对不能做的事**。
+- 实测：旧消息删除、**全库 0 个孤儿 part**、user 消息保留、新回复正常产出。
+
+**前端两个入口**：错误卡片上一颗常驻按钮（失败时不该让人去悬浮找），操作行里一颗图标按钮（用户截图指的位置）。
+
+**关键设计点：重试要跟随选择器。** 最常见的重试动机就是"这个模型挂了，换一个"，如果重新生成永远复用刚失败的模型，按钮在它最该有用的场景里等于没用。为此把 composer 的未发送选择从组件 state 提到 `stores/model-choice.ts`（按会话 key 存），错误卡片和操作行都读它，有选择才带 `model` 参数、没有就沿用会话模型。**实测**：Claude 全线 503 → 切到 DeepSeek V4 Flash → 点重新生成 → 换模型答出来了。
+
+**删除这一轮**（`DELETE /session/{sid}/message/{message_id}`）。重新生成解决的是"再试一次"，但用户往往已经**手动重发绕过去了** —— 那张失败卡片就杵在历史中间，既删不掉也收不起。它还不是白占地方：一条只有 `step-start` 的 assistant 消息会跟着每一次后续请求当上下文送出去。
+
+删除粒度取"**失败的一轮整体**"：错误消息 + 产生它的那条提问（仅当没有别的回复挂在那条提问上）。只删回复会留下一条无人应答的提问，那比错误卡片更碍眼。按钮因此叫「删除这一轮」而不是一个光秃秃的 ×——行为要和标签对得上。
+
+接口**只接受带 error 的 assistant 消息**（实测:删 user 消息 / 删正常回复 / 删不存在的 id 一律返回 0，消息数不变）。这是"消掉一次失败"，不是通用的历史改写入口——后者会把工具调用配对拆散。
+
+> `setMessages` 的合并规则是"谁的 parts 多留谁"，服务端删了消息之后它会把刚删掉的那一轮**原样复活**。所以 `useRegenerate` 和 `useDismissFailedTurn` 成功后都先 `clearMessages(sessionId)` 再失效查询。
+>
+> 顺带清掉了一个孤儿 i18n 键：`chat.regen`（"重新生成"）在语言包里躺了很久、代码里零引用 —— 按钮是设计里有、从没实现。现在归到 `meta.regenerate` 与操作行其它按钮同组。
+
+**同轮修掉审计确认的两个跨供应商缺陷**（见 D.4.13 的同类问题）：
+
+| | 位置 | 问题 |
+|---|---|---|
+| M1 | `llm.py` Responses 构造 | 一轮里既有叙述又有工具调用时，只发出 `function_call`，**模型自己的说明被静默丢弃**。没有任何东西会拒绝一个更短的历史，所以这是沉默的上下文丢失 |
+| M2 | `llm.py` deepseek 分支 | `reasoning_effort` 原样转发。`variant` 跟着消息走，在 GPT 上选的 `max`/`xhigh` 会原封不动到达 DeepSeek；而 `reasoning_effort` 是 DeepSeek **支持**的参数，`drop_params` 不会剔除它，只会被 API 拒绝。已按 openai 分支同款钳制 |
+
+> 修 M1 时顺手把消息构造从 `_stream_responses_api` 内部提成模块级 `build_responses_input()`。**原因是我差点重犯 D.4.13 那个元 bug** —— 逻辑埋在大函数里，测试唯一的办法就是再抄一份，而抄的那份会一直绿。
+
+### D.4.15 够不着的能力（2026-08-21）
+
+用户手动关掉了无影云桌面上的 Chrome。agent 正在 computer use 模式下干活，需要浏览器 —— 于是开始**找图标**：点 dock 坐标 (12,90)、(12,112)、(12,44)，按 `super`，输入 "Chrome"，按回车，最后按了 `alt+F4`。整轮没找到任何浏览器。
+
+**后端一直有正确的恢复能力。** `ensure_browser()` 会用正确的 profile、policy 和 CDP 端口拉起 Chrome，而且 `ensure_chrome()` **探活端口、不信缓存**，用户手动关掉后再调用就能拉回来。relay 也不需要重启 —— 它每次请求都重新发现 CDP 端点（`discoverChromeWsEndpoint()`，还会记录 "Chrome restarted; CDP endpoint changed"）。
+
+问题在于 `ensure_browser()` **只有加载 dev-browser skill 这一条路能触达**。模型站在 computer use 里，没有任何一个动作能打开浏览器，找图标就成了它唯一的选择。
+
+> **而且找到了更糟。** 从桌面图标启动的 Chrome **没有 `--remote-debugging-port`**，dev-browser 根本连不上。图标搜索要么直接失败，要么留下一个"屏幕上看着正常、实际驱动不了"的浏览器，真正的失败推迟到好几步之后、离原因很远的地方才爆出来。
+
+**缺陷类叫「够不着的能力」**：系统有这个能力，但 agent 站在当前位置伸手够不到。于是它用错误的工具即兴发挥，而即兴发挥要么失败，要么静默地造出一个坏状态。
+
+修复是给 `computer` 加一个 `open_browser` 动作，直接委托给 `ensure_browser()`。放在 `computer` 而不是别的工具上，理由很简单：**模型需要它的时候正站在 `computer` 面前**，把出口开在它看不见的地方等于没开。三处说明（工具描述 / 系统提示 / SKILL.md）都写明：不要找图标，以及为什么找到了反而更糟。
+
+**顺带撞出同一类的第二个缺口**：`general` agent 的白名单里有 `computer` 和 `browser_mode`，却**没有 `skill`**。加上 `open_browser` 之后它能把浏览器打开，然后没有任何办法驱动它 —— 只能退回去点像素。这个组合本身就自相矛盾：`browser_mode` 这个工具只有在你要驱动浏览器时才有意义。已补 `skill`；它不授予任何新权限（该 agent 早有 `bash`，skill 能让它做的事它本来就能做），给的是说明书。已加测试锁死这条不变量：**任何有 `computer` 的 agent 必须同时有 `skill`**。
+
+> 没能在用户的真实无影云桌面上端到端验证 —— 后端重启后内存里的沙箱映射就没了，而重新 acquire 会走 docker provider 去创建容器，那是另一条路且会在用户机器上留下东西。验证靠的是 6 个单测，加上把 `ensure_chrome` 与 relay 的恢复逻辑逐行读完（原本怀疑 relay 会缓存死连接，读完确认不会，于是**没有**加多余的加固）。
+
+### D.4.16 云桌面换回品牌版 Chrome（2026-08-21）
+
+云桌面上一直装着 **Chrome for Testing 152**（391MB）和 unpacked 的 dev-browser 扩展，理由是「Chrome 137+ 移除了 `--load-extension`，只有 CFT 还认」。
+
+**但 D.4.11 早就定了相反的事:云端不装插件，直接裸 CDP。** local 模式下 relay 只做页面命名簿，`wsEndpoint` 直接返回 Chrome 自己的 `webSocketDebuggerUrl`，Playwright 直连 Chrome —— **relay 不在数据面上，扩展从头到尾没被用过**。扩展只在 `extension` 模式下有意义，而那是用户**自己机器上**的浏览器，这台桌面根本不负责启动它。
+
+也就是说，为了一个没人用的 flag，桌面上多背了 391MB 的第二个 Chrome。实现和设计文档不一致，这次按文档收敛。
+
+| | 改前 | 改后 |
+|---|---|---|
+| 自动化浏览器 | `/opt/chrome-for-testing/chrome` (152) | `/usr/bin/google-chrome-stable` (151) |
+| `--load-extension` | 传（CFT 认） | 不传 |
+| 策略目录 | `chrome_for_testing` + `chrome` 两份 | 只留 `/etc/opt/chrome/policies/managed` |
+
+**关键前提先验证了才动手**：Chrome 136+ 只在**默认 profile** 下封 `--remote-debugging-port`，而我们本来就用独立的 `.config/obx-chrome`。用备用端口 9334 起了一个品牌版 Chrome 实测 —— `CDP_OK`，拿到 `webSocketDebuggerUrl`，确认可行之后才改代码。
+
+清理时的一个坑：`/usr/local/bin/google-chrome` 是指向 CFT 的软链，而 `/usr/local/bin` 在 PATH 里**排在 `/usr/bin` 前面**。直接删 CFT 会留下一条断链，命令行敲 `google-chrome` 反而坏掉。已连同软链一并移除，现在 `google-chrome` 正确解析到 `/opt/google/chrome/google-chrome`。
+
+**验收是在全部删干净之后重跑的**（杀掉浏览器 → `ensure_browser` 冷启动 → 真实 dev-browser 脚本）：`Chrome/151.0.7922.173`、`TITLE=Example Domain`、a11y 快照 5 个 ref。释放 391MB。
+
+> `bootstrap` 脚本不装 CFT，全仓也没有别处引用 —— 那两样是早前手工装上去的，删掉不会自己回来。
+
+**换成品牌版之后才暴露出来的两件事**，都是截图看出来的，不是测试报出来的：
+
+1. **"Restore pages? Chrome didn't shut down correctly" 气泡。** 自动化浏览器是被信号杀掉的，所以每次重启 Chrome 都认为上次崩了。这个气泡由**浏览器**绘制，盖在页面右上角，CDP 碰不到它。`--disable-session-crashed-bubble` 在新版 Chrome 上已经失效，改成启动前把 profile 里的 `exit_type` 标成 `Normal`。
+2. **然后它变成了静默恢复上次会话** —— 实测一次被杀的会话带回来 **10 个陈旧标签**，既占内存又污染 relay 的页面列表。管理策略 `RestoreOnStartup=5` **拦不住**（试过，标签照旧）。
+
+最后按「自动化浏览器本来就该每次干净启动」来收口：启动前删掉 profile 里的会话文件（`Sessions/`、`Current Session`、`Current Tabs`、`Last Session`、`Last Tabs`）—— 没有崩溃可报告，也没有东西可恢复，两条路一起堵死。这些是纯临时状态，cookie、登录态和历史记录在别的文件里，不受影响。**实测冷启动标签数 12 → 1。**
+
+> 还有一个只有看截图才会发现的残留：dock 里仍挂着一个 Chrome for Testing 图标。原因是 CFT 进程**还活着**（Linux 允许进程跑在已删除的二进制上，`/proc/PID/exe` 显示 `(deleted)`）。它们逃过了 `pkill` 是因为我按 `obx-chrome` 这个 profile 路径匹配，而这些是从 dock 图标手工启动的、用的默认 profile。改按 `/proc/*/exe` 精确定位后清掉 9 个。
+
+### D.4.17 「Open xdg-open?」——一次没能证实的修复（2026-08-21）
+
+用户报了应用跳转弹窗。**这一节的结论是「原因已查清，但修复未能验证」，过程比结论更值得记。**
+
+**先说查清的部分。** 弹窗由浏览器进程的 `ExternalProtocolHandler` 绘制，它的 `GetBlockState()` **从不查 `URLBlocklist`** —— 只看一份硬编码的 denied scheme 列表、`mailto` 例外、`AutoLaunchProtocolsFromOrigins` 策略，以及每个来源的用户偏好。`URLBlocklist` 走的是另一条路（`PolicyBlocklistNavigationThrottle`，导航节流层），而渲染进程发起的跳转会经 `HandleExternalProtocol` 直接进 handler，不过节流层。
+
+**所以我们那份 29 条 scheme 的 blocklist 对这个弹窗从来没有作用。** 顺带还有个语法问题：Chrome 的过滤器格式是 `[scheme://]host[...]`，我们写的 `douyin:*` 即使在节流层也匹配不上。
+
+**再说我错在哪。** 我先做实验：加 `bitbrowser:*` 弹窗还在，改成 `bitbrowser://*` 弹窗消失 —— 于是宣布修好了。**这个证据是假的。** 补做阴性对照才发现：把 URL 策略**整个删掉**，弹窗同样不出现，`SCHEME_ATTEMPTS=0` —— 那次点击压根没触发探测。我把「没复现」当成了「被挡住」。
+
+> 教训很直接：**一个「问题消失了」的观察，在拿到阴性对照之前不是证据。** 尤其当触发条件本身不稳定的时候。
+
+**然后我连复现都做不到了。** 试了五种方式，全部静默忽略、只得到 `chrome-error://chromewebdata/`，一次弹窗都没有：
+
+| 尝试 | 结果 |
+|---|---|
+| 脚本 `location.href = "bitbrowser://cc/"` | 无弹窗（缺用户手势，被静默拦） |
+| 注入 `<a>` 真实点击（有手势） | 无弹窗 |
+| 裸 Chrome：无策略文件、无 `--disable-features`、全新 profile | 无弹窗 |
+| 专门注册一个 `x-scheme-handler/bitbrowser` 处理程序 | 无弹窗 |
+| creator.douyin.com 实站点击 | 探测未触发 |
+
+**结论与当前状态：**
+
+- `URLBlocklist` 改成了默认拒绝（`["*"]` + 自动化需要的 allowlist）。它**不解决弹窗**，代码注释里已写明这一点，免得下一个人再误信。它买到的是节流层的实际拦截，且比 29 条空转条目严格更好。实测 example.com 与 creator.douyin.com 均正常（点击后 132 个 a11y ref）。
+- 移除了 `--disable-features=ExternalProtocolDialog` —— Chromium 里**不存在**这个 feature，未知名字会被静默忽略，它一直是空操作。
+- 唯一作用于弹窗那条代码路径的是 `AutoLaunchProtocolsFromOrigins`，但它靠**真的启动**外部程序来消除提示。在用户与 agent 共用的桌面上，这比弹窗更糟，**因此没有启用**。
+- 我一度加了「只对 Chrome 进程生效的空操作 `xdg-open`」作为兜底，但 `env PATH=` 在这条 sudo 链上没能传进 Chrome 进程（实测其 PATH 里没有该目录）。**没验证成功的机制不交付**，已连同桌面上的残留目录一并撤除。
+
+其余排除项：`page.route("**/*")` 拦不到（自定义 scheme 的导航不走网络拦截层，`ABORTED=0`）；CDP 无任何命令可以拦截或关闭这个对话框（它不是 JS 对话框，`Page.javascriptDialogOpening` 不会触发）。
+
+> 现有的兜底仍然有效且是文档化的：dev-browser 脚本连续两次超时 → 用 `computer` 截图 → Escape 或点 Cancel → 回到脚本继续（见 D.4.15 与 SKILL.md）。
+
+### D.4.18 dev-browser 慢的真正原因（2026-08-21）
+
+用户报「用 dev-browser 很慢，中间应该出错了」。那一轮**任务其实成功了**（二维码拿到了），总耗时 181 秒。按 part 时间戳逐段拆开，答案很干脆：
+
+```
+  0.0s  用户提问
+  9.8s  tool:skill dev-browser
+111.8s  step-finish                 ← 光加载 skill 就 101.9 秒，占全程 56%
+118.7s  bash: npm run start-relay
+...
+180.8s  完成
+```
+
+**根因不是「慢」，是一个一直在白等的 bug。** 冷启动逐段计时：
+
+| 步骤 | 耗时 |
+|---|---|
+| 隧道往返基线 | 0.13s |
+| `ensure_x_helper` / 策略安装 | 各 0.1s |
+| **chrome 启动命令返回** | **32.08s**（timeout=30，即卡到超时） |
+| chrome 端口可用 | 1.07s（1 次轮询） |
+| **relay 启动命令返回** | **62.19s**（timeout=60，同样卡到超时） |
+| relay 可用 | 1.12s（1 次轮询） |
+
+进程早就起来了，是 `client.execute()` 一直挂到超时才返回 —— 每次冷启动白等 90 秒。
+
+**而问题不在脚本的分离写法。** 逐一实测，`setsid`、`nohup`、`sudo -u` 包装、`( … & ) >/dev/null 2>&1 </dev/null`——**五种写法全部挂住**，连最裸的 `( setsid sleep 25 … & )` 也一样。结论是这个 action server 的 exec **会等所有后代进程**，fd 重定向和会话分离都不管用。
+
+所以修法是不再等：启动命令给一个很短的 settle 超时，就绪与否**只由端口轮询判定**（那本来就是唯一有意义的信号）。前提是超时不能杀进程 —— 实测确认：用 3 秒超时发起一个 20 秒的标记进程，exec 在 5 秒返回 `exit=-1`，而标记进程**活满全程**。
+
+**实测收益**：`ensure_browser` 冷启动 95s → **12.9s**；冷桌面下加载 skill 101.9s → **19.7s**；「浏览器就绪 + 首个脚本跑完」合计 17.7s。热路径不变（0.24s）。
+
+**同一轮里另外两处浪费也修了：**
+
+1. **模型在 `page.evaluate()` 里写了 TypeScript**，得到 `SyntaxError: Unexpected token ':'`，白跑一个来回。SKILL.md 本来就有这条警告，但埋在中段，而模型是从顶部的模板复制的。已把警告移到复制点，并写清为什么容易踩：`npx tsx` 会编译外层文件，所以顶层加注解没问题 —— 正是这一点让人以为回调里也可以。（我自己当天也犯了同一个错，这本身就说明埋着的警告不起作用。）
+2. **模型手工跑了 `npm run start-relay`**，因为 SKILL.md 让它这么做 —— 但加载 skill 时 `_browser_readiness` 已经把 relay 起好了，而手工那条会**先杀掉正在跑的那个**。已改成「不需要 Setup，除非 `<browser_mode>` 报了失败」。
+
+> 修复过程中我自己引入过一个缺陷：`_fire_and_forget` 最初用 `except Exception` 兜底，把真实错误（隧道断开、二进制缺失）也吞掉，变成一次 15 秒轮询后一句含糊的「没起来」。**是测试套件从 3.1s 变成 23.1s 暴露的**，已收窄成只容忍超时。
+
 ### D.5 E2E 约定
 
 - 后端登录限流 5 次/分钟/IP → E2E 采用 **setup project + storageState**：一次真实表单登录（本身即登录用例），其余 spec 复用 refresh cookie 恢复会话；`workers: 1` 串行。
