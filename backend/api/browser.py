@@ -12,7 +12,6 @@ The chosen mode is a per-user preference. Reads and writes go through
 preferences row); ``status`` reports the *effective* mode against what is
 actually reachable right now, so the UI can show the live picture.
 """
-import inspect
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
@@ -35,44 +34,71 @@ class PreferenceUpdate(BaseModel):
 
 
 def _existing_client(user_id: str):
-    """This user's sandbox client, only if one already exists.
+    """A client for this user's sandbox, without creating one.
 
     Deliberately not `get_client_any`, which acquires a sandbox when none is
     running: the settings page polls this endpoint, and merely looking at a
     status must never spin a machine up.
+
+    A cached client is used when the manager already has one. Otherwise the
+    provider is asked whether a container is simply *there* — with a long-lived
+    desktop that is the normal case, and refusing to look at it just because no
+    session has touched it in this process would report the browser as missing
+    when it is running fine.
     """
+    from sandbox.client import SandboxClient
     from sandbox.manager import sandbox_manager
 
     for key, client in sandbox_manager._clients.items():
         sandbox = sandbox_manager._project_map.get(key)
         if sandbox and sandbox.user_id == user_id:
             return client
-    return None
+
+    try:
+        from sandbox import provider
+        container = provider.get_user_container(user_id)
+        if not container or not container.port:
+            return None
+        return SandboxClient(
+            host=container.host or "127.0.0.1",
+            port=container.port,
+            api_key=container.api_key or "",
+        )
+    except Exception as e:
+        log.debug(f"No existing sandbox to inspect: {e}")
+        return None
 
 
 async def _local_status(user_id: str) -> dict:
     """Availability of the cloud desktop's Chrome for this user.
 
-    ``sandbox.browser`` is authored by another agent and may land after us, so
-    the import is lazy and guarded. No sandbox means unavailable, not an error.
+    The probe reports the two endpoints; this flattens them into the
+    `available` flag the UI renders, plus enough detail to say WHY when the
+    answer is no. `available` means Chrome is answering — a missing relay is
+    not fatal, since it is started on demand when the skill loads.
     """
-    try:
-        from sandbox.browser import browser_status
-    except ImportError:
-        return {"available": False, "reason": "unavailable"}
+    from sandbox.browser import browser_status
 
     client = _existing_client(user_id)
     if client is None:
         return {"available": False, "reason": "no_sandbox"}
 
     try:
-        result = browser_status(client)
-        if inspect.isawaitable(result):
-            result = await result
-        return result
+        state = await browser_status(client)
     except Exception as e:
         log.warning(f"browser_status failed: {e}")
         return {"available": False, "reason": "error"}
+
+    chrome = state.get("chrome") or {}
+    relay = state.get("relay") or {}
+    if not chrome:
+        return {"available": False, "reason": "not_started"}
+    return {
+        "available": True,
+        "version": chrome.get("Browser"),
+        "relayRunning": bool(relay),
+        "relayMode": relay.get("mode"),
+    }
 
 
 async def _build_status(user_id: str) -> dict:
