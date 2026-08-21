@@ -342,7 +342,13 @@ async def _stream_responses_api(
         return
 
     # Build the Responses API URL with required api-version
-    url = f"{api_base.rstrip('/')}/v1/responses?api-version=2025-03-01-preview"
+    # base_url is conventionally written with the /v1 suffix already (that is
+    # what every OpenAI-compatible provider documents), so appending another
+    # one produced /v1/v1/responses and a 404 that reads like a missing model.
+    root = api_base.rstrip("/")
+    if not root.endswith("/v1"):
+        root = f"{root}/v1"
+    url = f"{root}/responses?api-version=2025-03-01-preview"
 
     # Determine reasoning effort
     variant_kwargs = _get_variant_kwargs(model_id, variant)
