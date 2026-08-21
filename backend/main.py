@@ -212,6 +212,9 @@ def create_app() -> FastAPI:
     from api.desktop import router as desktop_router
     application.include_router(desktop_router)
 
+    from api.assets import router as assets_router
+    application.include_router(assets_router)
+
     # ── Agent routes ──
     agent_router = APIRouter(prefix="/api/agent", tags=["Agent"])
 

@@ -185,6 +185,21 @@ class FilePart(BaseModel):
     path: str = ""
     mime_type: str | None = None
     url: str | None = None
+    #: file_assets id when this file travelled through OSS — the UI trades it
+    #: for a fresh preview URL (presigned GETs expire).
+    asset_id: str | None = None
+    #: Exactly where the bytes live in the bucket. Stored rather than derived:
+    #: the object name does not always match the path's basename (a screenshot
+    #: at /tmp/obx-screen.png is stored as screen-<part>.png), and guessing it
+    #: silently 404s — which used to drop the image and leave the model
+    #: describing a screen it never saw.
+    oss_key: str | None = None
+    #: Bytes, when known; lets the card show a size without a round-trip.
+    size: int | None = None
+    #: A frame the agent produced only to look at (a computer-use screenshot).
+    #: These arrive once per action, so context keeps only the newest few —
+    #: unlike a user's attachment, which stays for the whole conversation.
+    transient: bool = False
     session_id: str = ""
     message_id: str = ""
 

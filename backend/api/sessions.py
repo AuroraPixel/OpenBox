@@ -33,6 +33,9 @@ class PromptBody(BaseModel):
     client_message_id: str | None = None
     # {"type": "json_schema", "schema": {...}} to require a structured answer.
     format: dict | None = None
+    #: Ready file_assets ids — pulled from OSS into the sandbox before the
+    #: agent loop starts, and attached to the user message as file parts.
+    attachments: list[str] | None = None
 
 
 class UpdateSessionBody(BaseModel):
@@ -242,6 +245,11 @@ async def send_message_async(
         user_id=user_id,
     )
 
+    # Attachment cards: a file part per OSS asset on the user message, so the
+    # chat renders previews instead of parsing paths out of the text trailer.
+    if body.attachments:
+        await _attach_file_parts(session_id, user_msg.id, user_id, body.attachments)
+
     # F4: Save to prompt history (fire-and-forget)
     try:
         from api.prompt_history import save_prompt_history_async
@@ -251,9 +259,47 @@ async def send_message_async(
 
     # Launch agent loop in background
     from agent.loop import run_loop
-    task = asyncio.create_task(_run_loop_with_log(session_id, user_id)); _background_tasks.add(task); task.add_done_callback(_background_tasks.discard)
+    task = asyncio.create_task(_run_loop_with_log(session_id, user_id, body.attachments)); _background_tasks.add(task); task.add_done_callback(_background_tasks.discard)
 
     return {"ok": True}
+
+
+async def _attach_file_parts(session_id: str, message_id: str, user_id: str, asset_ids: list[str]) -> None:
+    from sqlalchemy import select
+    from core.identifier import ascending
+    from db.base import get_db_session
+    from db.models.file_asset import FileAsset
+    from models.message import FilePart
+
+    async with get_db_session() as db:
+        rows = (
+            await db.execute(
+                select(FileAsset).where(
+                    FileAsset.id.in_(asset_ids),
+                    FileAsset.user_id == user_id,
+                    FileAsset.status == "ready",
+                )
+            )
+        ).scalars().all()
+    by_id = {r.id: r for r in rows}
+    for asset_id in asset_ids:
+        row = by_id.get(asset_id)
+        if not row:
+            continue
+        await session_mod.save_part(
+            FilePart(
+                id=ascending("part"),
+                path=f"/workspace/uploads/{row.name}",
+                mime_type=row.mime,
+                asset_id=row.id,
+                oss_key=row.oss_key,
+                size=row.size,
+                session_id=session_id,
+                message_id=message_id,
+            ),
+            is_new=True,
+            user_id=user_id,
+        )
 
 
 # ─── Session fork ───
@@ -596,11 +642,46 @@ async def get_diff(session_id: str, full: bool = False, current_user: dict = Dep
         return [{"path": d.path, "additions": d.additions, "deletions": d.deletions, "status": d.status} for d in diffs]
 
 
-async def _run_loop_with_log(session_id: str, user_id: str):
-    """Wrapper that logs exceptions from run_loop."""
+async def _run_loop_with_log(session_id: str, user_id: str, attachment_ids: list[str] | None = None):
+    """Wrapper that logs exceptions from run_loop.
+
+    Attachments land in the sandbox BEFORE the loop starts — the message text
+    references their /workspace/uploads paths, so the agent must find them.
+    """
     try:
+        if attachment_ids:
+            try:
+                await _deliver_attachments(session_id, user_id, attachment_ids)
+            except Exception as e:
+                import logging
+                logging.getLogger("sessions").warning(f"attachment delivery failed for {session_id}: {e}")
         from agent.loop import run_loop
         await run_loop(session_id, user_id=user_id)
     except Exception as e:
         import logging
         logging.getLogger("sessions").error(f"run_loop FAILED for {session_id}: {e}", exc_info=True)
+
+
+async def _deliver_attachments(session_id: str, user_id: str, asset_ids: list[str]) -> None:
+    """Pull the message's OSS assets into the sandbox via obx-file."""
+    from sqlalchemy import select
+    from core.oss import get_oss
+    from db.base import get_db_session
+    from db.models.file_asset import FileAsset
+    from sandbox.manager import sandbox_manager
+    from sandbox.assets import deliver
+
+    async with get_db_session() as db:
+        rows = (
+            await db.execute(
+                select(FileAsset).where(
+                    FileAsset.id.in_(asset_ids),
+                    FileAsset.user_id == user_id,
+                    FileAsset.status == "ready",
+                )
+            )
+        ).scalars().all()
+    if not rows:
+        return
+    client = await sandbox_manager.get_client(session_id, user_id=user_id)
+    await deliver(client, f"{user_id}:{session_id}", get_oss(), rows)

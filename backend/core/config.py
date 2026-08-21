@@ -106,6 +106,11 @@ class OpenBoxConfig(BaseModel):
     wuying_region_id: str = "cn-hangzhou"           # region the desktop lives in
     wuying_end_user_id: str = ""                    # Wuying end user the web view logs in as
 
+    # -- OSS asset transfer (browser -> OSS -> cloud desktop) --
+    oss_bucket: str = ""                            # empty = OSS transfer disabled
+    oss_region: str = "cn-hangzhou"
+    oss_endpoint: str = ""                          # default oss-{region}.aliyuncs.com
+
     # -- Multi-user infrastructure --
     database_url: str = "postgresql+asyncpg://openbox:openbox@localhost:5432/openbox"
     db_pool_size: int = 10
@@ -297,6 +302,9 @@ def _apply_env_overrides(data: dict) -> dict:
         "wuying_desktop_id": "WUYING_DESKTOP_ID",
         "wuying_region_id": "WUYING_REGION_ID",
         "wuying_end_user_id": "WUYING_END_USER_ID",
+        "oss_bucket": "OSS_BUCKET",
+        "oss_region": "OSS_REGION",
+        "oss_endpoint": "OSS_ENDPOINT",
         "database_url": "DATABASE_URL",
         "db_pool_size": "DB_POOL_SIZE",
         "db_pool_overflow": "DB_POOL_OVERFLOW",

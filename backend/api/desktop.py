@@ -12,14 +12,12 @@ Credentials come from ALIBABA_CLOUD_ACCESS_KEY_ID/SECRET, falling back to the
 aliyun CLI profile (~/.aliyun/config.json) on dev machines.
 """
 import asyncio
-import json
-import os
-from pathlib import Path
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
 from auth.middleware import get_current_user
+from core.aliyun import AliyunCredentialsError, load_credentials
 from core.config import get_config
 from core.log import create_logger
 
@@ -31,39 +29,11 @@ _POLL_INTERVAL = 2.0
 _POLL_BUDGET = 14.0  # keep well under typical proxy/request timeouts
 
 
-class _CredentialsError(Exception):
-    pass
-
-
-def _load_credentials() -> dict:
-    key_id = (os.environ.get("ALIBABA_CLOUD_ACCESS_KEY_ID") or os.environ.get("ALICLOUD_ACCESS_KEY_ID") or "").strip()
-    key_secret = (
-        os.environ.get("ALIBABA_CLOUD_ACCESS_KEY_SECRET") or os.environ.get("ALICLOUD_ACCESS_KEY_SECRET") or ""
-    ).strip()
-    if key_id and key_secret:
-        return {"access_key_id": key_id, "access_key_secret": key_secret}
-
-    config_path = Path(os.environ.get("ALIYUN_CLI_CONFIG") or Path.home() / ".aliyun" / "config.json")
-    try:
-        parsed = json.loads(config_path.read_text())
-    except FileNotFoundError:
-        raise _CredentialsError("No Alibaba Cloud credentials (env or aliyun CLI profile)")
-    profiles = parsed.get("profiles") or []
-    wanted = os.environ.get("ALIBABA_CLOUD_PROFILE") or parsed.get("current") or "default"
-    profile = next((p for p in profiles if p.get("name") == wanted), None)
-    if not profile or not profile.get("access_key_id") or not profile.get("access_key_secret"):
-        raise _CredentialsError(f"aliyun CLI profile '{wanted}' has no usable access key")
-    creds = {"access_key_id": profile["access_key_id"], "access_key_secret": profile["access_key_secret"]}
-    if profile.get("sts_token"):
-        creds["security_token"] = profile["sts_token"]
-    return creds
-
-
 def _ecd_client(region_id: str):
     from alibabacloud_ecd20200930.client import Client
     from alibabacloud_tea_openapi import models as open_api_models
 
-    creds = _load_credentials()
+    creds = load_credentials()
     config = open_api_models.Config(
         access_key_id=creds["access_key_id"],
         access_key_secret=creds["access_key_secret"],
@@ -94,7 +64,7 @@ async def desktop_ticket(task_id: str | None = None):
     region = config.wuying_region_id
     try:
         client = _ecd_client(region)
-    except _CredentialsError as e:
+    except AliyunCredentialsError as e:
         log.warning(f"Desktop ticket unavailable: {e}")
         return JSONResponse({"available": False, "reason": "credentials"}, status_code=503)
 

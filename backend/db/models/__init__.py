@@ -9,6 +9,7 @@ from db.models.permission import PermissionRule
 from db.models.container import Container
 from db.models.todo import Todo
 from db.models.prompt_history import PromptHistory
+from db.models.file_asset import FileAsset
 from db.models.audit_log import AuditLog
 from db.models.cron import CronJob, CronRun
 
