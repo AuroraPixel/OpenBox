@@ -101,9 +101,9 @@ def test_the_default_is_still_build():
 # ── the definitions themselves ──
 
 def test_the_agents_match_opencode_by_name():
-    # opencode also ships a `summary` agent; we have no summariser, so it is
-    # absent rather than stubbed. Nothing here exists that opencode lacks.
-    assert set(AGENTS) == {"build", "plan", "explore", "general", "compaction", "title"}
+    assert set(AGENTS) == {
+        "build", "plan", "explore", "general", "compaction", "title", "summary",
+    }
 
 
 def test_explore_cannot_edit():

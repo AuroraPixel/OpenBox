@@ -1,4 +1,4 @@
-"""Agent definitions: build, plan, explore, general, compaction, title."""
+"""Agent definitions, and the registry that merges the user's config over them."""
 from dataclasses import dataclass, field
 
 
@@ -12,8 +12,11 @@ class AgentDef:
     model: str | None = None  # Override; if None, use session model
     temperature: float = 0.0
     prompt: str | None = None  # Custom system prompt
-    mode: str = "primary"  # "primary" or "subagent"
+    #: "primary" (chat only) | "subagent" (task-spawned only) | "all" (both)
+    mode: str = "primary"
     hidden: bool = False
+    #: Accent colour for the UI, when the agent wants one.
+    color: str | None = None
     permission: list[dict] = field(default_factory=list)
     # Each dict: {"permission": "edit", "pattern": "*", "action": "deny"}
 
@@ -105,6 +108,21 @@ Your output must be:
 </examples>"""
 
 
+PROMPT_SUMMARY = """\
+Summarize what was done in this conversation. Write like a pull request description.
+
+Rules:
+- 2-3 sentences max
+- Describe the changes made, not the process
+- Do not mention running tests, builds, or other validation steps
+- Do not explain what the user asked for
+- Write in first person (I added..., I fixed...)
+- Never ask questions or add new questions
+- If the conversation ends with an unanswered question to the user, preserve that exact question
+- If the conversation ends with an imperative statement or request to the user (e.g. "Now please run the command and paste the console output"), always include that exact request in the summary
+- Use the same language as the conversation"""
+
+
 # Built-in agent definitions
 AGENTS: dict[str, AgentDef] = {
     "build": AgentDef(
@@ -139,8 +157,13 @@ AGENTS: dict[str, AgentDef] = {
             {"permission": "plan_exit", "pattern": "*", "action": "allow"},
             # Deny all edits (write/edit/apply_patch) by default
             {"permission": "edit", "pattern": "*", "action": "deny"},
-            # Allow editing plan files only
+            # Allow editing plan files only. Both spellings: the model is as
+            # likely to write ".openbox/plans/x.md" from the workdir as the
+            # absolute path, and the "**/" form does not match a path with no
+            # leading segment — so the relative one used to be denied and plan
+            # mode could not write its own plan.
             {"permission": "edit", "pattern": "**/.openbox/plans/*.md", "action": "allow"},
+            {"permission": "edit", "pattern": ".openbox/plans/*.md", "action": "allow"},
             # Note: bash is NOT denied at the permission level (matching opencode).
             # Plan mode constraints are enforced via the system prompt, which tells
             # the agent to only use bash for read-only operations.
@@ -199,12 +222,97 @@ AGENTS: dict[str, AgentDef] = {
         ],
         prompt=PROMPT_TITLE,
     ),
+    "summary": AgentDef(
+        name="summary",
+        description="Summarises what a conversation actually changed",
+        tools=[],
+        hidden=True,
+        permission=[
+            {"permission": "*", "pattern": "*", "action": "deny"},
+        ],
+        prompt=PROMPT_SUMMARY,
+    ),
 }
+
+
+#: Mode a config-defined agent gets when it does not say. opencode's default
+#: too: someone adding an agent usually wants it both to chat with and to
+#: spawn, and narrowing it later is easier than discovering it is missing.
+DEFAULT_CONFIG_MODE = "all"
+
+VALID_MODES = ("primary", "subagent", "all")
+
+
+def _merged_registry() -> dict[str, AgentDef]:
+    """The built-ins with the user's config folded in.
+
+    Config can retune a built-in, hide it, remove it, or introduce an agent
+    of its own — the same entry does all four, as in opencode. Resolved on
+    every call rather than cached: config is reloaded at runtime, and a stale
+    registry would silently ignore an edit the user just made.
+    """
+    import copy
+
+    try:
+        from core.config import get_config
+        overrides = get_config().agent or {}
+    except Exception:  # config not loaded (tests, tooling) — built-ins only
+        return dict(AGENTS)
+
+    registry = {name: copy.copy(a) for name, a in AGENTS.items()}
+    for name, ov in overrides.items():
+        if getattr(ov, "disable", False):
+            registry.pop(name, None)
+            continue
+        agent = registry.get(name)
+        if agent is None:
+            agent = AgentDef(
+                name=name,
+                description=ov.description or f"{name} agent",
+                tools=list(AGENTS["build"].tools),
+                mode=DEFAULT_CONFIG_MODE,
+            )
+        agent = apply_agent_overrides(copy.copy(agent), ov)
+        registry[name] = agent
+    return registry
+
+
+def apply_agent_overrides(agent_def: AgentDef, overrides) -> AgentDef:
+    """Layer per-agent config onto a definition, in place.
+
+    `permission` accumulates rather than replaces: config rules are meant to
+    tighten an agent's defaults, not discard them. `tools` does replace —
+    a toolset is a whitelist, so accumulating would quietly widen an agent
+    the user just narrowed.
+    """
+    if not overrides:
+        return agent_def
+    if overrides.model:
+        agent_def.model = overrides.model
+    if overrides.temperature is not None:
+        agent_def.temperature = overrides.temperature
+    if getattr(overrides, "max_steps", None) is not None:
+        agent_def.max_steps = overrides.max_steps
+    if overrides.prompt is not None:
+        agent_def.prompt = overrides.prompt
+    if overrides.permission:
+        agent_def.permission = agent_def.permission + overrides.permission
+    if getattr(overrides, "description", None):
+        agent_def.description = overrides.description
+    if getattr(overrides, "mode", None) in VALID_MODES:
+        agent_def.mode = overrides.mode
+    if getattr(overrides, "hidden", None) is not None:
+        agent_def.hidden = overrides.hidden
+    if getattr(overrides, "tools", None):
+        agent_def.tools = list(overrides.tools)
+    if getattr(overrides, "color", None):
+        agent_def.color = overrides.color
+    return agent_def
 
 
 def get_agent(name: str) -> AgentDef:
     """Get an agent definition by name."""
-    agent = AGENTS.get(name)
+    agent = _merged_registry().get(name)
     if not agent:
         raise ValueError(f"Unknown agent: {name}")
     return agent
@@ -220,7 +328,7 @@ def list_agents() -> list[AgentDef]:
     same line — `mode !== "subagent" && hidden !== true` — everywhere it
     lists agents for a person to choose from.)
     """
-    return [a for a in AGENTS.values() if a.mode != "subagent" and not a.hidden]
+    return [a for a in _merged_registry().values() if a.mode != "subagent" and not a.hidden]
 
 
 def list_subagents() -> list[AgentDef]:
@@ -230,10 +338,10 @@ def list_subagents() -> list[AgentDef]:
     Hidden agents are included — compaction and title are spawned by name,
     never chosen — matching opencode's `item.mode !== "primary"`.
     """
-    return [a for a in AGENTS.values() if a.mode != "primary"]
+    return [a for a in _merged_registry().values() if a.mode != "primary"]
 
 
 def is_subagent(name: str) -> bool:
     """Whether this agent may only run underneath another one."""
-    agent = AGENTS.get(name)
+    agent = _merged_registry().get(name)
     return agent is not None and agent.mode == "subagent"

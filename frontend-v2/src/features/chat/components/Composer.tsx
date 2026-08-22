@@ -18,9 +18,13 @@ import { ComposerActions } from "./composer/ComposerActions"
 import { ModelPicker } from "./composer/ModelPicker"
 import { ShortcutPicker } from "./composer/ShortcutPicker"
 import { MentionMenu } from "./composer/MentionMenu"
+import { ModePicker } from "./composer/ModePicker"
+import type { ChatAgent } from "../api/agents"
 
 export interface ComposerSubmit {
   model?: string
+  /** The agent to answer as, when the user changed it before sending. */
+  agent?: string
   /** OSS asset ids of the message's attachments. */
   attachments?: string[]
 }
@@ -46,10 +50,39 @@ interface Props {
   /** G2's mention/command menu mounts here — it renders inside the relative
    *  anchor that wraps the textarea, so it can position against the input. */
   mentionSlot?: ReactNode
+  /** Agents a person may pick — build, plan, and any they defined. */
+  agents?: ChatAgent[]
+  /** The agent this conversation is on. */
+  sessionAgent?: string
+  onPickAgent?: (name: string) => void
 }
 
+const EMPTY_AGENTS: ChatAgent[] = []
 const MAX_UPLOAD = 8 * 1024 * 1024
 const MAX_HEIGHT = 200 // matches max-h-50
+
+/** The single round button that morphs between send and stop. */
+function SendButton({
+  stop, disabled, onClick,
+}: { stop: boolean; disabled: boolean; onClick?: () => void }) {
+  const { t } = useTranslation("chat")
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={stop ? t("composer.stop") : t("send")}
+      className="bg-ink text-bg flex size-10 flex-none items-center justify-center rounded-full transition-opacity disabled:opacity-40"
+    >
+      {stop ? (
+        <Square className="size-3.5 fill-current" strokeWidth={0} />
+      ) : (
+        <ArrowUp className="size-4.5" strokeWidth={2.75} />
+      )}
+    </button>
+  )
+}
+
 
 /** Design composer: a single focus-owning shell (InputGroup) holding the
  *  attachment strip, the chromeless textarea, and one action row whose sole
@@ -64,6 +97,9 @@ export function Composer({
   sessionKey,
   contextTokens = 0,
   contextLimit = 0,
+  agents = EMPTY_AGENTS,
+  sessionAgent = "build",
+  onPickAgent,
 }: Props) {
   const { t } = useTranslation("chat")
   const { data: config } = useConfigQuery()
@@ -196,25 +232,14 @@ export function Composer({
               onFiles={pickFiles}
             />
 
+            <ModePicker agents={agents} activeId={sessionAgent} onPick={onPickAgent} disabled={busy} />
             <ModelPicker models={models} activeId={activeId} onPick={pick} />
             {/* Beside the picker on purpose: the window it measures belongs to
                 the model named next to it, and both change together. */}
             <ContextRing used={contextTokens} limit={modelContextLimit(activeId, models, contextLimit)} />
             <ShortcutPicker shortcut={shortcut.shortcut} onChange={shortcut.setShortcut} />
 
-            <button
-              type="button"
-              onClick={showStop ? onStop : submit}
-              disabled={!showStop && !canSend}
-              aria-label={showStop ? t("composer.stop") : t("send")}
-              className="bg-ink text-bg flex size-10 flex-none items-center justify-center rounded-full transition-opacity disabled:opacity-40"
-            >
-              {showStop ? (
-                <Square className="size-3.5 fill-current" strokeWidth={0} />
-              ) : (
-                <ArrowUp className="size-4.5" strokeWidth={2.75} />
-              )}
-            </button>
+            <SendButton stop={showStop} disabled={!showStop && !canSend} onClick={showStop ? onStop : submit} />
           </div>
 
           <div className="flex justify-end px-4 pb-1.5">

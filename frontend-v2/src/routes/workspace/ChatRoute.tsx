@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useParams } from "react-router"
 import { Spinner } from "@/shared/ui/Spinner"
 import { toast } from "@/shared/ui/Toast"
@@ -21,10 +21,12 @@ import {
   useStreamStore,
 } from "@/features/chat"
 import { useSessionQuery } from "@/features/chat/api/message-actions"
+import { useChatAgents, type ChatAgent } from "@/features/chat/api/agents"
 
 const EMPTY_MESSAGES: MessageWithParts[] = []
 const EMPTY_PERMS: PermissionRequest[] = []
 const EMPTY_QUESTIONS: QuestionRequest[] = []
+const EMPTY_AGENTS: ChatAgent[] = []
 
 export default function ChatRoute() {
   const { sessionId = "" } = useParams()
@@ -76,6 +78,24 @@ export default function ChatRoute() {
     useStreamStore.getState().setStatus(sessionId, "idle")
   }
 
+  // Which agent this conversation answers as. The session record is the
+  // truth — the backend writes it on every switch, including the model's own
+  // plan_enter/plan_exit — with an unsent pick layered on top so the picker
+  // reacts before the next message goes out.
+  //
+  // The pick is dropped by comparing during render rather than in an effect:
+  // an effect would render once with the stale pick still showing, which for
+  // a mode indicator means briefly claiming the wrong mode.
+  const { data: agents } = useChatAgents()
+  const serverAgent = session.data?.agent ?? "build"
+  const [pickedAgent, setPickedAgent] = useState<string | undefined>(undefined)
+  const [seenAgent, setSeenAgent] = useState({ sessionId, serverAgent })
+  if (seenAgent.sessionId !== sessionId || seenAgent.serverAgent !== serverAgent) {
+    setSeenAgent({ sessionId, serverAgent })
+    setPickedAgent(undefined)
+  }
+  const sessionAgent = pickedAgent ?? serverAgent
+
   const permissions = usePendingStore((s) => s.permissions.get(sessionId) ?? EMPTY_PERMS)
   const questions = usePendingStore((s) => s.questions.get(sessionId) ?? EMPTY_QUESTIONS)
 
@@ -106,12 +126,15 @@ export default function ChatRoute() {
       )}
       <Composer
         busy={busy}
-        onSubmit={(text, opts) => send(text, opts)}
+        onSubmit={(text, opts) => send(text, { ...opts, agent: sessionAgent })}
         onStop={stop}
         sessionModel={session.data?.model}
         sessionKey={sessionId}
         contextTokens={session.data?.token_usage?.context ?? 0}
         contextLimit={session.data?.token_usage?.limit ?? 0}
+        agents={agents ?? EMPTY_AGENTS}
+        sessionAgent={sessionAgent}
+        onPickAgent={setPickedAgent}
       />
     </div>
   )

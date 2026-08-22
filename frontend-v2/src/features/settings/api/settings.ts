@@ -20,6 +20,11 @@ export interface AgentSummary {
   name: string
   description?: string
   model?: string
+  /** "primary" | "subagent" | "all". The list only ever serves agents a
+   *  person may pick, so a subagent never appears here. */
+  mode?: string
+  /** Accent colour the agent asked for, if any. */
+  color?: string | null
 }
 export interface SkillSummary {
   name?: string

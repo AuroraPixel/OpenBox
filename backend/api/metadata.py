@@ -76,6 +76,8 @@ async def list_agents():
             "model": a.model or "",
             "temperature": a.temperature,
             "tools": a.tools,
+            "mode": a.mode,
+            "color": a.color,
         }
         for a in agents
     ]

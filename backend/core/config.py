@@ -54,11 +54,30 @@ class ModelConfig(BaseModel):
 
 
 class AgentOverride(BaseModel):
+    """Per-agent config. Also defines an agent when the name is unknown.
+
+    Mirrors opencode's `agent` config block: the same entry can retune a
+    built-in or introduce one of your own, and `disable` takes one away.
+    """
     model: str | None = None
     temperature: float | None = None
     prompt: str | None = None
     max_steps: int | None = None
     permission: list[dict[str, str]] | None = None
+    # -- registry-level: what the agent *is*, not just how it runs --
+    description: str | None = None
+    #: "primary" (chat only) | "subagent" (task-spawned only) | "all" (both).
+    #: A config-defined agent defaults to "all", as in opencode.
+    mode: str | None = None
+    #: Keep it out of the picker without deleting it.
+    hidden: bool | None = None
+    #: Replaces the toolset outright — an agent's tools are a whitelist, and
+    #: accumulating them would quietly widen what a narrowed agent can do.
+    tools: list[str] | None = None
+    #: Accent colour for the UI, as in opencode.
+    color: str | None = None
+    #: Remove a built-in agent entirely.
+    disable: bool = False
 
 
 class SkillsConfig(BaseModel):

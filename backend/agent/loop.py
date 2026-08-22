@@ -185,25 +185,9 @@ def resolve_agent_name(last_user, session, is_child: bool = False) -> str:
     return name
 
 
-def apply_agent_overrides(agent_def, overrides):
-    """Layer per-agent config onto a definition, in place.
-
-    `permission` accumulates rather than replaces: config rules are meant to
-    tighten an agent's defaults, not discard them.
-    """
-    if not overrides:
-        return agent_def
-    if overrides.model:
-        agent_def.model = overrides.model
-    if overrides.temperature is not None:
-        agent_def.temperature = overrides.temperature
-    if overrides.max_steps is not None:
-        agent_def.max_steps = overrides.max_steps
-    if overrides.prompt is not None:
-        agent_def.prompt = overrides.prompt
-    if overrides.permission:
-        agent_def.permission = agent_def.permission + overrides.permission
-    return agent_def
+# The registry already folds config into every agent it hands out, so this is
+# re-exported only for callers (and tests) that layer overrides by hand.
+from agent.agent import apply_agent_overrides  # noqa: E402,F401
 
 
 async def _has_pending_todos(session_id: str) -> bool:
@@ -517,10 +501,9 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
             agent_def = copy.copy(get_agent(agent_name))
             agent_def.permission = list(agent_def.permission)  # Deep copy the mutable list
 
-            # Apply per-agent config overrides
-            apply_agent_overrides(
-                agent_def, config.agent.get(agent_name) if config.agent else None
-            )
+            # Per-agent config is already folded in by get_agent(); applying
+            # it again here appended the config's permission rules a second
+            # time.
 
             config_rules = _get_permission_rules(config)
             tools = await resolve_step_tools(agent_def, sandbox, config_rules)

@@ -45,6 +45,13 @@
       "reject": "Back to discussion"
     }
   },
+  "mode": {
+    "label": "Mode",
+    "build": "Build",
+    "plan": "Plan",
+    "buildDesc": "Reads, writes and runs things — gets the work done",
+    "planDesc": "Read-only: researches and drafts a plan for you to approve"
+  },
   "todo": {
     "title": "Task list",
     "working": "Working",

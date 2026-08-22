@@ -11,6 +11,7 @@ export { useStartChat } from "./hooks/useStartChat"
 
 export { useMessagesQuery, useAbortSession } from "./api/messages"
 export { useAddTodoItem, useRemoveTodoItem, useTodoQuery } from "./api/todo"
+export { useChatAgents, type ChatAgent } from "./api/agents"
 export { usePermissionsQuery } from "./api/permission"
 export { useQuestionsQuery } from "./api/question"
 
