@@ -36,6 +36,11 @@ dependencies = [
     "google-cloud-storage>=2.14.0",
     # Wuying cloud-desktop view (ECD GetConnectionTicket)
     "alibabacloud-ecd20200930>=4.0.0",
+    # Stay off the 0.4.0 release candidates: they read `provider_name` off the
+    # credential object while still declaring credentials>=0.3.6, which has no
+    # such field. Resolving one breaks every WUYING API call — the cloud
+    # desktop stops connecting with a 502 from /api/desktop/ticket.
+    "alibabacloud-tea-openapi>=0.3.16,<0.4.0",
 ]
 
 [project.optional-dependencies]
