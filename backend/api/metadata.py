@@ -32,6 +32,7 @@ async def get_config():
     # The context window and vision support are resolved here rather than
     # passed through raw, so the frontend always receives a real number and a
     # real boolean — it has no business re-deriving either from a model id.
+    from agent.agent import default_agent_name
     from agent.compaction import get_model_context_limit
     from agent.vision import supports_vision
 
@@ -60,7 +61,7 @@ async def get_config():
     return {
         "models": models,
         "default_model": config.model,
-        "default_agent": "build",
+        "default_agent": default_agent_name(),
     }
 
 

@@ -16,14 +16,18 @@ class Cfg:
     def __init__(self, agent):
         self.agent = agent
         self.permission = {}
+        self.default_agent = None
 
 
 @pytest.fixture
 def with_config(monkeypatch):
-    def apply(agents: dict):
-        monkeypatch.setattr(mod, "get_config", lambda: Cfg(agents), raising=False)
+    def apply(agents: dict) -> Cfg:
+        # One instance, so a test can set default_agent on what it gets back.
+        cfg = Cfg(agents)
+        monkeypatch.setattr(mod, "get_config", lambda: cfg, raising=False)
         import core.config
-        monkeypatch.setattr(core.config, "get_config", lambda: Cfg(agents))
+        monkeypatch.setattr(core.config, "get_config", lambda: cfg)
+        return cfg
     return apply
 
 
@@ -170,3 +174,33 @@ def test_anything_else_is_dropped(with_config):
     # is not worth forwarding.
     with_config({"reviewer": AgentOverride(color="javascript:alert(1)")})
     assert mod.get_agent("reviewer").color is None
+
+
+# ── which agent a new conversation starts in ──
+
+def test_the_default_is_build(with_config):
+    with_config({})
+    assert mod.default_agent_name() == "build"
+
+
+def test_config_can_choose_another_primary(with_config):
+    cfg = with_config({"reviewer": AgentOverride(mode="primary")})
+    cfg.default_agent = "reviewer"
+    assert mod.default_agent_name() == "reviewer"
+
+
+def test_a_subagent_cannot_be_the_default(with_config):
+    # It has no conversational prompt; honouring this would strand every new
+    # chat in an agent that cannot answer.
+    with_config({}).default_agent = "explore"
+    assert mod.default_agent_name() == "build"
+
+
+def test_an_unknown_name_falls_back(with_config):
+    with_config({}).default_agent = "nonesuch"
+    assert mod.default_agent_name() == "build"
+
+
+def test_a_hidden_agent_cannot_be_the_default(with_config):
+    with_config({"plan": AgentOverride(hidden=True)}).default_agent = "plan"
+    assert mod.default_agent_name() == "build"

@@ -184,6 +184,10 @@ class OpenBoxConfig(BaseModel):
     models: list[ModelConfig] = []
     provider: dict[str, ProviderConfig] = {}
     agent: dict[str, AgentOverride] = {}
+    #: Which agent a new conversation starts in. Must be one a person can
+    #: pick — see agent.default_agent_name, which falls back rather than
+    #: stranding every new chat in an agent that cannot hold a conversation.
+    default_agent: str | None = None
     permission: dict[str, Any] = {}
     mcp: dict[str, McpServerConfig] = {}
     skills: SkillsConfig = SkillsConfig()

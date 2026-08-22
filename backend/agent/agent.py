@@ -2,6 +2,10 @@
 import re as _re
 from dataclasses import dataclass, field
 
+from core.log import create_logger
+
+log = create_logger("agent.agent")
+
 
 @dataclass
 class AgentDef:
@@ -354,6 +358,31 @@ def list_subagents() -> list[AgentDef]:
     never chosen — matching opencode's `item.mode !== "primary"`.
     """
     return [a for a in _merged_registry().values() if a.mode != "primary"]
+
+
+def default_agent_name() -> str:
+    """The agent a new conversation starts in.
+
+    Config may name one, but not any one: a subagent or a hidden agent
+    cannot hold a conversation, and honouring such a value would strand
+    every new chat. opencode raises in that case; we log and fall back,
+    because this is read on the hot path for every new session and a
+    deployment with one bad line in its config should still start chats.
+    """
+    from core.config import get_config
+
+    try:
+        wanted = get_config().default_agent
+    except Exception:
+        wanted = None
+    pickable = {a.name for a in list_agents()}
+    if wanted:
+        if wanted in pickable:
+            return wanted
+        log.warning(f"default_agent '{wanted}' is not an agent a user can pick; using build")
+    if "build" in pickable:
+        return "build"
+    return next(iter(sorted(pickable)), "build")
 
 
 def is_subagent(name: str) -> bool:
