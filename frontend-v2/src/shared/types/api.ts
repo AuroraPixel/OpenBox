@@ -267,6 +267,13 @@ export interface QuestionItem {
   options?: QuestionOption[]
   /** Allow picking more than one option. */
   multiple?: boolean
+  /** Whether a free-text answer is accepted. Absent means yes.
+   *
+   *  Not something the agent can set — its questions must always leave a way
+   *  out, so it cannot corner someone with a closed choice. The system's own
+   *  questions may close it: plan mode's "switch to build?" is Yes or No, and
+   *  a text box there invites an answer nothing will read. */
+  custom?: boolean
 }
 export interface QuestionRequest {
   id: string

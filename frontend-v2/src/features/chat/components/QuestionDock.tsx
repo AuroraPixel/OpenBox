@@ -35,6 +35,8 @@ function OneQuestion({ item, index, total, picked, onPick }: OneProps) {
   const [custom, setCustom] = useState("")
   const options = item.options ?? []
   const multiple = item.multiple ?? false
+  // Absent means allowed — only an explicit false closes it.
+  const allowCustom = item.custom !== false
 
   const toggle = (label: string) => {
     if (!multiple) return onPick([label])
@@ -67,9 +69,7 @@ function OneQuestion({ item, index, total, picked, onPick }: OneProps) {
                 title={o.description}
                 className={cn(
                   "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors",
-                  on
-                    ? "border-accent bg-a100 text-a800"
-                    : "border-hair text-ink hover:bg-hairsoft",
+                  on ? "border-accent bg-a100 text-a800" : "border-hair text-ink hover:bg-hairsoft",
                 )}
               >
                 {on && <Check className="size-3" strokeWidth={3} />}
@@ -80,20 +80,23 @@ function OneQuestion({ item, index, total, picked, onPick }: OneProps) {
         </div>
       )}
 
-      {/* Always offered: the agent is told not to add a catch-all option
-          because this is here. A question with no options is answered here
-          alone. */}
-      <input
-        value={custom}
-        onChange={(e) => {
-          setCustom(e.target.value)
-          const text = e.target.value.trim()
-          onPick(text ? [text] : [])
-        }}
-        placeholder={options.length > 0 ? t("question.other") : t("question.answer")}
-        aria-label={item.question}
-        className="border-hair bg-bg text-ink placeholder:text-n500 focus:border-accent w-full rounded-lg border px-3 py-1.5 text-sm outline-none"
-      />
+      {/* Offered unless the asker closed it. The agent is told not to add a
+          catch-all option because this is here, so its questions always keep
+          it; only the system's own — plan mode's Yes/No — turn it off, where
+          a text box would invite an answer nothing reads. */}
+      {allowCustom && (
+        <input
+          value={custom}
+          onChange={(e) => {
+            setCustom(e.target.value)
+            const text = e.target.value.trim()
+            onPick(text ? [text] : [])
+          }}
+          placeholder={options.length > 0 ? t("question.other") : t("question.answer")}
+          aria-label={item.question}
+          className="border-hair bg-bg text-ink placeholder:text-n500 focus:border-accent w-full rounded-lg border px-3 py-1.5 text-sm outline-none"
+        />
+      )}
     </div>
   )
 }
@@ -120,9 +123,7 @@ export function QuestionDock({ request }: { request: QuestionRequest }) {
             index={i}
             total={questions.length}
             picked={draft[i] ?? []}
-            onPick={(labels) =>
-              setDraft((prev) => prev.map((cur, j) => (j === i ? labels : cur)))
-            }
+            onPick={(labels) => setDraft((prev) => prev.map((cur, j) => (j === i ? labels : cur)))}
           />
         ))}
       </div>
@@ -145,9 +146,7 @@ export function QuestionDock({ request }: { request: QuestionRequest }) {
           {t("question.skip")}
         </button>
         {!complete && (
-          <span className="text-n600 text-xs">
-            {t("question.needAll", { count: questions.length })}
-          </span>
+          <span className="text-n600 text-xs">{t("question.needAll", { count: questions.length })}</span>
         )}
       </div>
     </div>
