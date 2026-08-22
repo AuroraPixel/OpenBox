@@ -42,7 +42,12 @@
     "review": {
       "title": "计划待确认",
       "accept": "按计划执行",
-      "reject": "回到讨论"
+      "reject": "回到讨论",
+      "edit": "编辑计划",
+      "save": "保存",
+      "cancel": "取消",
+      "accepted": "已按此计划执行",
+      "rejected": "已让它重写"
     }
   },
   "mode": {

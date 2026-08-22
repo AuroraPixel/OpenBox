@@ -752,7 +752,13 @@ async def get_plan(session_id: str, current_user: dict = Depends(get_current_use
 
 @router.put("/session/{session_id}/plan")
 async def update_plan(session_id: str, body: PlanUpdateBody, current_user: dict = Depends(get_current_user)):
-    """Write plan file content to sandbox."""
+    """Save the user's edits to the plan.
+
+    Both copies have to move together. The file is what the build agent reads
+    once the plan is approved; the plan part is what the card shows. Writing
+    only the file would leave the user looking at the text they replaced while
+    the agent went off and built something else.
+    """
     user_id = current_user["user_id"]
     session = await session_mod.get_session(session_id, user_id=user_id)
     if not session:
@@ -767,7 +773,24 @@ async def update_plan(session_id: str, body: PlanUpdateBody, current_user: dict 
         raise HTTPException(404, "No sandbox for session")
 
     await client.write_file(pp, body.content)
+    await _sync_plan_part_content(session_id, body.content, user_id)
     return {"ok": True, "path": pp}
+
+
+async def _sync_plan_part_content(session_id: str, content: str, user_id: str) -> None:
+    """Point the newest plan part at what the user just saved."""
+    from session.session import get_messages, update_part_data
+
+    messages = await get_messages(session_id, user_id=user_id)
+    for msg in reversed(messages):
+        for part in reversed(msg.parts or []):
+            p = part if isinstance(part, dict) else (
+                part.model_dump() if hasattr(part, "model_dump") else {}
+            )
+            if isinstance(p, dict) and p.get("type") == "plan":
+                p["content"] = content
+                await update_part_data(p["id"], p, publish=True, user_id=user_id)
+                return
 
 
 # ─── Diff ───

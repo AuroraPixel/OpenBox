@@ -1,4 +1,5 @@
 """Agent definitions, and the registry that merges the user's config over them."""
+import re as _re
 from dataclasses import dataclass, field
 
 
@@ -242,6 +243,20 @@ DEFAULT_CONFIG_MODE = "all"
 
 VALID_MODES = ("primary", "subagent", "all")
 
+#: Named accents a UI can resolve, alongside a literal #rrggbb. Same set as
+#: opencode's Agent.Color — an unrecognised value is dropped rather than
+#: passed through, because it reaches the browser as an inline style.
+NAMED_COLORS = ("primary", "secondary", "accent", "success", "warning", "error", "info")
+
+_HEX_COLOR = _re.compile(r"#[0-9a-fA-F]{6}")
+
+
+def valid_color(value: str | None) -> bool:
+    """Whether a configured colour is one the UI can safely use."""
+    if not value:
+        return False
+    return value in NAMED_COLORS or bool(_HEX_COLOR.fullmatch(value))
+
 
 def _merged_registry() -> dict[str, AgentDef]:
     """The built-ins with the user's config folded in.
@@ -305,7 +320,7 @@ def apply_agent_overrides(agent_def: AgentDef, overrides) -> AgentDef:
         agent_def.hidden = overrides.hidden
     if getattr(overrides, "tools", None):
         agent_def.tools = list(overrides.tools)
-    if getattr(overrides, "color", None):
+    if valid_color(getattr(overrides, "color", None)):
         agent_def.color = overrides.color
     return agent_def
 

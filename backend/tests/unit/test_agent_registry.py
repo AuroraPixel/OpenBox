@@ -12,8 +12,10 @@ from core.config import AgentOverride
 
 
 class Cfg:
+    """Enough of the config object for the registry and permission rules."""
     def __init__(self, agent):
         self.agent = agent
+        self.permission = {}
 
 
 @pytest.fixture
@@ -111,3 +113,60 @@ def test_an_all_agent_is_both_pickable_and_spawnable(with_config):
 def test_an_all_agent_is_not_treated_as_a_subagent_only(with_config):
     with_config({"helper": AgentOverride(mode="all")})
     assert not mod.is_subagent("helper")
+
+
+# ── what a custom agent is allowed to do ──
+
+def _stripped(agent):
+    """Tools removed from the schema before the model ever sees them."""
+    from agent.loop import _get_permission_rules
+    from agent.tool_resolution import agent_ruleset
+    from core.config import get_config
+    from permission.permission import disabled_tools
+
+    rules = _get_permission_rules(get_config()) + agent_ruleset(agent)
+    return disabled_tools(agent.tools, rules)
+
+
+def test_a_custom_agent_cannot_enter_plan_mode_by_default(with_config):
+    # opencode denies plan_enter/plan_exit/question in its defaults and only
+    # build and plan re-allow them. Entering plan mode is a privilege, not
+    # something an agent gets by existing.
+    with_config({"reviewer": AgentOverride()})
+    assert "plan_enter" in _stripped(mod.get_agent("reviewer"))
+
+
+def test_it_can_be_granted_plan_mode_explicitly(with_config):
+    with_config({"reviewer": AgentOverride(
+        permission=[{"permission": "plan_enter", "pattern": "*", "action": "allow"}]
+    )})
+    assert "plan_enter" not in _stripped(mod.get_agent("reviewer"))
+
+
+def test_build_can_enter_plan_mode(with_config):
+    with_config({})
+    assert "plan_enter" not in _stripped(mod.get_agent("build"))
+
+
+def test_plan_can_leave_it(with_config):
+    with_config({})
+    assert "plan_exit" not in _stripped(mod.get_agent("plan"))
+
+
+# ── colour ──
+
+def test_a_hex_colour_is_kept(with_config):
+    with_config({"reviewer": AgentOverride(color="#a1b2c3")})
+    assert mod.get_agent("reviewer").color == "#a1b2c3"
+
+
+def test_a_named_colour_is_kept(with_config):
+    with_config({"reviewer": AgentOverride(color="accent")})
+    assert mod.get_agent("reviewer").color == "accent"
+
+
+def test_anything_else_is_dropped(with_config):
+    # It reaches the browser as an inline style; a value the UI cannot resolve
+    # is not worth forwarding.
+    with_config({"reviewer": AgentOverride(color="javascript:alert(1)")})
+    assert mod.get_agent("reviewer").color is None

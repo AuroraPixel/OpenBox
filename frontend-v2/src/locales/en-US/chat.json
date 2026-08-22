@@ -42,7 +42,12 @@
     "review": {
       "title": "Plan awaiting review",
       "accept": "Run the plan",
-      "reject": "Back to discussion"
+      "reject": "Back to discussion",
+      "edit": "Edit plan",
+      "save": "Save",
+      "cancel": "Cancel",
+      "accepted": "Approved — building from this",
+      "rejected": "Sent back for a rewrite"
     }
   },
   "mode": {

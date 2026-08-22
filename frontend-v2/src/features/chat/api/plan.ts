@@ -11,3 +11,16 @@ export function usePlanDecision(sessionId: string) {
   })
   return { accept, reject }
 }
+
+/** Save the user's edits to the plan.
+ *
+ *  The card updates from the plan part the server echoes back, not from local
+ *  state: the same write also moves the file the build agent will read, and
+ *  those two must never disagree about what was approved.
+ */
+export function useSavePlan(sessionId: string) {
+  return useMutation({
+    mutationFn: (content: string) =>
+      http.put<{ ok: boolean; path: string }>(`/api/agent/session/${sessionId}/plan`, { content }),
+  })
+}
