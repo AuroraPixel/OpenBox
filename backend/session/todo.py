@@ -122,7 +122,15 @@ def merge_todos(previous: list[TodoItem], incoming: list[TodoItem]) -> list[Todo
                 )
             )
             continue
-        status = "cancelled" if old.status == "cancelled" else item.status
+        status = item.status
+        if old.status == "cancelled":
+            status = "cancelled"
+        elif old.source == "user" and status == "cancelled":
+            # The model does not get to drop a task the user asked for. Left
+            # to itself it reads an unfamiliar item as leftover noise and
+            # cancels it — which is precisely what the user's edit existed to
+            # prevent. Only the user removes their own tasks.
+            status = old.status
         started_at = old.started_at
         if status == "in_progress" and not started_at:
             started_at = _now()
@@ -157,8 +165,10 @@ async def replace_todos(
         return todo
 
 
-def pacing_note(previous: list[TodoItem], merged: list[TodoItem]) -> str:
-    """What to tell the model about *when* it is updating the list.
+def pacing_note(
+    previous: list[TodoItem], incoming: list[TodoItem], merged: list[TodoItem]
+) -> str:
+    """What to tell the model about *how* it is using the list.
 
     Left to itself a model treats the list as paperwork: it writes the plan,
     does all the work, then marks everything done in one final write. The
@@ -169,11 +179,20 @@ def pacing_note(previous: list[TodoItem], merged: list[TodoItem]) -> str:
     Saying so in the tool description is not enough; it is one paragraph in
     a long page the model skims once. Saying it here puts it in the tool's
     own result, at the exact moment the mistake was made.
+
+    Takes the model's own ``incoming`` list as well as the ``merged`` result,
+    because some of what it needs to hear is about a change the merge just
+    refused to make.
     """
     was_done = {t.id for t in previous if t.status == "completed"}
     just_done = [t for t in merged if t.status == "completed" and t.id not in was_done]
     running = [t for t in merged if t.status == "in_progress"]
     waiting = [t for t in merged if t.status == "pending"]
+    dropped = {t.subject for t in incoming if t.status == "cancelled"}
+    refused = [
+        t for t in merged
+        if t.source == "user" and t.status != "cancelled" and t.subject in dropped
+    ]
 
     lines: list[str] = []
     if len(just_done) > 1:
@@ -186,6 +205,13 @@ def pacing_note(previous: list[TodoItem], merged: list[TodoItem]) -> str:
         lines.append(
             f"{len(running)} tasks are in_progress. Exactly one task may be "
             "in_progress at a time."
+        )
+    if refused:
+        subjects = ", ".join(f'"{t.subject}"' for t in refused)
+        lines.append(
+            f"You cannot cancel a task the user added ({subjects}); it is still "
+            "on the list. Do the work it describes and mark it completed. If it "
+            "is genuinely already done, mark it completed rather than cancelled."
         )
     if not running and waiting:
         lines.append(

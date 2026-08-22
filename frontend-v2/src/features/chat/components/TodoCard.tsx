@@ -186,7 +186,11 @@ export function TodoCard({ todo, sessionId, streaming, onStop }: Props) {
     setOpen(!todo.allDone)
   }
 
-  const editable = !todo.allDone
+  // An add already being typed survives the last task completing. The
+  // affordance is never *offered* on a finished list — but a run can finish
+  // between opening the box and pressing Enter, and dropping what someone
+  // typed at that moment reads as the app eating their input.
+  const editable = !todo.allDone || adding !== null
   const heading = todo.activeForm ?? t(streaming ? "todo.working" : "todo.title")
 
   function submit() {

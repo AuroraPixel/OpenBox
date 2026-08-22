@@ -150,14 +150,15 @@ async def test_a_finished_task_is_not_raised():
 # ── pacing ──
 
 async def test_planning_without_starting_is_called_out():
-    note = todo_mod.pacing_note([], [TodoItem(subject="first"), TodoItem(subject="second")])
+    incoming = [TodoItem(subject="first"), TodoItem(subject="second")]
+    note = todo_mod.pacing_note([], incoming, incoming)
     assert "in_progress" in note
     assert "first" in note
 
 
 async def test_starting_a_task_draws_no_comment():
     merged = [TodoItem(subject="first", status="in_progress"), TodoItem(subject="second")]
-    assert todo_mod.pacing_note([], merged) == ""
+    assert todo_mod.pacing_note([], merged, merged) == ""
 
 
 async def test_finishing_several_tasks_at_once_is_called_out():
@@ -169,7 +170,7 @@ async def test_finishing_several_tasks_at_once_is_called_out():
         TodoItem(id="1", subject="a", status="completed"),
         TodoItem(id="2", subject="b", status="completed"),
     ]
-    assert "one write" in todo_mod.pacing_note(before, after)
+    assert "one write" in todo_mod.pacing_note(before, after, after)
 
 
 async def test_finishing_one_task_draws_no_comment():
@@ -181,7 +182,7 @@ async def test_finishing_one_task_draws_no_comment():
         TodoItem(id="1", subject="a", status="completed"),
         TodoItem(id="2", subject="b", status="in_progress"),
     ]
-    assert todo_mod.pacing_note(before, after) == ""
+    assert todo_mod.pacing_note(before, after, after) == ""
 
 
 async def test_running_two_tasks_at_once_is_called_out():
@@ -189,18 +190,47 @@ async def test_running_two_tasks_at_once_is_called_out():
         TodoItem(id="1", subject="a", status="in_progress"),
         TodoItem(id="2", subject="b", status="in_progress"),
     ]
-    assert "one task may be in_progress" in todo_mod.pacing_note([], merged)
+    assert "one task may be in_progress" in todo_mod.pacing_note([], merged, merged)
 
 
 async def test_a_finished_list_draws_no_comment():
     before = [TodoItem(id="1", subject="a", status="in_progress")]
     after = [TodoItem(id="1", subject="a", status="completed")]
-    assert todo_mod.pacing_note(before, after) == ""
+    assert todo_mod.pacing_note(before, after, after) == ""
 
 
 async def test_a_cancelled_task_does_not_count_as_waiting():
     merged = [TodoItem(subject="a", status="completed"), TodoItem(subject="b", status="cancelled")]
-    assert todo_mod.pacing_note([], merged) == ""
+    assert todo_mod.pacing_note([], merged, merged) == ""
+
+
+# ── the user's tasks are not the model's to drop ──
+
+async def test_the_model_cannot_cancel_a_task_the_user_added():
+    before = [TodoItem(id="1", subject="mine", source="user")]
+    merged = todo_mod.merge_todos(before, [TodoItem(id="1", subject="mine", status="cancelled")])
+    assert merged[0].status == "pending"
+
+
+async def test_the_model_may_still_complete_a_task_the_user_added():
+    before = [TodoItem(id="1", subject="mine", source="user")]
+    merged = todo_mod.merge_todos(before, [TodoItem(id="1", subject="mine", status="completed")])
+    assert merged[0].status == "completed"
+
+
+async def test_the_model_may_still_cancel_its_own_task():
+    before = [TodoItem(id="1", subject="theirs")]
+    merged = todo_mod.merge_todos(before, [TodoItem(id="1", subject="theirs", status="cancelled")])
+    assert merged[0].status == "cancelled"
+
+
+async def test_refusing_the_cancel_is_explained_to_the_model():
+    before = [TodoItem(id="1", subject="mine", source="user")]
+    incoming = [TodoItem(subject="mine", status="cancelled")]
+    merged = todo_mod.merge_todos(before, incoming)
+    note = todo_mod.pacing_note(before, incoming, merged)
+    assert "cannot cancel a task the user added" in note
+    assert "mine" in note
 
 
 # ── the loop's backstop ──

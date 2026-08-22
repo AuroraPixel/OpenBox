@@ -96,7 +96,7 @@ async def execute_write(args: TodoWriteArgs, ctx: ToolContext) -> ToolResult:
     active = sum(1 for t in todo.items if t.status not in ("completed", "cancelled"))
 
     listing = "\n".join(f"[{t.status}] {t.subject}" for t in todo.items) or "Todo list cleared."
-    note = pacing_note(before.items, todo.items)
+    note = pacing_note(before.items, items, todo.items)
     return ToolResult(
         title=f"{active} todos",
         output=f"{listing}\n\n{note}" if note else listing,
