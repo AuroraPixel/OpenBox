@@ -67,7 +67,13 @@ async def execute(args: QuestionArgs, ctx: ToolContext) -> ToolResult:
     return ToolResult(
         title=f"Asked {len(args.questions)} question{'s' if len(args.questions) > 1 else ''}",
         output=f"User has answered your questions: {formatted}. You can now continue with the user's answers in mind.",
-        metadata={"answers": answers},
+        # Both halves, so the conversation can show what was asked next to what
+        # was chosen. Reconstructing the pairing from the output string means
+        # parsing quotes back out of prose the model also reads.
+        metadata={
+            "answers": answers,
+            "questions": [q.question for q in args.questions],
+        },
     )
 
 

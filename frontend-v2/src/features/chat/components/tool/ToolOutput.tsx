@@ -16,6 +16,7 @@ import {
 } from "../../lib/tool-parse"
 import { ToolDetailText, ToolMiniLabel, ToolPre, ToolSourceLinks } from "./ToolPrimitives"
 import { DiffRows } from "../DiffRows"
+import { QuestionAnswered } from "./QuestionAnswered"
 import { editPreview } from "../../lib/diff-preview"
 
 interface LayoutProps {
@@ -335,6 +336,8 @@ export function ToolOutput({ part }: { part: ToolPart | SubtaskPart }) {
       return <SkillOutput part={part} failed={failed} />
     case "agent":
       return <AgentOutput part={part} failed={failed} />
+    case "question":
+      return <QuestionAnswered part={part} />
     default:
       return <GenericOutput part={part} failed={failed} />
   }

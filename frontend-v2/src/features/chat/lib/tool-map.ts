@@ -74,7 +74,7 @@ const TOOL_TABLE: Record<string, ToolGlyph> = {
 }
 
 /** Structural layout for a tool's detail column — how its output is composed. */
-export type ToolLayout = "search" | "fetch" | "shell" | "file" | "find" | "agent" | "skill" | "generic"
+export type ToolLayout = "search" | "fetch" | "shell" | "file" | "find" | "agent" | "skill" | "question" | "generic"
 
 const FILE_TOOLS = ["read", "write", "edit", "multiedit", "apply_patch", "str_replace", "readfile", "writefile", "view", "create", "new_file"]
 const FIND_TOOLS = ["glob", "grep", "find", "search", "ls", "ripgrep"]
@@ -92,6 +92,8 @@ export function resolveToolLayout(tool: string): ToolLayout {
   // part a reader needs.
   if (t === "skill" || t.startsWith("skill")) return "skill"
   if (t === "task" || t === "agent") return "agent"
+  // A question is worth reading back as the exchange it was.
+  if (t === "question") return "question"
   return "generic"
 }
 

@@ -74,7 +74,13 @@
   },
   "question": {
     "title": "agent 想确认",
-    "reject": "拒绝"
+    "reject": "拒绝",
+    "submit": "确认",
+    "skip": "跳过",
+    "other": "或者自己写一个答案",
+    "answer": "写下你的回答",
+    "needAll": "请回答全部 {{count}} 个问题",
+    "unanswered": "未回答"
   },
   "compaction": "上下文已压缩",
   "retry": "第 {{attempt}} 次重试",

@@ -258,16 +258,23 @@ export interface PermissionRequest {
 }
 export interface QuestionOption {
   label: string
-  value?: string
   description?: string
+}
+/** One question in a request. The agent may ask up to a handful at once. */
+export interface QuestionItem {
+  question: string
+  header?: string
+  options?: QuestionOption[]
+  /** Allow picking more than one option. */
+  multiple?: boolean
 }
 export interface QuestionRequest {
   id: string
   session_id: string
-  question: string
-  header?: string
-  options?: QuestionOption[]
-  multi_select?: boolean
+  /** The questions asked together. Answered as a set, in this order. */
+  questions: QuestionItem[]
+  /** The tool call waiting on this, when it came from one. */
+  tool?: { messageID?: string; callID?: string } | null
   created_at?: string
 }
 

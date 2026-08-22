@@ -8,7 +8,7 @@ import {
   ChatFlow,
   Composer,
   PermissionCard,
-  QuestionCard,
+  QuestionDock,
   isBusyStatus,
   mergeTurns,
   useAbortSession,
@@ -109,9 +109,6 @@ export default function ChatRoute() {
       {permissions.map((p) => (
         <PermissionCard key={p.id} request={p} />
       ))}
-      {questions.map((q) => (
-        <QuestionCard key={q.id} request={q} />
-      ))}
     </>
   )
 
@@ -124,6 +121,11 @@ export default function ChatRoute() {
       ) : (
         <ChatFlow turns={turns} sessionId={sessionId} busy={busy} footer={footer} onStop={stop} />
       )}
+      {/* Above the composer, outside the scroll area: the run is blocked on
+          this, so it must not be scrollable away while the agent waits. */}
+      {questions.map((q) => (
+        <QuestionDock key={q.id} request={q} />
+      ))}
       <Composer
         busy={busy}
         onSubmit={(text, opts) => send(text, { ...opts, agent: sessionAgent })}

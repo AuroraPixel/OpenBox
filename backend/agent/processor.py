@@ -406,6 +406,8 @@ async def process_step(
                         "exit_code", "blocked", "truncated", "count", "duration",
                         # The child a task spawned, so the UI can follow it.
                         "child_session_id", "subagent_type",
+                        # What was asked and what the user chose.
+                        "questions", "answers",
                     )
                 }
                 await save_part(tool_part, user_id=user_id)

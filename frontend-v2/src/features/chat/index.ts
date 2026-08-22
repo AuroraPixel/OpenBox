@@ -3,7 +3,7 @@ export { ChatFlow } from "./components/ChatFlow"
 export { Composer } from "./components/Composer"
 export { EmptyState } from "./components/EmptyState"
 export { PermissionCard } from "./components/PermissionCard"
-export { QuestionCard } from "./components/QuestionCard"
+export { QuestionDock } from "./components/QuestionDock"
 
 export { useChatEvents } from "./hooks/useChatEvents"
 export { useSendChat } from "./hooks/useSendChat"

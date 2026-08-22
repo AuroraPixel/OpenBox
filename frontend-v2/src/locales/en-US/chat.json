@@ -74,7 +74,13 @@
   },
   "question": {
     "title": "The agent wants to confirm",
-    "reject": "Decline"
+    "reject": "Decline",
+    "submit": "Confirm",
+    "skip": "Skip",
+    "other": "Or write your own answer",
+    "answer": "Write your answer",
+    "needAll": "Answer all {{count}} questions",
+    "unanswered": "Unanswered"
   },
   "compaction": "Context compacted",
   "retry": "Retry #{{attempt}}",

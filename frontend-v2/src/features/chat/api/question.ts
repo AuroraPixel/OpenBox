@@ -15,7 +15,10 @@ export function useQuestionsQuery() {
 
 export function useReplyQuestion() {
   return useMutation({
-    mutationFn: ({ requestId, answers }: { requestId: string; answers: string[] }) =>
+    // One array of chosen labels per question, in the order they were asked —
+    // the shape the server has always expected. It used to be sent flat, so a
+    // reply was rejected before it reached the agent.
+    mutationFn: ({ requestId, answers }: { requestId: string; answers: string[][] }) =>
       http.post<{ ok: boolean }>(`/api/agent/question/${requestId}`, { answers }),
     onSuccess: (_data, { requestId }) => usePendingStore.getState().removeQuestion(requestId),
   })
