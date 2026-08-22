@@ -83,6 +83,11 @@ async def execute_enter(args: PlanEnterArgs, ctx: ToolContext) -> ToolResult:
             custom=False,
         )],
         tool={"messageID": ctx.message_id, "callID": ctx.part_id} if ctx.part_id else None,
+        # Not optional: the question is filed and delivered by user id, so
+        # leaving it at the default asked a user who does not exist. The
+        # dialog never reached anyone and the tool blocked until the run was
+        # killed — build mode could propose plan mode but never enter it.
+        user_id=ctx.user_id or "default",
     )
 
     first_answer = answers[0][0] if answers and answers[0] else "No"
