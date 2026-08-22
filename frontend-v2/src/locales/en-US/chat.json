@@ -80,6 +80,9 @@
   "retry": "Retry #{{attempt}}",
   "agentSwitch": "Switched to {{agent}}",
   "subtask": "Subtask · {{agent}}",
+  "subagent": {
+    "summary": "{{count}} calls · {{duration}}"
+  },
   "stopGen": "Stop generating",
   "attach": "Attach",
   "send": "Send",

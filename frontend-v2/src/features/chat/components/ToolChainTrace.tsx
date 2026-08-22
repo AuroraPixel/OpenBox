@@ -7,6 +7,7 @@ import { cn } from "@/shared/lib/cn"
 import type { SubtaskPart, ToolPart } from "@/shared/types/api"
 import type { ToolLike } from "../lib/turn-view"
 import { describeTool } from "../lib/tool-map"
+import { SubagentLine } from "./SubagentLine"
 import { ToolOutput } from "./tool/ToolOutput"
 import { TraceShell } from "./TraceShell"
 
@@ -59,6 +60,11 @@ function ToolChainRows({ steps }: { steps: Step[] }) {
           </div>
           <div className="min-w-0 pb-2 max-sm:col-start-2">
             <ToolOutput part={step.part} />
+            {/* A task row is silent for as long as its subagent works, which
+                is usually the longest thing in the chain. */}
+            {step.part.type === "tool" && step.part.tool === "task" && (
+              <SubagentLine part={step.part} inline />
+            )}
           </div>
         </li>
       ))}

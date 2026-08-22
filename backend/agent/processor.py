@@ -402,7 +402,11 @@ async def process_step(
                 tool_part.error = result.output if result.metadata.get("error") else None
                 tool_part.metadata = {
                     k: v for k, v in (result.metadata or {}).items()
-                    if k in ("exit_code", "blocked", "truncated", "count", "duration")
+                    if k in (
+                        "exit_code", "blocked", "truncated", "count", "duration",
+                        # The child a task spawned, so the UI can follow it.
+                        "child_session_id", "subagent_type",
+                    )
                 }
                 await save_part(tool_part, user_id=user_id)
 

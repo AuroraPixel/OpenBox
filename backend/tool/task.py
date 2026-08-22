@@ -1,7 +1,10 @@
 """Task tool: spawn sub-agent sessions."""
 from pydantic import BaseModel, Field
 
+from core.log import create_logger
 from tool.tool import ToolResult, ToolContext, define_tool
+
+log = create_logger("tool.task")
 
 
 class TaskArgs(BaseModel):
@@ -55,9 +58,18 @@ async def execute(args: TaskArgs, ctx: ToolContext) -> ToolResult:
         user_id=ctx.user_id or "default",
     )
 
-    # Run the agent loop
+    # Point this tool call at its child BEFORE the child runs. The UI follows
+    # the child's own parts to show what the subagent is doing; without the
+    # pointer it has nothing to follow, and the pointer is useless if it only
+    # arrives with the result — by then there is nothing left to watch. This
+    # is why the parent's row read "task · running" and nothing else.
+    await _announce_child(ctx, child.id, args.subagent_type)
+
+    # Run the agent loop, and let the parent's stop reach it. The child has
+    # its own abort signal, so aborting the parent alone left the subagent
+    # running to completion after the user had already stopped the run.
     from agent.loop import run_loop
-    await run_loop(child.id, user_id=ctx.user_id or "default")
+    await _run_child(ctx, child.id)
 
     # Collect output: only the LAST text part (matching opencode's findLast)
     messages = await session_mod.get_messages(child.id)
@@ -86,7 +98,63 @@ async def execute(args: TaskArgs, ctx: ToolContext) -> ToolResult:
     return ToolResult(
         title=args.description,
         output=output,
+        # Carried on the finished part too, so a reloaded conversation can
+        # still link the row to the child session it spawned.
+        metadata={"child_session_id": child.id, "subagent_type": args.subagent_type},
     )
+
+
+async def _announce_child(ctx: ToolContext, child_id: str, subagent_type: str) -> None:
+    """Record the child session on this tool part, while it still matters."""
+    from session.session import get_messages, update_part_data
+
+    if not ctx.part_id:
+        return
+    try:
+        messages = await get_messages(ctx.session_id, user_id=ctx.user_id or "default")
+        for msg in reversed(messages):
+            for part in reversed(msg.parts or []):
+                p = part if isinstance(part, dict) else (
+                    part.model_dump() if hasattr(part, "model_dump") else {}
+                )
+                if isinstance(p, dict) and p.get("id") == ctx.part_id:
+                    meta = dict(p.get("metadata") or {})
+                    meta.update({"child_session_id": child_id, "subagent_type": subagent_type})
+                    p["metadata"] = meta
+                    await update_part_data(
+                        ctx.part_id, p, publish=True, user_id=ctx.user_id or "default"
+                    )
+                    return
+    except Exception as e:  # never fail the task over a progress pointer
+        log.debug(f"could not announce child session {child_id}: {e}")
+
+
+async def _run_child(ctx: ToolContext, child_id: str) -> None:
+    """Run the subagent, forwarding the parent's stop to it."""
+    import asyncio
+
+    from agent.loop import run_loop
+    from session.status import trigger_abort
+
+    user_id = ctx.user_id or "default"
+    child = asyncio.create_task(run_loop(child_id, user_id=user_id))
+    if ctx.abort is None:
+        await child
+        return
+
+    watch = asyncio.create_task(ctx.abort.wait())
+    done, _ = await asyncio.wait({child, watch}, return_when=asyncio.FIRST_COMPLETED)
+    watch.cancel()
+    if child in done:
+        await child
+        return
+    # The parent was stopped. Signal the child and give it a moment to wind
+    # down on its own before abandoning the wait.
+    trigger_abort(child_id)
+    try:
+        await asyncio.wait_for(child, timeout=10)
+    except (asyncio.TimeoutError, TimeoutError):
+        child.cancel()
 
 
 TASK_DESCRIPTION = """\

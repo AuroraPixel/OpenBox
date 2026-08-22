@@ -80,6 +80,9 @@
   "retry": "第 {{attempt}} 次重试",
   "agentSwitch": "切换到 {{agent}}",
   "subtask": "子任务 · {{agent}}",
+  "subagent": {
+    "summary": "共 {{count}} 次调用 · {{duration}}"
+  },
   "stopGen": "停止生成",
   "attach": "附件",
   "send": "发送",

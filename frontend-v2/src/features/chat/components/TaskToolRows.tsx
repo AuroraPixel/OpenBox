@@ -13,6 +13,7 @@ import type { SubtaskPart, ToolPart } from "@/shared/types/api"
 import { describeTool, toneBgClass, toneFgClass, toolTarget } from "../lib/tool-map"
 import { parseExitCode } from "../lib/tool-parse"
 import { toolDuration, type ToolLike } from "../lib/turn-view"
+import { SubagentLine } from "./SubagentLine"
 import { ToolOutput } from "./tool/ToolOutput"
 
 function Row({ part }: { part: ToolPart | SubtaskPart }) {
@@ -84,6 +85,10 @@ function Row({ part }: { part: ToolPart | SubtaskPart }) {
           )}
         />
       </button>
+      {/* A task's own row says nothing about the minutes the subagent spends
+          working, so its progress goes directly under the row rather than
+          behind the fold. */}
+      {part.type === "tool" && part.tool === "task" && <SubagentLine part={part} />}
       <div className="fold" data-open={open}>
         <div>
           <div className="ps-9 pb-2">
