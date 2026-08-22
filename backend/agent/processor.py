@@ -140,11 +140,11 @@ async def _iter_until_abort(stream, abort: asyncio.Event):
             await abort_task
 
 
-async def _history_for_compaction(session_id: str) -> list:
+async def _history_for_compaction(session_id: str, user_id: str) -> list:
     """History for sizing the preserved tail. Best effort — losing the tail is
     much better than losing the compaction that keeps the session alive."""
     try:
-        return await get_messages(session_id)
+        return await get_messages(session_id, user_id=user_id)
     except Exception as e:
         log.warning(f"Could not load history for compaction tail: {e}")
         return []
@@ -285,7 +285,7 @@ async def process_step(
                 error = event["error"]
                 if is_context_overflow(str(error)):
                     await create_compaction(session_id, auto=True, user_id=user_id,
-                                        messages=await _history_for_compaction(session_id),
+                                        messages=await _history_for_compaction(session_id, user_id),
                                         model_id=model_id)
                     finish_reason = "compact"
                 else:
@@ -419,7 +419,7 @@ async def process_step(
 
     except ContextOverflowError:
         await create_compaction(session_id, auto=True, user_id=user_id,
-                                        messages=await _history_for_compaction(session_id),
+                                        messages=await _history_for_compaction(session_id, user_id),
                                         model_id=model_id)
         finish_reason = "compact"
     except Exception as e:

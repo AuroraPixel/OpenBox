@@ -127,7 +127,7 @@ async def _get_session_summary(job: dict) -> str:
 
     # Check if cache is still valid
     from session.session import get_messages
-    messages = await get_messages(session_id)
+    messages = await get_messages(session_id, user_id=job["user_id"])
     if not messages:
         return ""
 
@@ -309,7 +309,7 @@ async def _run_agent_loop(temp_session_id: str, user_id: str, job: dict) -> str:
     # Extract all assistant text parts as the result
     # Agent may produce text across multiple assistant messages (between tool calls)
     from session.session import get_messages
-    messages = await get_messages(temp_session_id)
+    messages = await get_messages(temp_session_id, user_id=user_id)
 
     text_parts = []
     for msg in messages:

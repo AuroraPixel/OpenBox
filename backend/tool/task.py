@@ -72,7 +72,7 @@ async def execute(args: TaskArgs, ctx: ToolContext) -> ToolResult:
     await _run_child(ctx, child.id)
 
     # Collect output: only the LAST text part (matching opencode's findLast)
-    messages = await session_mod.get_messages(child.id)
+    messages = await session_mod.get_messages(child.id, user_id=ctx.user_id or "default")
     text = ""
     for msg in reversed(messages):
         role = msg.role if isinstance(msg.role, str) else msg.role.value

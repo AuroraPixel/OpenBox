@@ -124,7 +124,7 @@ class SandboxManager:
             ],
         }
 
-    async def acquire(self, session_id: str, project_id: str = "default", user_id: str = "default") -> SandboxInfo:
+    async def acquire(self, session_id: str, project_id: str = "default", *, user_id: str) -> SandboxInfo:
         """Acquire a sandbox for a session. Reuses the user's existing container if available."""
         key = _map_key(user_id)
 
@@ -267,7 +267,7 @@ class SandboxManager:
         except Exception as e:
             log.warning(f"Failed to destroy sandbox {sandbox.container_id}: {e}")
 
-    async def get_client(self, session_id: str, user_id: str = "default") -> SandboxClient:
+    async def get_client(self, session_id: str, *, user_id: str) -> SandboxClient:
         """Get the SandboxClient for a session. Acquires sandbox if needed."""
         key = self._session_project.get(session_id)
         if not key:
@@ -285,7 +285,19 @@ class SandboxManager:
 
         raise RuntimeError(f"No sandbox client for session {session_id}")
 
-    async def get_client_any(self, user_id: str = "default") -> SandboxClient | None:
+    async def get_only_client(self) -> SandboxClient | None:
+        """The one sandbox, when this deployment has exactly one.
+
+        For maintenance that belongs to no user — the workspace sweep — where
+        borrowing someone's identity to pick a sandbox would be a guess. With
+        more than one live sandbox there is no defensible answer, so it
+        returns None rather than choosing.
+        """
+        if len(self._clients) != 1:
+            return None
+        return next(iter(self._clients.values()))
+
+    async def get_client_any(self, *, user_id: str) -> SandboxClient | None:
         """Get any available SandboxClient (not session-specific).
 
         Used by management endpoints (skills, MCP) that operate at the container level.

@@ -13,14 +13,14 @@ log = create_logger("session.revert")
 _revert_snapshots: dict[str, str] = {}  # session_id -> pre-revert snapshot
 
 
-async def revert_to_message(session_id: str, message_id: str) -> bool:
+async def revert_to_message(session_id: str, message_id: str, *, user_id: str) -> bool:
     """Revert file changes to the state before a message was processed.
 
     Finds the step-start snapshot for the target message and restores
     the sandbox to that state. Saves the current state for unrevert.
     """
     try:
-        msgs = await get_messages(session_id)
+        msgs = await get_messages(session_id, user_id=user_id)
         if not msgs:
             log.warning(f"No messages found for session {session_id}")
             return False
@@ -64,7 +64,7 @@ async def revert_to_message(session_id: str, message_id: str) -> bool:
 
         # Save current state for unrevert
         from sandbox import sandbox_manager
-        sandbox = await sandbox_manager.get_client(session_id)
+        sandbox = await sandbox_manager.get_client(session_id, user_id=user_id)
         current_snapshot = await snapshot.track(session_id, sandbox)
         if current_snapshot:
             _revert_snapshots[session_id] = current_snapshot
@@ -80,7 +80,7 @@ async def revert_to_message(session_id: str, message_id: str) -> bool:
         return False
 
 
-async def unrevert(session_id: str) -> bool:
+async def unrevert(session_id: str, *, user_id: str) -> bool:
     """Undo a revert by restoring the pre-revert snapshot."""
     try:
         pre_revert = _revert_snapshots.pop(session_id, None)
@@ -88,7 +88,7 @@ async def unrevert(session_id: str) -> bool:
             log.warning(f"No revert to undo for session {session_id}")
             return False
 
-        success = await snapshot.restore(pre_revert, session_id)
+        success = await snapshot.restore(pre_revert, session_id, user_id=user_id)
         if success:
             log.info(f"Unreverted session {session_id} to snapshot {pre_revert[:12]}")
         return success

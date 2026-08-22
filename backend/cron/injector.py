@@ -167,7 +167,7 @@ async def _check_and_compact_if_needed(
             from agent.compaction import create_compaction, process_compaction
             from session.session import get_messages
             await create_compaction(session_id, auto=True, user_id=user_id)
-            messages = await get_messages(session_id)
+            messages = await get_messages(session_id, user_id=user_id)
             model_id = session.model or "openai/claude-sonnet-4-20250514"
             await process_compaction(session_id, messages, model_id, auto=True, user_id=user_id)
         except Exception as e:

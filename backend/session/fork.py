@@ -34,7 +34,7 @@ async def fork_session(
         raise ValueError(f"Session {source_session_id} not found")
 
     # Get messages from source
-    messages = await get_messages(source_session_id)
+    messages = await get_messages(source_session_id, user_id=user_id)
 
     # Truncate at the specified message
     if up_to_message_id:

@@ -487,13 +487,20 @@ async def update_message_info(info: MessageInfo, user_id: str = "default") -> No
     })
 
 
-async def save_part(part: MessagePart, is_new: bool = False, user_id: str = "default") -> None:
+async def save_part(part: MessagePart, is_new: bool = False, *, user_id: str) -> None:
     """Save a part to the database and publish event.
+
+    ``user_id`` is required and keyword-only. It is not a detail of logging:
+    the bus routes this part's event by it, so a wrong or defaulted value
+    delivers the update to nobody and the UI silently stops moving until
+    something forces a refetch. That failure has shipped three times — the
+    todo card, the plan card, and the aborted-tool row — each time because
+    the parameter had a plausible default and a caller left it off.
 
     Args:
         part: The message part to save.
         is_new: If True, publish PART_CREATED instead of PART_UPDATED.
-        user_id: The user ID for bus events.
+        user_id: Whose update this is. Required.
     """
     part_dict = part.model_dump()
     msg_id = part_dict.get("message_id", "")

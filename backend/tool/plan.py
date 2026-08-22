@@ -134,7 +134,7 @@ async def _update_plan_part_status(session_id: str, status: str, message_id: str
     from session.session import get_messages, save_part, get_session, plan_path_for
     from models.message import PlanPart
 
-    messages = await get_messages(session_id)
+    messages = await get_messages(session_id, user_id=user_id)
     # Search from most recent message backward for existing PlanPart
     for msg in reversed(messages):
         for part in reversed(msg.parts):
@@ -148,7 +148,7 @@ async def _update_plan_part_status(session_id: str, status: str, message_id: str
                     session_id=session_id,
                     message_id=part_data.get("message_id", msg.id),
                 )
-                await save_part(plan_part, is_new=False)
+                await save_part(plan_part, is_new=False, user_id=user_id)
                 log.info(f"Updated PlanPart {plan_part.id} status to '{status}'")
                 return
 
@@ -182,7 +182,7 @@ async def _update_plan_part_status(session_id: str, status: str, message_id: str
             session_id=session_id,
             message_id=target_msg_id,
         )
-        await save_part(plan_part, is_new=True)
+        await save_part(plan_part, is_new=True, user_id=user_id)
         log.info(f"Created PlanPart with status '{status}' from write tool content ({len(content)} chars)")
     else:
         log.warning(f"No PlanPart found in session {session_id} to update status to '{status}'")

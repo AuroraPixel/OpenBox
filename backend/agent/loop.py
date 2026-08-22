@@ -276,7 +276,7 @@ async def _upsert_plan_part(
 
     # Check if a PlanPart already exists on another message in this session.
     # If so, don't create a duplicate — just update that one with fresh content.
-    messages = await get_messages(session_id)
+    messages = await get_messages(session_id, user_id=user_id)
     for msg in reversed(messages):
         for part in reversed(msg.parts):
             pd = part if isinstance(part, dict) else (part.model_dump() if hasattr(part, "model_dump") else part)
@@ -398,7 +398,7 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
                 break
 
             # Load messages and apply compaction boundary filtering
-            all_msgs = await get_messages(session_id)
+            all_msgs = await get_messages(session_id, user_id=user_id)
             if not all_msgs:
                 break
             msgs = await filter_compacted(all_msgs)
@@ -859,7 +859,7 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
         async def _post_loop_cleanup() -> None:
             # Clean up any pending/running tool parts (matching opencode's processor cleanup)
             try:
-                final_msgs = await get_messages(session_id)
+                final_msgs = await get_messages(session_id, user_id=user_id)
                 for msg in final_msgs:
                     role = msg.role if isinstance(msg.role, str) else msg.role.value
                     if role != "assistant":
@@ -884,7 +884,7 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
 
             # Post-loop: prune old tool outputs
             try:
-                await prune_tool_outputs(session_id)
+                await prune_tool_outputs(session_id, user_id=user_id)
             except Exception as prune_err:
                 log.warning(f"Tool prune error: {prune_err}")
 

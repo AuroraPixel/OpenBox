@@ -115,7 +115,7 @@ async def _sweep_workspace() -> None:
 
     try:
         from sandbox import sandbox_manager
-        client = await sandbox_manager.get_client_any()
+        client = await sandbox_manager.get_only_client()
     except Exception as e:
         log.debug(f"No sandbox for workspace sweep: {e}")
         return

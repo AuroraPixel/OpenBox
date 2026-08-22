@@ -482,7 +482,7 @@ async def accept_plan(session_id: str, current_user: dict = Depends(get_current_
     from session.session import get_session, plan_path_for
 
     await _require_session_owned(session_id, user_id)
-    await _update_plan_part_status(session_id, "accepted")
+    await _update_plan_part_status(session_id, "accepted", user_id=user_id)
 
     session = await get_session(session_id, user_id=user_id)
     rel_path = (await plan_path_for(session)).replace("/workspace/", "") if session else ""
@@ -508,7 +508,7 @@ async def reject_plan(session_id: str, current_user: dict = Depends(get_current_
     from session.session import get_session
 
     await _require_session_owned(session_id, user_id)
-    await _update_plan_part_status(session_id, "rejected")
+    await _update_plan_part_status(session_id, "rejected", user_id=user_id)
 
     session = await get_session(session_id, user_id=user_id)
     await session_mod.create_user_message(
@@ -567,7 +567,7 @@ async def revert_to_message(session_id: str, message_id: str, current_user: dict
     user_id = current_user["user_id"]
     await _require_session_owned(session_id, user_id)
     from session.revert import revert_to_message as do_revert
-    success = await do_revert(session_id, message_id)
+    success = await do_revert(session_id, message_id, user_id=user_id)
     if not success:
         raise HTTPException(400, "Revert failed: no snapshot found for message")
     return {"ok": True}
@@ -579,7 +579,7 @@ async def unrevert(session_id: str, current_user: dict = Depends(get_current_use
     user_id = current_user["user_id"]
     await _require_session_owned(session_id, user_id)
     from session.revert import unrevert as do_unrevert
-    success = await do_unrevert(session_id)
+    success = await do_unrevert(session_id, user_id=user_id)
     if not success:
         raise HTTPException(400, "Unrevert failed: no revert to undo")
     return {"ok": True}

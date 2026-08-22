@@ -101,7 +101,7 @@ class FileDiff:
     status: str = "modified"  # "added", "modified", "deleted"
 
 
-async def track(session_id: str, sandbox=None) -> str | None:
+async def track(session_id: str, sandbox=None, user_id: str | None = None) -> str | None:
     """Create a snapshot of the current state using git write-tree.
 
     Returns a snapshot ID (git tree hash) or None on failure.
@@ -110,7 +110,14 @@ async def track(session_id: str, sandbox=None) -> str | None:
     if sandbox is None:
         try:
             from sandbox import sandbox_manager
-            sandbox = await sandbox_manager.get_client(session_id)
+            # Whose sandbox this is has to be said, not assumed. Falling back
+            # to a default user here could acquire — or create — a container
+            # belonging to someone else. A snapshot is best effort; skipping
+            # one is strictly better than touching the wrong sandbox.
+            if not user_id:
+                log.warning("No sandbox and no user_id for snapshot; skipping")
+                raise RuntimeError("snapshot needs an owner to acquire a sandbox")
+            sandbox = await sandbox_manager.get_client(session_id, user_id=user_id)
         except Exception as e:
             log.warning(f"Cannot get sandbox for snapshot: {e}")
             return None
@@ -146,7 +153,7 @@ async def track(session_id: str, sandbox=None) -> str | None:
         return None
 
 
-async def restore(snapshot_id: str, session_id: str, sandbox=None) -> bool:
+async def restore(snapshot_id: str, session_id: str, sandbox=None, user_id: str | None = None) -> bool:
     """Restore the working directory to a snapshot state.
 
     Uses git read-tree + checkout-index to restore files.
@@ -162,7 +169,14 @@ async def restore(snapshot_id: str, session_id: str, sandbox=None) -> bool:
     if sandbox is None:
         try:
             from sandbox import sandbox_manager
-            sandbox = await sandbox_manager.get_client(session_id)
+            # Whose sandbox this is has to be said, not assumed. Falling back
+            # to a default user here could acquire — or create — a container
+            # belonging to someone else. A snapshot is best effort; skipping
+            # one is strictly better than touching the wrong sandbox.
+            if not user_id:
+                log.warning("No sandbox and no user_id for snapshot; skipping")
+                raise RuntimeError("snapshot needs an owner to acquire a sandbox")
+            sandbox = await sandbox_manager.get_client(session_id, user_id=user_id)
         except Exception as e:
             log.warning(f"Cannot get sandbox for restore: {e}")
             return False
@@ -198,7 +212,7 @@ async def restore(snapshot_id: str, session_id: str, sandbox=None) -> bool:
         return False
 
 
-async def diff(from_snapshot: str, to_snapshot: str, sandbox=None, session_id: str = "") -> list[FileDiff]:
+async def diff(from_snapshot: str, to_snapshot: str, sandbox=None, session_id: str = "", user_id: str | None = None) -> list[FileDiff]:
     """Compute diff between two snapshots using git diff-tree.
 
     Returns a list of FileDiff objects describing the changes.
@@ -212,7 +226,14 @@ async def diff(from_snapshot: str, to_snapshot: str, sandbox=None, session_id: s
     if sandbox is None:
         try:
             from sandbox import sandbox_manager
-            sandbox = await sandbox_manager.get_client(session_id)
+            # Whose sandbox this is has to be said, not assumed. Falling back
+            # to a default user here could acquire — or create — a container
+            # belonging to someone else. A snapshot is best effort; skipping
+            # one is strictly better than touching the wrong sandbox.
+            if not user_id:
+                log.warning("No sandbox and no user_id for snapshot; skipping")
+                raise RuntimeError("snapshot needs an owner to acquire a sandbox")
+            sandbox = await sandbox_manager.get_client(session_id, user_id=user_id)
         except Exception as e:
             log.warning(f"Cannot get sandbox for diff: {e}")
             return []
@@ -286,7 +307,7 @@ async def diff(from_snapshot: str, to_snapshot: str, sandbox=None, session_id: s
         return []
 
 
-async def diff_full(from_snapshot: str, to_snapshot: str, sandbox=None, session_id: str = "") -> list[dict]:
+async def diff_full(from_snapshot: str, to_snapshot: str, sandbox=None, session_id: str = "", user_id: str | None = None) -> list[dict]:
     """Compute full diff with hunks between two snapshots.
 
     Returns a list of DiffEntry-compatible dicts including hunks.
@@ -297,7 +318,14 @@ async def diff_full(from_snapshot: str, to_snapshot: str, sandbox=None, session_
     if sandbox is None:
         try:
             from sandbox import sandbox_manager
-            sandbox = await sandbox_manager.get_client(session_id)
+            # Whose sandbox this is has to be said, not assumed. Falling back
+            # to a default user here could acquire — or create — a container
+            # belonging to someone else. A snapshot is best effort; skipping
+            # one is strictly better than touching the wrong sandbox.
+            if not user_id:
+                log.warning("No sandbox and no user_id for snapshot; skipping")
+                raise RuntimeError("snapshot needs an owner to acquire a sandbox")
+            sandbox = await sandbox_manager.get_client(session_id, user_id=user_id)
         except Exception as e:
             log.warning(f"Cannot get sandbox for diff_full: {e}")
             return []

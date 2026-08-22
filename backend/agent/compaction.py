@@ -186,7 +186,7 @@ async def create_compaction(session_id: str, auto: bool = True, user_id: str = "
             tail_start_id=tail_start_id,
         )
         from session.session import save_part
-        await save_part(part, is_new=True)
+        await save_part(part, is_new=True, user_id=user_id)
         log.info(f"Saved compaction part: {part.id} for message {msg.id}")
     except Exception as e:
         log.error(f"Failed to create compaction: {e}", exc_info=True)
@@ -328,7 +328,7 @@ async def process_compaction(
 
     # Force prune old tool outputs BEFORE building compaction messages.
     # This dramatically reduces token count before sending to the compaction LLM.
-    await prune_tool_outputs(session_id, aggressive=True, protect_from_id=tail_start_id)
+    await prune_tool_outputs(session_id, user_id=user_id, aggressive=True, protect_from_id=tail_start_id)
 
     # Re-fetch messages after pruning (tool outputs now cleared)
     from session.session import get_messages as _get_msgs
@@ -500,7 +500,7 @@ async def process_compaction(
     return "stop"
 
 
-async def prune_tool_outputs(session_id: str, aggressive: bool = False,
+async def prune_tool_outputs(session_id: str, user_id: str | None = None, aggressive: bool = False,
                              protect_from_id: str | None = None) -> None:
     """Prune old tool outputs to reduce token usage.
 
@@ -530,7 +530,7 @@ async def prune_tool_outputs(session_id: str, aggressive: bool = False,
 
     from session.session import get_messages
 
-    msgs = await get_messages(session_id)
+    msgs = await get_messages(session_id, user_id=user_id)
 
     total = 0
     pruned = 0
