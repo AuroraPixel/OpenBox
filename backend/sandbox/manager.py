@@ -80,6 +80,13 @@ class SandboxManager:
         if session_id:
             self._session_project.pop(session_id, None)
 
+        # Only forget containers this provider can make again. A shared,
+        # pre-provisioned box (the WUYING desktop) is not OpenBox's to evict:
+        # dropping it left every later request raising KeyError until the
+        # process restarted, because only the provider's __init__ registers it.
+        if not getattr(provider, "owns_containers", True):
+            return
+
         provider._containers.pop(sandbox.container_id, None)
         provider._api_keys.pop(sandbox.container_id, None)
         if hasattr(provider, "_container_owners"):

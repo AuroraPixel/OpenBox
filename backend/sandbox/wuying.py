@@ -35,6 +35,7 @@ class WuyingProvider(SandboxProvider):
     """Points every session at a single pre-provisioned WUYING cloud desktop."""
 
     supports_build = False
+    owns_containers = False
 
     def __init__(self) -> None:
         from core.config import get_config
@@ -51,18 +52,8 @@ class WuyingProvider(SandboxProvider):
         # tunnelled or TLS endpoint survives the round trip intact.
         self.client_base_url = self.endpoint
 
-        self._containers: dict[str, ContainerInfo] = {
-            CONTAINER_ID: ContainerInfo(
-                id=CONTAINER_ID,
-                name=self.desktop_id,
-                status=ContainerStatus.RUNNING,
-                image=f"wuying:{self.desktop_id}",
-                created_at=datetime.now(timezone.utc),
-                host=self._host,
-                port=self._port,
-                api_key=api_key,
-            )
-        }
+        self._api_key = api_key
+        self._containers: dict[str, ContainerInfo] = {CONTAINER_ID: self._build_desktop()}
         self._api_keys: dict[str, str] = {CONTAINER_ID: api_key}
         # Shared desktop: every user maps onto the same sandbox.
         self._container_owners: dict[str, str] = {}
@@ -72,13 +63,44 @@ class WuyingProvider(SandboxProvider):
             log.warning("WUYING_API_KEY is empty — the action server will reject every request")
         log.info(f"WUYING sandbox provider -> {self.endpoint} (desktop {self.desktop_id})")
 
+    def _build_desktop(self) -> ContainerInfo:
+        """The registry entry standing for the cloud desktop."""
+        return ContainerInfo(
+            id=CONTAINER_ID,
+            name=self.desktop_id,
+            status=ContainerStatus.RUNNING,
+            image=f"wuying:{self.desktop_id}",
+            created_at=datetime.now(timezone.utc),
+            host=self._host,
+            port=self._port,
+            api_key=self._api_key,
+        )
+
+    def _desktop(self) -> ContainerInfo:
+        """The one desktop, rebuilt if something evicted it.
+
+        The registry holds exactly one entry and OpenBox does not own it: the
+        desktop exists whether or not this process believes it does. Callers
+        that recycle a dead sandbox clear it from the provider's caches —
+        correct for containers OpenBox creates, fatal here, because nothing
+        outside __init__ ever put it back. One failed liveness check used to
+        strand every later request on KeyError until the process restarted.
+        """
+        info = self._containers.get(CONTAINER_ID)
+        if info is None:
+            log.warning("desktop entry was evicted from the registry; restoring it")
+            info = self._build_desktop()
+            self._containers[CONTAINER_ID] = info
+            self._api_keys.setdefault(CONTAINER_ID, info.api_key or "")
+        return info
+
     # -- lifecycle: the desktop already exists, so these are mostly inert --
 
     async def create_container(
         self, name: str, image: str | None = None,
         project_id: str | None = None, user_id: str | None = None,
     ) -> ContainerInfo:
-        return self._containers[CONTAINER_ID]
+        return self._desktop()
 
     async def delete_container(self, container_id: str, user_id: str | None = None) -> None:
         log.info("delete_container ignored — the WUYING desktop is not managed by OpenBox")
@@ -90,7 +112,7 @@ class WuyingProvider(SandboxProvider):
         log.info("stop_container ignored — the WUYING desktop is not managed by OpenBox")
 
     async def get_container(self, container_id: str, user_id: str | None = None) -> ContainerInfo:
-        return self._containers[CONTAINER_ID]
+        return self._desktop()
 
     async def list_containers(self) -> list[ContainerInfo]:
         return list(self._containers.values())
@@ -98,7 +120,7 @@ class WuyingProvider(SandboxProvider):
     # -- ownership: one shared desktop, so every user resolves to it --
 
     def get_user_container(self, user_id: str, project_id: str | None = None) -> ContainerInfo | None:
-        return self._containers[CONTAINER_ID]
+        return self._desktop()
 
     def get_containers_for_user(self, user_id: str) -> list[ContainerInfo]:
         return list(self._containers.values())
@@ -107,7 +129,7 @@ class WuyingProvider(SandboxProvider):
         return None
 
     async def ensure_user_container(self, user_id: str, project_id: str = "default") -> ContainerInfo:
-        return self._containers[CONTAINER_ID]
+        return self._desktop()
 
     # -- transport --
 
@@ -116,7 +138,7 @@ class WuyingProvider(SandboxProvider):
         user_id: str | None = None, **kwargs,
     ) -> httpx.Response:
         headers = kwargs.pop("headers", {})
-        headers["X-API-Key"] = self._api_keys.get(CONTAINER_ID, "")
+        headers["X-API-Key"] = self._api_keys.get(CONTAINER_ID) or (self._desktop().api_key or "")
         timeout = kwargs.pop("timeout", 35.0)
         # trust_env=False: see SandboxClient._client — a developer proxy must not
         # intercept traffic to the tunnel endpoint.

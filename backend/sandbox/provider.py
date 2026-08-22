@@ -33,6 +33,12 @@ class SandboxProvider(ABC):
 
     supports_build: bool = False
 
+    # Whether this provider creates and destroys the containers it hands out.
+    # False for a pre-provisioned box that outlives the process: callers must
+    # not evict it from the provider's caches when recycling a dead sandbox,
+    # because nothing will create it again.
+    owns_containers: bool = True
+
     # Providers that address the action server by URL (rather than by the
     # host/port pair on ContainerInfo) set this; SandboxManager prefers it when
     # building the client. Needed for tunnelled or TLS endpoints.
