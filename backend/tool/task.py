@@ -13,10 +13,19 @@ class TaskArgs(BaseModel):
 async def execute(args: TaskArgs, ctx: ToolContext) -> ToolResult:
     """Spawn a sub-agent to handle a task."""
     from session import session as session_mod
-    from agent.agent import get_agent
+    from agent.agent import get_agent, list_subagents
 
     # Resolve model: agent override > parent session's model (matching opencode)
     agent_def = get_agent(args.subagent_type)
+    # A primary agent is not spawnable. build and plan carry the whole
+    # conversational contract — plan mode's review handshake, build's
+    # todo bookkeeping — none of which means anything in a child session
+    # that answers one prompt and exits. opencode draws the same line.
+    if agent_def.mode == "primary":
+        raise ValueError(
+            f"'{args.subagent_type}' is not a subagent. Available: "
+            + ", ".join(sorted(a.name for a in list_subagents()))
+        )
     parent_session = await session_mod.get_session(ctx.session_id, user_id=ctx.user_id or "default")
     child_model = agent_def.model or (parent_session.model if parent_session else "")
 

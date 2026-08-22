@@ -211,5 +211,29 @@ def get_agent(name: str) -> AgentDef:
 
 
 def list_agents() -> list[AgentDef]:
-    """List all non-hidden agents."""
-    return [a for a in AGENTS.values() if not a.hidden]
+    """The agents a user may pick to talk to.
+
+    A subagent is not one of them. `explore` and `general` exist to be spawned
+    by the task tool with a single self-contained prompt; they have no
+    conversational prompt, and `explore` cannot even edit a file. Offering
+    them as modes to chat in advertises two dead ends. (opencode draws the
+    same line — `mode !== "subagent" && hidden !== true` — everywhere it
+    lists agents for a person to choose from.)
+    """
+    return [a for a in AGENTS.values() if a.mode != "subagent" and not a.hidden]
+
+
+def list_subagents() -> list[AgentDef]:
+    """The agents the task tool may spawn.
+
+    The mirror of {@link list_agents}: anything not exclusively primary.
+    Hidden agents are included — compaction and title are spawned by name,
+    never chosen — matching opencode's `item.mode !== "primary"`.
+    """
+    return [a for a in AGENTS.values() if a.mode != "primary"]
+
+
+def is_subagent(name: str) -> bool:
+    """Whether this agent may only run underneath another one."""
+    agent = AGENTS.get(name)
+    return agent is not None and agent.mode == "subagent"

@@ -160,16 +160,29 @@ def scan_messages(msgs: list) -> MessageScan:
     return scan
 
 
-def resolve_agent_name(last_user, session) -> str:
+def resolve_agent_name(last_user, session, is_child: bool = False) -> str:
     """Which agent runs this step.
 
     The user message wins over the session because tools that hand control
     over — plan_exit, for one — do it by synthesising a user message naming
     the agent to switch to.
+
+    A subagent named on a top-level session is ignored rather than obeyed.
+    `explore` and `general` are built to be handed one self-contained prompt
+    by the task tool; run as the conversation's own agent they have no
+    conversational prompt and, for explore, no way to edit anything. An older
+    client that still lists them — they used to be offered — would otherwise
+    strand the session in an agent that cannot hold a conversation.
     """
-    return (getattr(last_user, "agent", None)
+    from agent.agent import is_subagent
+
+    name = (getattr(last_user, "agent", None)
             or getattr(session, "agent", None)
             or "build")
+    if not is_child and is_subagent(name):
+        log.warning(f"Ignoring subagent '{name}' named on a top-level session; using build")
+        return "build"
+    return name
 
 
 def apply_agent_overrides(agent_def, overrides):
@@ -476,13 +489,21 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
             if step == 1 and (not session.title or session.title.startswith("New session")):
                 asyncio.create_task(_ensure_title(session_id, last_user, user_id=user_id))
 
-            # Get agent definition (copy to avoid mutating global)
-            agent_name = resolve_agent_name(last_user, session)
+            # Get agent definition (copy to avoid mutating global).
+            # A child session is exactly where a subagent belongs, so the
+            # guard below only applies to top-level conversations.
+            agent_name = resolve_agent_name(
+                last_user, session, is_child=bool(getattr(session, "parent_id", None))
+            )
 
             # Sync session agent if the user message requests a different one
             # (e.g. plan_exit creates a synthetic user message with agent="build")
             if agent_name != session.agent:
-                await update_session(session_id, agent=agent_name)
+                # user_id is not optional: update_session filters on it, so
+                # omitting it wrote against the literal user "default" and
+                # matched nothing. The switch out of plan mode has been
+                # silently failing to stick for every real account.
+                await update_session(session_id, user_id=user_id, agent=agent_name)
                 session = await get_session(session_id, user_id=user_id)
                 # Notify frontend of agent change via SSE
                 from bus.events import SESSION_UPDATED

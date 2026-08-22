@@ -387,7 +387,10 @@ async def process_step(
                         # from the session. Rebinding agent_def here would only
                         # touch this function's local and mislead the reader.
                         get_agent(agent_switch)
-                        await update_session(session_id, agent=agent_switch)
+                        # user_id is not optional here — update_session
+                        # filters on it, so omitting it silently updated
+                        # nobody and the switch never took effect.
+                        await update_session(session_id, user_id=user_id, agent=agent_switch)
                         log.info(f"Agent switched to {agent_switch}")
                     except ValueError:
                         log.warning(f"Unknown agent for switch: {agent_switch}")
