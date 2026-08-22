@@ -166,9 +166,12 @@ interface Props {
   /** The turn is live — the card offers to stop it and keeps its bar moving. */
   streaming: boolean
   onStop?: () => void
+  /** This is the conversation's newest card — see ChatFlow for why only that
+   *  one takes edits. */
+  editable?: boolean
 }
 
-export function TodoCard({ todo, sessionId, streaming, onStop }: Props) {
+export function TodoCard({ todo, sessionId, streaming, onStop, editable: isLatest = true }: Props) {
   const { t } = useTranslation("chat")
   const now = useNow(streaming && !todo.allDone)
   const add = useAddTodoItem(sessionId)
@@ -190,7 +193,7 @@ export function TodoCard({ todo, sessionId, streaming, onStop }: Props) {
   // affordance is never *offered* on a finished list — but a run can finish
   // between opening the box and pressing Enter, and dropping what someone
   // typed at that moment reads as the app eating their input.
-  const editable = !todo.allDone || adding !== null
+  const editable = isLatest && (!todo.allDone || adding !== null)
   const heading = todo.activeForm ?? t(streaming ? "todo.working" : "todo.title")
 
   function submit() {

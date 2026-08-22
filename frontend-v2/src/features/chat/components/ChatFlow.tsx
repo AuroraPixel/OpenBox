@@ -62,6 +62,18 @@ export function ChatFlow({ turns, sessionId, busy, footer, onStop }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [atBottom, setAtBottom] = useState(true)
 
+  // Only the newest card may be edited. The list is one live thing per
+  // session, so an edit made from a scrolled-up card would land on the
+  // current list and then show up in a *different* card than the one the
+  // user clicked. Older cards stay as the record of how the list looked.
+  const lastTodoKey = useMemo(() => {
+    for (let i = turns.length - 1; i >= 0; i -= 1) {
+      const turn = turns[i]
+      if (turn.kind === "assistant" && turn.parts.some((p) => p.type === "todo")) return turn.key
+    }
+    return null
+  }, [turns])
+
   const rows = useMemo<Row[]>(() => {
     const list: Row[] = turns.map((turn, i) => ({
       key: turn.key,
@@ -75,6 +87,7 @@ export function ChatFlow({ turns, sessionId, busy, footer, onStop }: Props) {
             sessionId={sessionId}
             streaming={busy && i === turns.length - 1}
             onStop={onStop}
+            todoEditable={turn.key === lastTodoKey}
           />
         ),
     }))
@@ -82,7 +95,7 @@ export function ChatFlow({ turns, sessionId, busy, footer, onStop }: Props) {
       list.push({ key: "typing", node: <TypingRow /> })
     }
     return list
-  }, [turns, sessionId, busy, onStop])
+  }, [turns, sessionId, busy, onStop, lastTodoKey])
 
   const atBottomRef = useRef(true)
   const onScroll = useCallback(() => {

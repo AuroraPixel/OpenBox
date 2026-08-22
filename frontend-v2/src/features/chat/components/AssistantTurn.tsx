@@ -28,6 +28,9 @@ interface Props {
   streaming: boolean
   /** Abort the run — offered by the task card while one is in flight. */
   onStop?: () => void
+  /** This turn holds the conversation's newest task card, so its card is the
+   *  one that may be edited. */
+  todoEditable?: boolean
 }
 
 /** Images with an OSS asset render as a gallery; anything else stays a chip. */
@@ -35,7 +38,7 @@ function isGalleryImage(part: { asset_id?: string; mime_type?: string }): boolea
   return Boolean(part.asset_id) && Boolean(part.mime_type?.startsWith("image/"))
 }
 
-export function AssistantTurn({ parts, sessionId, meta, streaming, onStop }: Props) {
+export function AssistantTurn({ parts, sessionId, meta, streaming, onStop, todoEditable }: Props) {
   const view = useMemo(() => buildTurnView(parts), [parts])
   const hasContent = view.content.trim().length > 0
   // Traces that opened themselves collapse once prose starts arriving.
@@ -68,6 +71,7 @@ export function AssistantTurn({ parts, sessionId, meta, streaming, onStop }: Pro
           sessionId={sessionId}
           streaming={streaming}
           onStop={onStop}
+          editable={todoEditable}
         />
       ) : null}
       {/* Whatever the card did not account for: on a todo turn that is the
