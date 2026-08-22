@@ -39,7 +39,14 @@ export function useChatEvents(sessionId: string): void {
       wsClient.on("session.finalizing", (d) => stream.setStatus(d.sessionId, "finalizing")),
       wsClient.on("session.error", (d) => stream.setStatus(d.sessionId, "error")),
       wsClient.on("session.title", () => void qc.invalidateQueries({ queryKey: ["sessions", userId] })),
-      wsClient.on("session.updated", () => void qc.invalidateQueries({ queryKey: ["sessions", userId] })),
+      // Also the single session, not just the sidebar list: the composer's
+      // mode picker reads that record, and the agent changes underneath it
+      // whenever the model enters or leaves plan mode. Without this the
+      // picker kept claiming the old mode until something else refetched.
+      wsClient.on("session.updated", (d) => {
+        void qc.invalidateQueries({ queryKey: ["sessions", userId] })
+        if (d.sessionId) void qc.invalidateQueries({ queryKey: ["session", userId, d.sessionId] })
+      }),
       wsClient.on(
         "todo.updated",
         (d) => void qc.invalidateQueries({ queryKey: chatKeys.todo(userId, d.sessionId) }),

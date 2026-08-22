@@ -1,4 +1,5 @@
 """Authentication API routes — register, login, refresh, logout, ticket."""
+import hashlib as _hashlib
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException, Request, Response, Depends
@@ -73,6 +74,18 @@ async def _check_rate_limit(key: str, limit: int, window: int):
 
 
 # ── Routes ──
+
+def _blacklist_key(token: str) -> str:
+    """Cache key identifying one refresh token.
+
+    A hash of the whole token, never a prefix. Every JWT this service issues
+    opens with the same base64 header — `token[:32]` was that header verbatim,
+    identical for every token of every user. Blacklisting one therefore
+    blacklisted all of them: a single logout silently signed the whole
+    deployment out and kept it that way until the entry expired.
+    """
+    return f"jwt_bl:{_hashlib.sha256(token.encode()).hexdigest()}"
+
 
 @router.post("/register", response_model=TokenResponse)
 async def register(body: RegisterRequest, request: Request, response: Response):
@@ -243,7 +256,7 @@ async def refresh(request: Request, response: Response):
         raise HTTPException(status_code=401, detail="No refresh token")
 
     # Check if refresh token is blacklisted
-    if _cache and await _cache.exists(f"jwt_bl:{token[:32]}"):
+    if _cache and await _cache.exists(_blacklist_key(token)):
         raise HTTPException(status_code=401, detail="Token has been revoked")
 
     payload = decode_refresh_token(token)
@@ -277,7 +290,7 @@ async def logout(request: Request, response: Response, current_user: dict = Depe
             import time
             exp = payload.get("exp", 0)
             ttl = max(int(exp - time.time()), 1)
-            await _cache.set(f"jwt_bl:{refresh_token[:32]}", "1", ttl=ttl)
+            await _cache.set(_blacklist_key(refresh_token), "1", ttl=ttl)
 
     response.delete_cookie("refresh_token", path="/api/auth")
     return {"ok": True}
@@ -295,7 +308,7 @@ async def extension_auth(body: ExtensionAuthRequest):
 
     Returns a one-time ticket for WebSocket connection + user info.
     """
-    if _cache and await _cache.exists(f"jwt_bl:{body.refresh_token[:32]}"):
+    if _cache and await _cache.exists(_blacklist_key(body.refresh_token)):
         raise HTTPException(status_code=401, detail="Token has been revoked")
 
     payload = decode_refresh_token(body.refresh_token)
