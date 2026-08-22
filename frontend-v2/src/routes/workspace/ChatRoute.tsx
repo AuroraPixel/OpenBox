@@ -52,8 +52,13 @@ export default function ChatRoute() {
   const messages = useStreamStore((s) => s.messages.get(sessionId) ?? EMPTY_MESSAGES)
   const status = useStreamStore((s) => s.status.get(sessionId))
   const turns = useMemo(() => mergeTurns(messages), [messages])
-  // Fall back to running-tool detection so a session opened mid-run still reads
-  // as busy before the first live session.status event arrives.
+  // A tool part left as "running" is the fallback signal for busy, but only
+  // while the session's real status is still unknown — a session opened
+  // mid-run reads as busy from this before its first session.status event.
+  // Once status is known it is authoritative: pressing stop sets it to idle,
+  // and the button must flip at once rather than waiting for the backend to
+  // finish tearing down and report the tool aborted. Reading a stale running
+  // part as busy after an explicit idle is exactly what made stop feel dead.
   const hasRunningTool = useMemo(
     () =>
       messages.some((m) =>
@@ -61,7 +66,7 @@ export default function ChatRoute() {
       ),
     [messages],
   )
-  const busy = isBusyStatus(status) || hasRunningTool
+  const busy = status === undefined ? hasRunningTool : isBusyStatus(status)
 
   const session = useSessionQuery(sessionId)
   const send = useSendChat(sessionId)

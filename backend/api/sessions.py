@@ -830,6 +830,11 @@ async def _run_loop_with_log(session_id: str, user_id: str, attachment_ids: list
     Attachments land in the sandbox BEFORE the loop starts — the message text
     references their /workspace/uploads paths, so the agent must find them.
     """
+    # A stop nobody claimed belongs to work the user has already moved on from;
+    # asking for new work retires it. A stop pressed from here on still lands,
+    # because it is recorded after this point and consumed by register_run.
+    from session.status import discard_pending_abort
+    discard_pending_abort(session_id)
     try:
         if attachment_ids:
             try:

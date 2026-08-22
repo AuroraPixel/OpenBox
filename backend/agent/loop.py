@@ -870,7 +870,11 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
                                     from session.session import update_part_data
                                     p["status"] = "error"
                                     p["error"] = ABORTED_TOOL_ERROR
-                                    await update_part_data(part_id, p)
+                                    # Publish: the stop button's whole point is
+                                    # that this row stops spinning. Without the
+                                    # event the store keeps the stale running
+                                    # copy and the composer stays busy.
+                                    await update_part_data(part_id, p, publish=True, user_id=user_id)
             except Exception as cleanup_err:
                 log.warning(f"Tool cleanup error: {cleanup_err}")
 

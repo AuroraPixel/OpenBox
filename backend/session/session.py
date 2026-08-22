@@ -722,12 +722,29 @@ async def get_parts_for_message(message_id: str) -> list[dict]:
         return [p.data for p in result.scalars().all()]
 
 
-async def update_part_data(part_id: str, data: dict) -> None:
-    """Update a part's data directly by ID."""
+async def update_part_data(part_id: str, data: dict, publish: bool = False, user_id: str = "default") -> None:
+    """Update a part's data directly by ID.
+
+    Persists silently by default — some callers (compaction pruning) only
+    stamp bookkeeping the UI never renders. Pass ``publish=True`` when the
+    change is user-visible, e.g. a tool flipping to ``error`` on abort: without
+    the event the row spins forever, because the store still holds the stale
+    ``running`` copy until something forces a refetch.
+    """
     async with get_db_session() as db:
         await db.execute(
             update(PartORM).where(PartORM.id == part_id).values(data=data)
         )
+    if not publish:
+        return
+    sse_dict = {k: v for k, v in data.items() if k not in ("session_id", "message_id", "state")}
+    from bus.events import PART_UPDATED
+    bus.publish(PART_UPDATED, {
+        "userId": user_id,
+        "sessionId": data.get("session_id", ""),
+        "messageId": data.get("message_id", ""),
+        "part": sse_dict,
+    })
 
 
 async def check_message_has_synthetic_text(message_id: str) -> bool:
