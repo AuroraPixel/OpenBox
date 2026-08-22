@@ -45,6 +45,14 @@
       "reject": "Back to discussion"
     }
   },
+  "todo": {
+    "title": "Task list",
+    "working": "Working",
+    "allDone": "Done — {{total}} of {{total}} steps",
+    "addAfter": "Insert a step after this one",
+    "remove": "Remove this step",
+    "addPlaceholder": "Describe a task, press Enter to add"
+  },
   "permission": {
     "title": "Permission request",
     "body": "The agent wants to perform this action:",

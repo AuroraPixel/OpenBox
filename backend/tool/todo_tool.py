@@ -59,13 +59,22 @@ async def _publish_todo_part(ctx: ToolContext, items: list) -> None:
             message_id=ctx.message_id,
         ),
         is_new=True,
+        # Not optional: the bus routes this part's event by user id, so
+        # leaving it at the default delivers the live update to nobody and
+        # the card only turns up on the next reload.
+        user_id=ctx.user_id or "default",
     )
 
 
 async def execute_write(args: TodoWriteArgs, ctx: ToolContext) -> ToolResult:
     """Replace the entire todo list atomically."""
-    from session.todo import replace_todos
+    from session.todo import get_todo, pacing_note, replace_todos
     from models.message import TodoItem
+
+    # Read outside the write lock on purpose: this copy only feeds the advice
+    # at the end, never the stored list. Advice from a list one write stale
+    # costs nothing; taking the lock twice would cost a deadlock.
+    before = await get_todo(ctx.session_id)
 
     items = [
         TodoItem(
@@ -85,11 +94,12 @@ async def execute_write(args: TodoWriteArgs, ctx: ToolContext) -> ToolResult:
     todo = await replace_todos(ctx.session_id, items, user_id=ctx.user_id or "default")
     await _publish_todo_part(ctx, todo.items)
     active = sum(1 for t in todo.items if t.status not in ("completed", "cancelled"))
+
+    listing = "\n".join(f"[{t.status}] {t.subject}" for t in todo.items) or "Todo list cleared."
+    note = pacing_note(before.items, todo.items)
     return ToolResult(
         title=f"{active} todos",
-        output="\n".join(
-            f"[{t.status}] {t.subject}" for t in todo.items
-        ) or "Todo list cleared.",
+        output=f"{listing}\n\n{note}" if note else listing,
     )
 
 
@@ -97,6 +107,24 @@ TODO_WRITE_DESCRIPTION = """\
 Use this tool to create and manage a structured task list for your current coding session. \
 This helps you track progress, organize complex tasks, and demonstrate thoroughness to the user.
 It also helps the user understand the progress of the task and overall progress of their requests.
+
+## The two rules that matter most
+
+**1. One call per status change, as it happens.** The user watches this list \
+to follow what you are doing right now. A list that is written once and \
+completed once at the end tells them nothing while they wait, and loses the \
+record of which work belonged to which task. Concretely, for every task:
+
+    todo_write  → mark THIS task in_progress   (before starting it)
+    ...do the work for that task...
+    todo_write  → mark THIS task completed     (immediately after)
+
+That is two calls per task, interleaved with the work. Never do the work for \
+several tasks and then mark them all complete together.
+
+**2. Exactly one task is in_progress at a time.** Never zero while you are \
+working, never two. If nothing is in_progress, mark the next task before you \
+touch anything else.
 
 IMPORTANT: This tool uses full-replacement semantics. Every time you call this tool, you must \
 provide the COMPLETE updated todo list — not just one item. Include ALL existing items (with \
@@ -111,8 +139,8 @@ Use this tool proactively in these scenarios:
 4. User provides multiple tasks — When users provide a list of things to be done (numbered or comma-separated)
 5. After receiving new instructions — Immediately capture user requirements as todos. Feel free to edit the todo list based on new information.
 6. After completing a task — Mark it complete and add any new follow-up tasks
-7. When you start working on a new task, mark the todo as in_progress. Ideally you should only have one todo as in_progress at a time. Complete existing tasks before starting new ones.
-8. When all tasks are done, call this tool one final time to mark all remaining items as completed. Do not leave items in in_progress status.
+7. When you start working on a new task, mark the todo as in_progress BEFORE doing the work. Exactly one todo is in_progress at a time. Complete existing tasks before starting new ones.
+8. Never leave a task in_progress once it is finished, and never end a run with items still in_progress. Mark each one completed as you finish it — not all of them together at the end.
 
 ## When NOT to Use This Tool
 

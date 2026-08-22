@@ -45,6 +45,14 @@
       "reject": "回到讨论"
     }
   },
+  "todo": {
+    "title": "任务清单",
+    "working": "正在执行",
+    "allDone": "已完成 {{total}} / {{total}} 步",
+    "addAfter": "在此后插入一步",
+    "remove": "移除这一步",
+    "addPlaceholder": "描述要做的事，回车添加"
+  },
   "permission": {
     "title": "请求权限",
     "body": "agent 想要执行以下操作：",

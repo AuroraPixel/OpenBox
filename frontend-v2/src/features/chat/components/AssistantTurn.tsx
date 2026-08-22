@@ -15,6 +15,7 @@ import { ProcessTrace } from "./ProcessTrace"
 import { StepDivider } from "./StepDivider"
 import { StreamSkeleton } from "./StreamSkeleton"
 import { ThinkingTrace } from "./ThinkingTrace"
+import { TodoCard } from "./TodoCard"
 import { ToolChainTrace } from "./ToolChainTrace"
 
 const Markdown = lazy(() => import("./Markdown"))
@@ -25,6 +26,8 @@ interface Props {
   meta: AssistantTurnMeta
   /** This is the live turn. */
   streaming: boolean
+  /** Abort the run — offered by the task card while one is in flight. */
+  onStop?: () => void
 }
 
 /** Images with an OSS asset render as a gallery; anything else stays a chip. */
@@ -32,7 +35,7 @@ function isGalleryImage(part: { asset_id?: string; mime_type?: string }): boolea
   return Boolean(part.asset_id) && Boolean(part.mime_type?.startsWith("image/"))
 }
 
-export function AssistantTurn({ parts, sessionId, meta, streaming }: Props) {
+export function AssistantTurn({ parts, sessionId, meta, streaming, onStop }: Props) {
   const view = useMemo(() => buildTurnView(parts), [parts])
   const hasContent = view.content.trim().length > 0
   // Traces that opened themselves collapse once prose starts arriving.
@@ -59,6 +62,17 @@ export function AssistantTurn({ parts, sessionId, meta, streaming }: Props) {
         streaming={thinkingLive}
         autoCollapseReady={autoCollapseReady}
       />
+      {view.todo ? (
+        <TodoCard
+          todo={view.todo}
+          sessionId={sessionId}
+          streaming={streaming}
+          onStop={onStop}
+        />
+      ) : null}
+      {/* Whatever the card did not account for: on a todo turn that is the
+          calls made outside any task, and on every other turn it is the
+          whole chain, exactly as before. */}
       <ToolChainTrace
         tools={view.tools}
         streaming={toolsLive}

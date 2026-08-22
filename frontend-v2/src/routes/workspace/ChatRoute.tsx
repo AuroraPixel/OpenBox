@@ -8,7 +8,6 @@ import {
   ChatFlow,
   Composer,
   PermissionCard,
-  PlanCard,
   QuestionCard,
   isBusyStatus,
   mergeTurns,
@@ -20,7 +19,6 @@ import {
   useQuestionsQuery,
   useSendChat,
   useStreamStore,
-  useTodoQuery,
 } from "@/features/chat"
 import { useSessionQuery } from "@/features/chat/api/message-actions"
 
@@ -73,16 +71,16 @@ export default function ChatRoute() {
     useStreamStore.getState().setStatus(sessionId, "idle")
   }
 
-  const todoQ = useTodoQuery(sessionId, busy)
-  const todoItems = todoQ.data?.items ?? []
   const permissions = usePendingStore((s) => s.permissions.get(sessionId) ?? EMPTY_PERMS)
   const questions = usePendingStore((s) => s.questions.get(sessionId) ?? EMPTY_QUESTIONS)
 
   const loading = messagesQ.isLoading && messages.length === 0
 
+  // The task list used to live here, as a card pinned under the last turn,
+  // fed by a REST query and thrown away when the run ended. It renders inside
+  // the turn now (TodoCard), where the calls it organises actually are.
   const footer = (
     <>
-      {busy && todoItems.length > 0 && <PlanCard items={todoItems} onStop={stop} />}
       {permissions.map((p) => (
         <PermissionCard key={p.id} request={p} />
       ))}
@@ -99,7 +97,7 @@ export default function ChatRoute() {
           <Spinner className="size-6" />
         </div>
       ) : (
-        <ChatFlow turns={turns} sessionId={sessionId} busy={busy} footer={footer} />
+        <ChatFlow turns={turns} sessionId={sessionId} busy={busy} footer={footer} onStop={stop} />
       )}
       <Composer
         busy={busy}

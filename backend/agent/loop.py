@@ -569,6 +569,7 @@ async def run_loop(session_id: str, user_id: str = "default") -> MessageWithPart
             # learns the user touched its list, and the first step of a run
             # is exactly when an edit made while idle is waiting.
             llm_messages = await _insert_todo_notices(llm_messages, session_id)
+            llm_messages = await _insert_todo_pacing(llm_messages, session_id)
 
             # Estimate context size and update frontend in real-time
             from core.token import token_estimate as _te
@@ -1470,6 +1471,11 @@ async def _insert_todo_notices(messages: list[dict], session_id: str) -> list[di
         "Keep these changes in your todo list and act on them.\n"
         "</system-reminder>"
     )
+    return _append_to_last_user(messages, reminder)
+
+
+def _append_to_last_user(messages: list[dict], reminder: str) -> list[dict]:
+    """Hang an ephemeral reminder off the newest user message."""
     result = list(messages)
     for i in range(len(result) - 1, -1, -1):
         if result[i].get("role") == "user":
@@ -1477,6 +1483,38 @@ async def _insert_todo_notices(messages: list[dict], session_id: str) -> list[di
             result[i]["content"] = (result[i].get("content") or "") + "\n\n" + reminder
             return result
     return result
+
+
+async def _insert_todo_pacing(messages: list[dict], session_id: str) -> list[dict]:
+    """Nudge a model that planned tasks but never started one.
+
+    A backstop behind todo_write's own result. The failure it catches is the
+    model writing its plan and then working straight through it: the list
+    stays all-pending, so nothing that happens can be attributed to a task
+    and the user watches a list that never moves. Only fires while a list
+    with unstarted work exists, so an ordinary run never sees it.
+    """
+    from session.todo import get_todo
+
+    if not messages:
+        return messages
+    todo = await get_todo(session_id)
+    if not todo.items:
+        return messages
+    if any(t.status == "in_progress" for t in todo.items):
+        return messages
+    waiting = next((t for t in todo.items if t.status == "pending"), None)
+    if waiting is None:
+        return messages
+
+    return _append_to_last_user(
+        messages,
+        "<system-reminder>\n"
+        "Your todo list has tasks waiting and none in progress. Call "
+        f'todo_write now marking "{waiting.subject}" as in_progress, then do '
+        "that task, then mark it completed before starting the next one.\n"
+        "</system-reminder>",
+    )
 
 
 def _find_pending_compaction(msgs: list[MessageWithParts]) -> tuple | None:

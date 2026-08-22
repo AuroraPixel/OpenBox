@@ -50,12 +50,14 @@ interface Props {
   turns: Turn[]
   sessionId: string
   busy: boolean
-  /** Pending cards / plan card rendered below the last turn, inside the scroll area. */
+  /** Pending cards rendered below the last turn, inside the scroll area. */
   footer?: ReactNode
+  /** Abort the run; the live turn's task card offers it. */
+  onStop?: () => void
 }
 
 /** Scrolling message column: centered, auto-sticks to the bottom, back-to-bottom fab. */
-export function ChatFlow({ turns, sessionId, busy, footer }: Props) {
+export function ChatFlow({ turns, sessionId, busy, footer, onStop }: Props) {
   const { t } = useTranslation("chat")
   const scrollRef = useRef<HTMLDivElement>(null)
   const [atBottom, setAtBottom] = useState(true)
@@ -72,6 +74,7 @@ export function ChatFlow({ turns, sessionId, busy, footer }: Props) {
             meta={turn.meta}
             sessionId={sessionId}
             streaming={busy && i === turns.length - 1}
+            onStop={onStop}
           />
         ),
     }))
@@ -79,7 +82,7 @@ export function ChatFlow({ turns, sessionId, busy, footer }: Props) {
       list.push({ key: "typing", node: <TypingRow /> })
     }
     return list
-  }, [turns, sessionId, busy])
+  }, [turns, sessionId, busy, onStop])
 
   const atBottomRef = useRef(true)
   const onScroll = useCallback(() => {

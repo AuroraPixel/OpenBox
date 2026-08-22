@@ -157,6 +157,45 @@ async def replace_todos(
         return todo
 
 
+def pacing_note(previous: list[TodoItem], merged: list[TodoItem]) -> str:
+    """What to tell the model about *when* it is updating the list.
+
+    Left to itself a model treats the list as paperwork: it writes the plan,
+    does all the work, then marks everything done in one final write. The
+    list ends up correct and completely useless — it never says which task
+    was running, so nothing that happened can be attributed to a step, and
+    the user watches an unchanging list for the whole run.
+
+    Saying so in the tool description is not enough; it is one paragraph in
+    a long page the model skims once. Saying it here puts it in the tool's
+    own result, at the exact moment the mistake was made.
+    """
+    was_done = {t.id for t in previous if t.status == "completed"}
+    just_done = [t for t in merged if t.status == "completed" and t.id not in was_done]
+    running = [t for t in merged if t.status == "in_progress"]
+    waiting = [t for t in merged if t.status == "pending"]
+
+    lines: list[str] = []
+    if len(just_done) > 1:
+        lines.append(
+            f"You marked {len(just_done)} tasks complete in one write. Mark each "
+            "task complete as you finish it, not in a batch at the end — the "
+            "user is watching this list to follow along."
+        )
+    if len(running) > 1:
+        lines.append(
+            f"{len(running)} tasks are in_progress. Exactly one task may be "
+            "in_progress at a time."
+        )
+    if not running and waiting:
+        lines.append(
+            f'Nothing is in_progress. Before you start the next task, call '
+            f'todo_write again marking "{waiting[0].subject}" as in_progress. '
+            "Do that first, then do the work."
+        )
+    return "\n".join(lines)
+
+
 async def pending_notices(session_id: str) -> list[str]:
     """Edits the user made that the model has not been told about yet."""
     data = await storage.read(["todo_notice", session_id])

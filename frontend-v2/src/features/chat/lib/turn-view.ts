@@ -14,6 +14,8 @@ import type {
   PlanPart,
   RetryPart,
   SubtaskPart,
+  TodoItem,
+  TodoPart,
   ToolPart,
   TokenUsage,
 } from "@/shared/types/api"
@@ -95,10 +97,119 @@ export interface TurnView {
   notices: NoticePart[]
   /** Total wall-clock of the turn's steps, seconds. */
   durationSec: number
+  /** Present when the turn kept a todo list; the card renders instead of the
+   *  flat tool chain. */
+  todo: TodoView | null
+}
+
+/** One task, with the calls made while it was the one in progress. */
+export interface TodoTask {
+  item: TodoItem
+  tools: ToolLike[]
+}
+
+export interface TodoView {
+  tasks: TodoTask[]
+  /** Calls made before any task started — the model looking around before it
+   *  knew what the list was. */
+  before: ToolLike[]
+  /** Calls made after the last task closed: tidying up, not part of a step. */
+  after: ToolLike[]
+  /** The heading: the running task's own wording, when it gave one. */
+  activeForm: string | null
+  done: number
+  /** Steps that count towards the total — a cancelled task is not one. */
+  total: number
+  /** 1-based position of the running task, or `done` when nothing runs. */
+  current: number
+  allDone: boolean
+}
+
+/** The tools a todo turn shows outside the card, in order. */
+export function looseTools(todo: TodoView): ToolLike[] {
+  return [...todo.before, ...todo.after]
+}
+
+/** Tools the card itself accounts for; the flat chain must not repeat them. */
+function isTodoTool(part: ToolLike): boolean {
+  return part.type === "tool" && (part.tool === "todo_write" || part.tool === "todo_read")
+}
+
+/** Group a turn's calls under the task that was running when each was made.
+ *
+ *  The todo parts are snapshots in stream order, so the task in progress at
+ *  any point is the one the most recent snapshot had in progress. A call
+ *  before the first snapshot belongs to no task; so does one made after every
+ *  task closed. Both are shown outside the card rather than forced under a
+ *  step they did not belong to.
+ */
+function buildTodoView(parts: MessagePart[]): TodoView | null {
+  const snapshots = parts.filter((p): p is TodoPart => p.type === "todo")
+  if (snapshots.length === 0) return null
+
+  const buckets = new Map<string, ToolLike[]>()
+  const before: ToolLike[] = []
+  const after: ToolLike[] = []
+  let running: string | null = null
+  let started = false
+
+  for (const part of parts) {
+    if (part.type === "todo") {
+      // The model is told to keep one task in progress. When it breaks that
+      // rule, the newest wins — that is the one it just moved to.
+      const active = [...part.items].reverse().find((i) => i.status === "in_progress")
+      running = active?.id ?? null
+      if (running) started = true
+      continue
+    }
+    if (part.type !== "tool" && part.type !== "subtask") continue
+    if (isTodoTool(part)) continue
+    if (running) {
+      const bucket = buckets.get(running) ?? []
+      bucket.push(part)
+      buckets.set(running, bucket)
+    } else if (started) {
+      after.push(part)
+    } else {
+      before.push(part)
+    }
+  }
+
+  const items = snapshots[snapshots.length - 1].items
+  const tasks = items.map((item) => ({ item, tools: buckets.get(item.id) ?? [] }))
+  const counted = items.filter((i) => i.status !== "cancelled")
+  const done = counted.filter((i) => i.status === "completed").length
+  const activeIndex = counted.findIndex((i) => i.status === "in_progress")
+  const active = activeIndex >= 0 ? counted[activeIndex] : null
+
+  return {
+    tasks,
+    before,
+    after,
+    activeForm: active?.active_form?.trim() || null,
+    done,
+    total: counted.length,
+    current: activeIndex >= 0 ? activeIndex + 1 : done,
+    allDone: counted.length > 0 && done === counted.length,
+  }
 }
 
 function isRunning(part: ToolLike): boolean {
   return part.status === "running" || part.status === "pending"
+}
+
+/** How long a call took, in seconds, or null if it never said.
+ *
+ *  Two places, because the live event and the stored part disagree: the
+ *  `tool.completed` event puts it on the part, while what gets persisted has
+ *  it under `metadata`. Reading only the first made every duration in a
+ *  reloaded conversation read as zero.
+ */
+export function toolDuration(part: ToolLike): number | null {
+  if (part.type !== "tool") return null
+  if (typeof part.duration === "number") return part.duration
+  const stored = part.metadata?.duration
+  return typeof stored === "number" ? stored : null
 }
 
 export function buildTurnView(parts: MessagePart[]): TurnView {
@@ -114,6 +225,7 @@ export function buildTurnView(parts: MessagePart[]): TurnView {
     plans: [],
     notices: [],
     durationSec: 0,
+    todo: null,
   }
 
   const reasoning: string[] = []
@@ -128,7 +240,7 @@ export function buildTurnView(parts: MessagePart[]): TurnView {
       case "tool":
       case "subtask":
         view.tools.push(p)
-        if (p.type === "tool" && typeof p.duration === "number") view.durationSec += p.duration
+        view.durationSec += toolDuration(p) ?? 0
         break
       case "step-finish":
         // The context actually sent upstream for this step.
@@ -152,6 +264,7 @@ export function buildTurnView(parts: MessagePart[]): TurnView {
       case "agent":
         view.notices.push(p)
         break
+      case "todo":
       case "step-start":
         break
     }
@@ -164,5 +277,15 @@ export function buildTurnView(parts: MessagePart[]): TurnView {
   view.toolsStreaming = view.tools.some(isRunning)
   // Reasoning is live while it is the newest thing the model emitted.
   view.thinkingStreaming = lastPartType === "reasoning"
+
+  view.todo = buildTodoView(parts)
+  if (view.todo) {
+    // The card accounts for every call it filed under a task, so the flat
+    // chain keeps only what fell outside — and drops the todo bookkeeping
+    // calls, which the card *is*. Turns without a card are untouched: those
+    // rows are the only trace those sessions have.
+    view.tools = looseTools(view.todo)
+    view.toolsStreaming = view.tools.some(isRunning)
+  }
   return view
 }

@@ -2,7 +2,6 @@
 export { ChatFlow } from "./components/ChatFlow"
 export { Composer } from "./components/Composer"
 export { EmptyState } from "./components/EmptyState"
-export { PlanCard } from "./components/PlanCard"
 export { PermissionCard } from "./components/PermissionCard"
 export { QuestionCard } from "./components/QuestionCard"
 
@@ -11,7 +10,7 @@ export { useSendChat } from "./hooks/useSendChat"
 export { useStartChat } from "./hooks/useStartChat"
 
 export { useMessagesQuery, useAbortSession } from "./api/messages"
-export { useTodoQuery } from "./api/todo"
+export { useAddTodoItem, useRemoveTodoItem, useTodoQuery } from "./api/todo"
 export { usePermissionsQuery } from "./api/permission"
 export { useQuestionsQuery } from "./api/question"
 

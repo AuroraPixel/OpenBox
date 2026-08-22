@@ -138,6 +138,16 @@ export interface PlanPart {
   content: string
 }
 
+/** The todo list as it stood at one moment. Appended on every change, so the
+ *  order of these against the tool parts is what says which task each call
+ *  belongs to — the todo *list* only ever holds the latest state. */
+export interface TodoPart {
+  type: "todo"
+  id: string
+  items: TodoItem[]
+  source?: "model" | "user"
+}
+
 export type MessagePart =
   | TextPart
   | ReasoningPart
@@ -151,6 +161,7 @@ export type MessagePart =
   | AgentSwitchPart
   | RetryPart
   | PlanPart
+  | TodoPart
 
 export type MessageRole = "user" | "assistant" | "system"
 
@@ -196,12 +207,19 @@ export interface DiffEntry {
   hunks?: DiffHunk[]
 }
 
+export type TodoStatus = "pending" | "in_progress" | "completed" | "cancelled"
 export interface TodoItem {
   id: string
   subject: string
   description?: string
-  status: "pending" | "in_progress" | "completed"
+  status: TodoStatus
+  /** Present-tense wording used as the card's heading while this runs. */
   active_form?: string
+  priority?: "high" | "medium" | "low"
+  /** Who put this on the list — the user's own items can be removed outright. */
+  source?: "model" | "user"
+  /** ISO time this first became in_progress; the progress bar reads it. */
+  started_at?: string | null
 }
 export interface TodoList {
   items: TodoItem[]

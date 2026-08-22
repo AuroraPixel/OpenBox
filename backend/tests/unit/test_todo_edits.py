@@ -6,7 +6,7 @@ the JSON lands.
 import pytest
 
 import session.todo as todo_mod
-from agent.loop import _insert_todo_notices, _unnudged_user_todos
+from agent.loop import _insert_todo_notices, _insert_todo_pacing, _unnudged_user_todos
 from models.message import TodoItem
 
 
@@ -145,3 +145,128 @@ async def test_a_finished_task_is_not_raised():
         "s", [TodoItem(subject="mine", status="completed")]
     )
     assert await _unnudged_user_todos("s", set()) == []
+
+
+# ── pacing ──
+
+async def test_planning_without_starting_is_called_out():
+    note = todo_mod.pacing_note([], [TodoItem(subject="first"), TodoItem(subject="second")])
+    assert "in_progress" in note
+    assert "first" in note
+
+
+async def test_starting_a_task_draws_no_comment():
+    merged = [TodoItem(subject="first", status="in_progress"), TodoItem(subject="second")]
+    assert todo_mod.pacing_note([], merged) == ""
+
+
+async def test_finishing_several_tasks_at_once_is_called_out():
+    before = [
+        TodoItem(id="1", subject="a", status="in_progress"),
+        TodoItem(id="2", subject="b"),
+    ]
+    after = [
+        TodoItem(id="1", subject="a", status="completed"),
+        TodoItem(id="2", subject="b", status="completed"),
+    ]
+    assert "one write" in todo_mod.pacing_note(before, after)
+
+
+async def test_finishing_one_task_draws_no_comment():
+    before = [
+        TodoItem(id="1", subject="a", status="in_progress"),
+        TodoItem(id="2", subject="b", status="in_progress"),
+    ]
+    after = [
+        TodoItem(id="1", subject="a", status="completed"),
+        TodoItem(id="2", subject="b", status="in_progress"),
+    ]
+    assert todo_mod.pacing_note(before, after) == ""
+
+
+async def test_running_two_tasks_at_once_is_called_out():
+    merged = [
+        TodoItem(id="1", subject="a", status="in_progress"),
+        TodoItem(id="2", subject="b", status="in_progress"),
+    ]
+    assert "one task may be in_progress" in todo_mod.pacing_note([], merged)
+
+
+async def test_a_finished_list_draws_no_comment():
+    before = [TodoItem(id="1", subject="a", status="in_progress")]
+    after = [TodoItem(id="1", subject="a", status="completed")]
+    assert todo_mod.pacing_note(before, after) == ""
+
+
+async def test_a_cancelled_task_does_not_count_as_waiting():
+    merged = [TodoItem(subject="a", status="completed"), TodoItem(subject="b", status="cancelled")]
+    assert todo_mod.pacing_note([], merged) == ""
+
+
+# ── the loop's backstop ──
+
+async def test_a_stalled_list_is_raised_on_the_next_step():
+    await todo_mod.replace_todos("s", [TodoItem(subject="first"), TodoItem(subject="second")])
+    out = await _insert_todo_pacing([{"role": "user", "content": "go"}], "s")
+    assert "in_progress" in out[0]["content"]
+    assert "first" in out[0]["content"]
+
+
+async def test_a_moving_list_is_left_alone():
+    await todo_mod.replace_todos("s", [TodoItem(subject="first", status="in_progress")])
+    msgs = [{"role": "user", "content": "go"}]
+    assert await _insert_todo_pacing(msgs, "s") is msgs
+
+
+async def test_a_session_with_no_list_is_left_alone():
+    msgs = [{"role": "user", "content": "go"}]
+    assert await _insert_todo_pacing(msgs, "s") is msgs
+
+
+async def test_a_finished_list_is_left_alone():
+    await todo_mod.replace_todos("s", [TodoItem(subject="first", status="completed")])
+    msgs = [{"role": "user", "content": "go"}]
+    assert await _insert_todo_pacing(msgs, "s") is msgs
+
+
+# ── the live update ──
+
+async def test_the_card_update_is_addressed_to_the_user_watching_it(monkeypatch):
+    """The tool's part event must carry the real user id.
+
+    Parts are routed to a WebSocket by user id, and this one defaulted to
+    "default" — so the part was stored but its event went to nobody, and the
+    card only appeared on the next page load.
+    """
+    from tool.tool import ToolContext
+    from tool.todo_tool import _publish_todo_part
+
+    seen: dict = {}
+
+    async def fake_save_part(part, is_new=False, user_id="default"):
+        seen["type"] = part.type
+        seen["user_id"] = user_id
+
+    import session.session as session_mod
+    monkeypatch.setattr(session_mod, "save_part", fake_save_part)
+
+    ctx = ToolContext(session_id="s", user_id="user_real", message_id="msg_1")
+    await _publish_todo_part(ctx, [TodoItem(subject="a")])
+    assert seen == {"type": "todo", "user_id": "user_real"}
+
+
+async def test_no_card_update_without_a_message_to_hang_it_on(monkeypatch):
+    from tool.tool import ToolContext
+    from tool.todo_tool import _publish_todo_part
+
+    called = False
+
+    async def fake_save_part(part, is_new=False, user_id="default"):
+        nonlocal called
+        called = True
+
+    import session.session as session_mod
+    monkeypatch.setattr(session_mod, "save_part", fake_save_part)
+
+    await _publish_todo_part(ToolContext(session_id="s", user_id="u"), [TodoItem(subject="a")])
+    assert called is False
